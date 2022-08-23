@@ -3,7 +3,7 @@ from AquaML import TaskArgs
 from AquaML import RLPolicyManager
 from AquaML.policy.GaussianPolicy import GaussianPolicy
 from AquaML import RLWorker
-import multiprocessing as mp
+import time
 import os
 import AquaML as A
 from mpi4py import MPI
@@ -18,7 +18,8 @@ def mkdir(path):
 
 
 class TaskRunner:
-    def __init__(self, task_args: TaskArgs, actor_policy: GaussianPolicy, critic, algo, work_space: str, env, comm:MPI.COMM_WORLD):
+    def __init__(self, task_args: TaskArgs, actor_policy: GaussianPolicy, critic, algo, work_space: str, env,
+                 comm: MPI.COMM_WORLD):
         """
         Run your algorithm.
 
@@ -49,6 +50,52 @@ class TaskRunner:
         self.comm = comm
         self.size = comm.Get_size()
         self.rank = comm.Get_rank()
+
+        if self.rank == 0:
+            hierarchical_info = {'hierarchical': A.MAIN_THREAD, 'start_pointer': -1, 'end_pointer': -1}
+            self.data_manager = DataManager(
+                obs_dic=self.task_args.obs_info,
+                action_dic=self.task_args.actor_outputs_info,
+                actor_input_info=self.task_args.actor_inputs_info,
+                critic_input_info=self.task_args.critic_inputs_info,
+                reward_list=self.task_args.reward_info,
+                total_length=self.task_args.env_args.total_steps,
+                work_space=self.work_space,
+                hierarchical_info=hierarchical_info
+            )
+            self.policy_manager = RLPolicyManager(actor_policy=self.actor_policy, critic_model=self.critic,
+                                                  action_info=self.task_args.actor_outputs_info,
+                                                  actor_input_info=self.task_args.actor_inputs_info,
+                                                  work_space=self.work_space,
+                                                  hierarchical=hierarchical_info['hierarchical'])
+            self.optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
+                                       data_manager=self.data_manager, policy=self.policy_manager)
+        else:
+            start, end = self.task_args.env_args.sync(self.rank)
+            hierarchical_info = {'hierarchical': A.SUB_THREAD, 'start_pointer': start, 'end_pointer': end}
+            time.sleep(5)
+            self.data_manager = DataManager(
+                obs_dic=self.task_args.obs_info,
+                action_dic=self.task_args.actor_outputs_info,
+                actor_input_info=self.task_args.actor_inputs_info,
+                critic_input_info=self.task_args.critic_inputs_info,
+                reward_list=self.task_args.reward_info,
+                total_length=self.task_args.env_args.total_steps,
+                work_space=self.work_space,
+                hierarchical_info=hierarchical_info
+            )
+            self.policy_manager = RLPolicyManager(actor_policy=self.actor_policy, critic_model=self.critic,
+                                                  action_info=self.task_args.actor_outputs_info,
+                                                  actor_input_info=self.task_args.actor_inputs_info,
+                                                  work_space=self.work_space,
+                                                  hierarchical=hierarchical_info['hierarchical'])
+            self.worker = RLWorker(
+                env_args=self.task_args.env_args,
+                policy=self.policy_manager,
+                dara_manager=self.data_manager,
+                env=self.env
+            )
+
         # self.barrier = mp.Barrier(self.task_args.env_args.worker_num + 1)
         # self.barrier2 = mp.Barrier(self.task_args.env_args.worker_num + 1)
         # if self.task_args.env_args.worker_num > 1:
@@ -92,10 +139,25 @@ class TaskRunner:
     #         self.algo.optimize()
 
     def run(self):
-        if self.rank == 0:
-            self.create_optimizer()
-        else:
-            self.sample(self.rank+1)
+        for i in range(self.task_args.algo_param.epochs):
+            if self.rank == 0:
+                self.policy_manager.sync(self.model_path)
+            else:
+                pass
+            self.comm.Barrier()
+
+            if self.rank > 0:
+                self.policy_manager.sync(self.model_path)
+                self.worker.roll()
+
+            self.comm.Barrier()
+
+            if self.rank == 0:
+                self.optimizer.optimize()
+            self.comm.Barrier()
+
+        self.policy_manager.close()
+        self.data_manager.close()
         # optimize_thread.join()
 
     def sample(self, process_id=0):
@@ -108,7 +170,7 @@ class TaskRunner:
         import tensorflow as tf
         # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
-        print("sampling")
+        # print("sampling")
 
         if process_id == 1:
             raise ValueError("Sampling thread can't create share memory block.")

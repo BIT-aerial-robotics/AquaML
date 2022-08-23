@@ -36,12 +36,12 @@ action_dims = env.action_space.shape[0]
 
 env_args = EnvArgs(
     max_steps=200,
-    total_steps=2000,
+    total_steps=4000,
     worker_num=1
 )
 
 algo_param = PPOHyperParam(
-    epochs=10,
+    epochs=100,
     batch_size=200,
     update_times=4
 )

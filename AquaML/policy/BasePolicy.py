@@ -44,10 +44,10 @@ class BasePolicy(abc.ABC):
                 raise ValueError('Target model is not used.')
 
     def save_model(self, file_path, save_target=False):
-        tf.keras.models.save_model(self.model, file_path + '/' + self.name + '.h5')
+        tf.keras.models.save_model(self.model, file_path + '/' + self.name + '.h5', overwrite=True)
         if save_target:
             if self.target_model:
-                tf.keras.models.save_model(self.model, file_path + '/' + self.name + '_target.h5')
+                tf.keras.models.save_model(self.model, file_path + '/' + self.name + '_target.h5', overwrite=True)
             else:
                 raise ValueError('Target model is not used.')
 

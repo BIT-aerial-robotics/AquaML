@@ -39,12 +39,12 @@ else:
 #         ])
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-physical_devices = tf.config.experimental.list_physical_devices('GPU')
-if len(physical_devices) > 0:
-    for k in range(len(physical_devices)):
-        tf.config.experimental.set_memory_growth(physical_devices[k], True)
-        print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# physical_devices = tf.config.experimental.list_physical_devices('GPU')
+# if len(physical_devices) > 0:
+#     for k in range(len(physical_devices)):
+#         tf.config.experimental.set_memory_growth(physical_devices[k], True)
+#         print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
 
 env = gym.make("Pendulum-v1")
 observation_dims = env.observation_space.shape[0]
@@ -52,13 +52,13 @@ action_dims = env.action_space.shape[0]
 
 env_args = EnvArgs(
     max_steps=200,
-    total_steps=2000,
+    total_steps=4000,
     worker_num=size-1
 )
 
 algo_param = PPOHyperParam(
     epochs=100,
-    batch_size=64,
+    batch_size=200,
     update_times=4
 )
 
@@ -86,7 +86,7 @@ critic = mlp(
 actor = mlp(
     state_dims=observation_dims,
     output_dims=1,
-    hidden_size=(32, 32),
+    hidden_size=(64, 64),
     name='actor',
     output_activation='tanh'
 )
@@ -98,7 +98,7 @@ task_runner = TaskRunner(
     actor_policy=actor_policy,
     critic=critic,
     algo=PPO,
-    work_space='test2',
+    work_space='test4',
     env=GymEnvWrapper('Pendulum-v1'),
     comm=comm
 )

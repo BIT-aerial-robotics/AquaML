@@ -68,11 +68,11 @@ class RLPolicyManager:
 
     def sync(self, sync_path):
         if self.hierarchical == A.MAIN_THREAD:
-            self.actor_policy.save_model(sync_path)
-            self.critic.save_model(sync_path)
+            self.actor_policy.save_weights(sync_path)
+            self.critic.save_weights(sync_path)
         else:
-            self.actor_policy.load_model(sync_path)
-            self.critic.load_model(sync_path)
+            self.actor_policy.load_weights(sync_path)
+            self.critic.load_weights(sync_path)
 
         self.actor_policy.sync()
 

@@ -76,28 +76,32 @@ class TaskRunner:
         #                  data_manager=self.data_manager, policy=self.policy_manager)
 
     # debug mode
-    # def run(self):
-    #     worker = RLWorker(
-    #         env_args=self.task_args.env_args,
-    #         policy=self.policy_manager,
-    #         dara_manager=self.data_manager,
-    #         env=self.env
-    #     )
-    #
-    #     for i in range(self.task_args.algo_param.epochs):
-    #         worker.roll()
-    #         self.algo.optimize()
-
     def run(self):
-        sampling_threads = [mp.Process(target=self.sample, args=(i + 2,)) for i in
-                            range(self.task_args.env_args.worker_num)]
+        self.initial(0)
+        worker = RLWorker(
+            env_args=self.task_args.env_args,
+            policy=self.policy_manager,
+            dara_manager=self.data_manager,
+            env=self.env
+        )
 
-        # optimize_thread = mp.Process(target=self.create_optimizer)
-        # optimize_thread.start()
-        for sampling_thread in sampling_threads:
-            sampling_thread.start()
+        optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
+                              data_manager=self.data_manager, policy=self.policy_manager)
 
-        self.create_optimizer()
+        for i in range(self.task_args.algo_param.epochs):
+            worker.roll()
+            optimizer.optimize()
+
+    # def run(self):
+    #     sampling_threads = [mp.Process(target=self.sample, args=(i + 2,)) for i in
+    #                         range(self.task_args.env_args.worker_num)]
+    #
+    #     # optimize_thread = mp.Process(target=self.create_optimizer)
+    #     # optimize_thread.start()
+    #     for sampling_thread in sampling_threads:
+    #         sampling_thread.start()
+    #
+    #     self.create_optimizer()
 
         # optimize_thread.join()
 

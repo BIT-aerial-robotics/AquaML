@@ -1,4 +1,24 @@
-from AquaML.args.TrainArgs import TrainArgs
+# from AquaML.args.TrainArgs import TrainArgs
+from AquaML.data.ArgsUnit import ArgsUnit
+
+
+class TrainArgs:
+    def __init__(self,
+                 # lstm训练参数
+                 burn_in: int or None = None,
+                 traj_length: int or None = None,
+                 overlap_size: int or None = None
+                 ):
+        """
+        This args points to each algorithm, it controls pre-process of data.
+
+        :param burn_in: (int) Use some data to initiate networks hidden state.
+        """
+        self.burn_in = ArgsUnit('burn_in', burn_in)
+        self.traj_length = ArgsUnit('traj_length', traj_length)
+        self.overlap_size = ArgsUnit('overlap_size', overlap_size)
+        self.args = {'burn_in': self.burn_in, 'traj_length': self.traj_length,
+                     'overlap_size': self.overlap_size}
 
 
 class EnvArgs:
@@ -19,7 +39,7 @@ class EnvArgs:
         :param process_id:
         :return:
         """
-        start_point = self.one_thread_total_steps*(process_id - 1)
+        start_point = self.one_thread_total_steps * (process_id - 1)
         end_pointer = self.one_thread_total_steps * process_id - 1
 
         return start_point, end_pointer

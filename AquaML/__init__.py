@@ -1,6 +1,5 @@
 from AquaML.manager.DataManager import DataManager
 from AquaML.args.RLArgs import *
-from AquaML.args.TrainArgs import TrainArgs
 from AquaML.manager.RLPolicyManager import RLPolicyManager
 from AquaML.Tool.RLWorker import RLWorker
 

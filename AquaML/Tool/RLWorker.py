@@ -25,6 +25,7 @@ class RLWorker:
             # self.dara_manager.reset()
             self.reset_flag = False
             self.step_count = 0
+            self.policy.reset_actor(1)
         # else:
         #     obs = obs_
 

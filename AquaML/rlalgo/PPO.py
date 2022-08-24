@@ -27,7 +27,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
         self.critic_optimizer = tf.optimizers.Adam(learning_rate=self.algo_param.critic_learning_rate)
         self.actor_optimizer = tf.optimizers.Adam(learning_rate=self.algo_param.actor_learning_rate)
 
-    def _optimize(self, data_dict_ac):
+    def _optimize(self, data_dict_ac, args: dict):
         # prepare data
 
         data_dict_ac['actor'].append(True)
@@ -43,8 +43,16 @@ class ProximalPolicyOptimization(BaseRLAlgo):
 
         # get value
         if self.data_manager.action.get('value') is None:
-            tf_value = self.policy.critic(*critic_inputs)
-            tf_next_value = self.policy.critic(*next_critic_inputs)
+            if self.train_args.critic_is_batch_timesteps:
+                tf_value = self.policy.critic(*critic_inputs)
+                tf_next_value = self.policy.critic(*next_critic_inputs)
+            else:
+                new_critic_inputs = self.data_manager.batch_features(critic_inputs[:-1], True)
+                new_critic_inputs.append(True)
+                new_next_critic_inputs = self.data_manager.batch_features(next_critic_inputs[:-1], True)
+                new_next_critic_inputs.append(True)
+                tf_value = self.policy.critic(*new_critic_inputs)
+                tf_next_value = self.policy.critic(*new_next_critic_inputs)
         else:
             tf_value = tf.convert_to_tensor(self.data_manager.action['value'].data, dtype=tf.float32)
             tf_next_value = tf.zeros_like(tf_value)
@@ -54,10 +62,16 @@ class ProximalPolicyOptimization(BaseRLAlgo):
                                           tf_next_value,
                                           self.data_manager.mask.data)
 
+        if self.train_args.actor_is_batch_timesteps:
+            buffer = self.data_manager.batch_timesteps({'gae': gae, 'target': target}, args.get('traj_length'),
+                                                       args.get('overlap_size'))
+            gae = buffer['gae']
+            target = buffer['target']
+
         tf_gae = tf.convert_to_tensor(gae, dtype=tf.float32)
         tf_target = tf.convert_to_tensor(target, dtype=tf.float32)
 
-        max_step = self.data_manager.mask.data.shape[0]
+        max_step = gae.shape[0]
 
         # optimize_time = 0
 
@@ -67,7 +81,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
             start_pointer = 0
             end_pointer = self.algo_param.batch_size
 
-            while end_pointer < max_step - 1:
+            while True:
                 batch_actor_inputs = self.data_manager.slice_tuple_list(actor_inputs[:-1], start_pointer, end_pointer)
                 batch_actor_inputs.append(True)
                 batch_critic_inputs = self.data_manager.slice_tuple_list(critic_inputs[:-1], start_pointer, end_pointer)
@@ -75,6 +89,16 @@ class ProximalPolicyOptimization(BaseRLAlgo):
                 batch_gae = tf_gae[start_pointer:end_pointer]
                 batch_target = tf_target[start_pointer: end_pointer]
                 batch_act = self.data_manager.slice_tuple_list(act, start_pointer, end_pointer)
+
+                self.policy.reset_actor(batch_target.shape[0])
+
+                if self.train_args.critic_is_batch_timesteps:
+                    pass
+                else:
+                    batch_critic_inputs = self.data_manager.batch_features(batch_critic_inputs[:-1], True)
+                    batch_target = self.data_manager.batch_features([batch_target, ], True)
+                    batch_target = batch_target[0]
+                    batch_critic_inputs.append(True)
 
                 optimization_info = self.train_policy(batch_actor_inputs, batch_critic_inputs, batch_act, batch_gae,
                                                       batch_target)
@@ -86,6 +110,9 @@ class ProximalPolicyOptimization(BaseRLAlgo):
 
                 end_pointer = end_pointer + self.algo_param.batch_size
 
+                if end_pointer > max_step:
+                    break
+
                 # print("training")
 
         total_opt_info = np.mean(total_opt_info, axis=0)
@@ -94,7 +121,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
 
         return total_opt_info
 
-    @tf.function
+    # @tf.function
     def train_policy(self, act_obs: tuple, critic_obs: tuple, act: tuple, gae, target):
         """
         Optimize the policy.

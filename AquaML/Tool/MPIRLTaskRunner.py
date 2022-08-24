@@ -7,6 +7,7 @@ import time
 import os
 import AquaML as A
 from mpi4py import MPI
+import numpy as np
 
 
 def mkdir(path):
@@ -51,6 +52,8 @@ class TaskRunner:
         self.size = comm.Get_size()
         self.rank = comm.Get_rank()
 
+        # self.actor_policy.model(np.zeros((1,1,2)))
+
         if self.rank == 0:
             hierarchical_info = {'hierarchical': A.MAIN_THREAD, 'start_pointer': -1, 'end_pointer': -1}
             self.data_manager = DataManager(
@@ -67,7 +70,9 @@ class TaskRunner:
                                                   action_info=self.task_args.actor_outputs_info,
                                                   actor_input_info=self.task_args.actor_inputs_info,
                                                   work_space=self.work_space,
-                                                  hierarchical=hierarchical_info['hierarchical'])
+                                                  hierarchical=hierarchical_info['hierarchical'],
+                                                  actor_is_batch_timestep=self.task_args.training_args.actor_is_batch_timesteps
+                                                  )
             self.optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
                                        data_manager=self.data_manager, policy=self.policy_manager)
         else:
@@ -88,7 +93,9 @@ class TaskRunner:
                                                   action_info=self.task_args.actor_outputs_info,
                                                   actor_input_info=self.task_args.actor_inputs_info,
                                                   work_space=self.work_space,
-                                                  hierarchical=hierarchical_info['hierarchical'])
+                                                  hierarchical=hierarchical_info['hierarchical'],
+                                                  actor_is_batch_timestep=self.task_args.training_args.actor_is_batch_timesteps
+                                                  )
             self.worker = RLWorker(
                 env_args=self.task_args.env_args,
                 policy=self.policy_manager,

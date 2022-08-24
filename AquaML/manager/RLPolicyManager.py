@@ -1,3 +1,5 @@
+import numpy as np
+
 from AquaML.policy.GaussianPolicy import GaussianPolicy
 from AquaML.policy.CriticPolicy import CriticPolicy
 
@@ -8,7 +10,7 @@ import tensorflow as tf
 class RLPolicyManager:
     def __init__(self, actor_policy: GaussianPolicy, hierarchical, action_info: dict, actor_input_info: list,
                  work_space: str,
-                 critic_model=None):
+                 critic_model=None, actor_is_batch_timestep: bool = False):
         self.actor_policy = actor_policy
         # self.critic_model = critic_model
         self.actor_input_info = actor_input_info
@@ -21,6 +23,8 @@ class RLPolicyManager:
         self.hierarchical = hierarchical
 
         self.action_name = list(action_info)
+
+        self.actor_is_batch_timestep = actor_is_batch_timestep
 
         # TODO: optimize this, bug.
         if self.actor_policy.type == A.STOCHASTIC:
@@ -56,7 +60,11 @@ class RLPolicyManager:
         input_obs = []
 
         for key in self.actor_input_info:
-            input_obs.append(tf.cast(obs[key], dtype=tf.float32))
+            if self.actor_is_batch_timestep:
+                buffer = np.expand_dims(obs[key], axis=0)
+            else:
+                buffer = obs[key]
+            input_obs.append(tf.cast(buffer, dtype=tf.float32))
 
         input_obs.append(False)
 
@@ -79,5 +87,7 @@ class RLPolicyManager:
     def close(self):
         self.actor_policy.close()
 
+    def reset_actor(self, args):
+        self.actor_policy.reset(args)
 
     # def save_model(self):

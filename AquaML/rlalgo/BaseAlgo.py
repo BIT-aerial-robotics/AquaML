@@ -119,15 +119,16 @@ class BaseRLAlgo(abc.ABC):
             'overlap_size': self.train_args.overlap_size
         }
 
-        data_dict_ac = self.data_manager.get_input_data(args_dict=args)
+        data_dict_ac = self.data_manager.get_input_data(self.train_args.actor_is_batch_timesteps,
+                                                        self.train_args.critic_is_batch_timesteps, args_dict=args)
 
-        opt_info = self._optimize(data_dict_ac)
+        opt_info = self._optimize(data_dict_ac, args)
         for key, val in opt_info.items():
             print(key + ": {}".format(val))
         self.epoch += 1
 
     @abc.abstractmethod
-    def _optimize(self, data_dict_ac):
+    def _optimize(self, data_dict_ac, args: dict):
         """
         Policy optimization method.
         :return:

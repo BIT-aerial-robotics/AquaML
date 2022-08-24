@@ -3,10 +3,8 @@ from AquaML import TaskArgs
 from AquaML import RLPolicyManager
 from AquaML.policy.GaussianPolicy import GaussianPolicy
 from AquaML import RLWorker
-import multiprocessing as mp
 import os
 import AquaML as A
-from mpi4py import MPI
 
 
 def mkdir(path):
@@ -46,8 +44,8 @@ class TaskRunner:
 
         self.algo = algo
         self.env = env
-        self.barrier = mp.Barrier(self.task_args.env_args.worker_num + 1)
-        self.barrier2 = mp.Barrier(self.task_args.env_args.worker_num + 1)
+        # self.barrier = mp.Barrier(self.task_args.env_args.worker_num + 1)
+        # self.barrier2 = mp.Barrier(self.task_args.env_args.worker_num + 1)
         # if self.task_args.env_args.worker_num > 1:
         #     self.barrier = mp.Barrier(self.task_args.env_args.worker_num + 1)
         #     self.barrier2 = mp.Barrier(self.task_args.env_args.worker_num + 1)
@@ -55,6 +53,18 @@ class TaskRunner:
         #     self.barrier = None
         #     self.barrier2 = None
         # main thread initial
+
+        self.initial(0)
+
+        self.worker = RLWorker(
+            env_args=self.task_args.env_args,
+            policy=self.policy_manager,
+            dara_manager=self.data_manager,
+            env=self.env
+        )
+
+        self.optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
+                                   data_manager=self.data_manager, policy=self.policy_manager)
 
         # self.data_manager = DataManager(
         #     obs_dic=task_args.obs_info,
@@ -77,20 +87,10 @@ class TaskRunner:
 
     # debug mode
     def run(self):
-        self.initial(0)
-        worker = RLWorker(
-            env_args=self.task_args.env_args,
-            policy=self.policy_manager,
-            dara_manager=self.data_manager,
-            env=self.env
-        )
-
-        optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
-                              data_manager=self.data_manager, policy=self.policy_manager)
 
         for i in range(self.task_args.algo_param.epochs):
-            worker.roll()
-            optimizer.optimize()
+            self.worker.roll()
+            self.optimizer.optimize()
 
     # def run(self):
     #     sampling_threads = [mp.Process(target=self.sample, args=(i + 2,)) for i in
@@ -103,7 +103,7 @@ class TaskRunner:
     #
     #     self.create_optimizer()
 
-        # optimize_thread.join()
+    # optimize_thread.join()
 
     def sample(self, process_id=0):
         """
@@ -170,7 +170,9 @@ class TaskRunner:
                                               action_info=self.task_args.actor_outputs_info,
                                               actor_input_info=self.task_args.actor_inputs_info,
                                               work_space=self.work_space,
-                                              hierarchical=hierarchical_info['hierarchical'])
+                                              hierarchical=hierarchical_info['hierarchical'],
+                                              actor_is_batch_timestep=self.task_args.training_args.actor_is_batch_timesteps
+                                              )
 
         # return data_manager, policy_manager
 

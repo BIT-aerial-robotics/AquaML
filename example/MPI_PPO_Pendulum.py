@@ -7,7 +7,8 @@ from AquaML.Tool.neural import mlp
 from AquaML.Tool.MPIRLTaskRunner import TaskRunner
 from AquaML.Tool.GymEnvWrapper import GymEnvWrapper
 from AquaML.policy.GaussianPolicy import GaussianPolicy
-
+from ModelExample import LSTMActor1
+import numpy as np
 import gym
 import os
 import tensorflow as tf
@@ -52,22 +53,24 @@ action_dims = env.action_space.shape[0]
 
 env_args = EnvArgs(
     max_steps=200,
-    total_steps=4000,
-    worker_num=size-1
+    total_steps=3*200*30,
+    worker_num=size - 1
 )
 
 algo_param = PPOHyperParam(
     epochs=100,
-    batch_size=200,
+    batch_size=30,
     update_times=4
 )
 
-training_args = TrainArgs()
+training_args = TrainArgs(
+    actor_is_batch_timesteps=True
+)
 
 task_args = TaskArgs(
     algo_param=algo_param,
-    obs_info={'obs': (observation_dims,)},
-    actor_inputs_info=list({'obs'}),
+    obs_info={'obs': (observation_dims,), 'pos': (2,)},
+    actor_inputs_info=list({'pos'}),
     actor_outputs_info={'action': (action_dims,), 'prob': (action_dims,)},
     critic_inputs_info=list({'obs'}),
     reward_info=list({'total_reward'}),
@@ -83,22 +86,24 @@ critic = mlp(
     name='value'
 )
 
-actor = mlp(
-    state_dims=observation_dims,
-    output_dims=1,
-    hidden_size=(64, 64),
-    name='actor',
-    output_activation='tanh'
-)
+# actor = mlp(
+#     state_dims=observation_dims,
+#     output_dims=1,
+#     hidden_size=(64, 64),
+#     name='actor',
+#     output_activation='tanh'
+# )
 
-actor_policy = GaussianPolicy(actor, name='actor')
+actor = LSTMActor1()
+actor(np.zeros((1, 1, 2)))
+actor_policy = GaussianPolicy(actor, name='actor', reset_flag=True)
 
 task_runner = TaskRunner(
     task_args=task_args,
     actor_policy=actor_policy,
     critic=critic,
     algo=PPO,
-    work_space='test4',
+    work_space='test12',
     env=GymEnvWrapper('Pendulum-v1'),
     comm=comm
 )

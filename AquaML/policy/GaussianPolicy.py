@@ -6,8 +6,8 @@ import AquaML as A
 
 
 class GaussianPolicy(BasePolicy):
-    def __init__(self, model: tf.keras.Model, name: str):
-        super().__init__(model=model, name=name)
+    def __init__(self, model: tf.keras.Model, name: str, reset_flag=False):
+        super().__init__(model=model, name=name, reset_flag=reset_flag)
         self.type = A.STOCHASTIC
         self.distribution = None
         self.hierarchical = None
@@ -94,7 +94,7 @@ class GaussianPolicy(BasePolicy):
 
         return noise, prob
 
-    @tf.function
+    # @tf.function
     def __call__(self, *args):
         """
         If use @tf.funtion should modify this function.
@@ -133,7 +133,7 @@ class GaussianPolicy(BasePolicy):
 
         return out
 
-    @tf.function
+    # @tf.function
     def run_model(self, *args):
 
         return self.model(*args)

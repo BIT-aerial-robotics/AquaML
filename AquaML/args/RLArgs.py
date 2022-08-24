@@ -7,18 +7,23 @@ class TrainArgs:
                  # lstm训练参数
                  burn_in: int or None = None,
                  traj_length: int or None = None,
-                 overlap_size: int or None = None
+                 overlap_size: int or None = None,
+                 actor_is_batch_timesteps=False,
+                 critic_is_batch_timesteps=False
                  ):
         """
         This args points to each algorithm, it controls pre-process of data.
 
         :param burn_in: (int) Use some data to initiate networks hidden state.
         """
-        self.burn_in = ArgsUnit('burn_in', burn_in)
-        self.traj_length = ArgsUnit('traj_length', traj_length)
-        self.overlap_size = ArgsUnit('overlap_size', overlap_size)
+        self.burn_in = burn_in
+        self.traj_length = traj_length
+        self.overlap_size = overlap_size
+        self.actor_is_batch_timesteps = actor_is_batch_timesteps
+        self.critic_is_batch_timesteps = critic_is_batch_timesteps
         self.args = {'burn_in': self.burn_in, 'traj_length': self.traj_length,
-                     'overlap_size': self.overlap_size}
+                     'overlap_size': self.overlap_size, 'actor_is_batch_timesteps': self.actor_is_batch_timesteps,
+                     'critic_is_batch_timesteps': self.critic_is_batch_timesteps}
 
 
 class EnvArgs:

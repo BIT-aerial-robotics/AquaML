@@ -10,8 +10,13 @@ class ArgsUnit:
         self.name = name
         self.value = init_value
 
+    @property
     def __call__(self):
         return self.value
 
     def set_value(self, value):
         self.value = value
+
+    @property
+    def data(self):
+        return self.value

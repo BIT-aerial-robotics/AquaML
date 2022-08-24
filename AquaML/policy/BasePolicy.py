@@ -3,11 +3,12 @@ import abc
 
 
 class BasePolicy(abc.ABC):
-    def __init__(self, model: tf.keras.Model, name: str):
+    def __init__(self, model: tf.keras.Model, name: str, reset_flag=False):
         self.model = model
         self.name = name
 
         self.target_model = None
+        self.reset_flag = reset_flag
 
     def set_target_model(self):
         """
@@ -63,6 +64,17 @@ class BasePolicy(abc.ABC):
         """
 
         return self.model.trainable_variables
+
+    def reset(self, args):
+        """
+        If the model is RNN, this function is used to initialize hidden state.
+
+        :return:
+        """
+        if self.reset_flag:
+            self.model.reset(args)
+        else:
+            pass
 
     # def __ceil__(self, *args):
     #

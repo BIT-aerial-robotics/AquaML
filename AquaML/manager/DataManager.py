@@ -144,7 +144,8 @@ class DataManager:
 
         return ret_dic
 
-    def get_input_data(self, is_batch_timesteps=False, args_dict: dict = {'tf_data': True}):
+    def get_input_data(self, actor_is_batch_timesteps=False, critic_is_batch_timesteps=False,
+                       args_dict: dict = {'tf_data': True}):
         """
         Return like {'actor':[data1,data2,...],'next_actor':[data1,data2,...]}
 
@@ -184,12 +185,42 @@ class DataManager:
             'next_critic': list(self.critic_input_info),
             'action': list(self.action)
         }
-        if is_batch_timesteps:
-            for key, value in out_dict.items():
-                buffer = dict(zip(mapping_dict[key], value))
-                batch_timesteps = self.batch_timesteps(buffer, args_dict.get('traj_length'),
-                                                       args_dict.get('overlap_size'))
-                out_dict[key] = list(batch_timesteps.values())
+        if actor_is_batch_timesteps:
+            buffer_actor = out_dict['actor']
+            buffer = dict(zip(mapping_dict['actor'], buffer_actor))
+            buffer = self.batch_timesteps(buffer, args_dict.get('traj_length'), args_dict.get('overlap_size'))
+            out_dict['actor'] = list(buffer.values())
+
+            buffer_actor = out_dict['next_actor']
+            buffer = dict(zip(mapping_dict['next_actor'], buffer_actor))
+            buffer = self.batch_timesteps(buffer, args_dict.get('traj_length'), args_dict.get('overlap_size'))
+            out_dict['next_actor'] = list(buffer.values())
+
+            buffer_critic = out_dict['critic']
+            buffer = dict(zip(mapping_dict['critic'], buffer_critic))
+            buffer = self.batch_timesteps(buffer, args_dict.get('traj_length'), args_dict.get('overlap_size'))
+            out_dict['critic'] = list(buffer.values())
+
+            buffer_critic = out_dict['next_critic']
+            buffer = dict(zip(mapping_dict['next_critic'], buffer_critic))
+            buffer = self.batch_timesteps(buffer, args_dict.get('traj_length'), args_dict.get('overlap_size'))
+            out_dict['next_critic'] = list(buffer.values())
+
+            buffer_action = out_dict['action']
+            buffer = dict(zip(mapping_dict['action'], buffer_action))
+            buffer = self.batch_timesteps(buffer, args_dict.get('traj_length'), args_dict.get('overlap_size'))
+            out_dict['action'] = list(buffer.values())
+
+        if critic_is_batch_timesteps:
+            buffer_critic = out_dict['critic']
+            buffer = dict(zip(mapping_dict['critic'], buffer_critic))
+            buffer = self.batch_timesteps(buffer, args_dict.get('traj_length'), args_dict.get('overlap_size'))
+            out_dict['critic'] = list(buffer.values())
+
+            buffer_critic = out_dict['next_critic']
+            buffer = dict(zip(mapping_dict['next_critic'], buffer_critic))
+            buffer = self.batch_timesteps(buffer, args_dict.get('traj_length'), args_dict.get('overlap_size'))
+            out_dict['next_critic'] = list(buffer.values())
 
         if args_dict['tf_data']:
             for key, value in out_dict.items():
@@ -235,13 +266,15 @@ class DataManager:
                 end_ind = int(start_index + traj_length)
                 while end_ind <= end_index:
                     for key, value in buffer.items():
-                        output_dic[key].append(value[start_ind:end_ind])
+                        output_dic[key].append(np.expand_dims(value[start_ind:end_ind]))
 
                     start_ind = start_ind + move_step
                     end_ind = start_ind + traj_length
             else:
                 for key, value in buffer.items():
-                    output_dic[key].append(value)
+                    output_dic[key].append(np.expand_dims(value, axis=0))
+
+            start_index = end_index
 
         for key, value in output_dic.items():
             output_dic[key] = np.vstack(value)
@@ -268,6 +301,35 @@ class DataManager:
             buffer[key] = tf.cast(value, tf.float32)
 
         return buffer
+
+    @staticmethod
+    def batch_features(input_tup: list, convert_tensor=False):
+        """
+
+        :param input_tup: (data1,data2,..)
+        :return:
+        """
+        length = len(input_tup)
+        name = {str(i) for i in range(length)}
+
+        input_dic = dict(zip(name, input_tup))
+
+        out_dic = dict()
+
+        for key in list(input_dic):
+            out_dic[key] = []
+
+        for key, values in input_dic.items():
+            for value in values:
+                out_dic[key].append(value)
+
+        for key, value in out_dic.items():
+            out_dic[key] = np.vstack(value)
+
+        if convert_tensor:
+            out_dic = DataManager.convert_tensor(out_dic)
+
+        return list(out_dic.values())
 
 
 if __name__ == "__main__":

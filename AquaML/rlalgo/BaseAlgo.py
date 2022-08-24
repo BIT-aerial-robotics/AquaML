@@ -9,12 +9,18 @@ class BaseRLAlgo(abc.ABC):
         """
         Provide basic manipulate.
 
-        :param data_manager: (data_manager)
-        :param work_space: 
+        :param algo_param: The param of this algorithm.
+        :param train_args: Pre-processing args for data.
+        :param data_manager: Manage data.
+        :param policy: Manage the policy.
         """
         self.data_manager = data_manager
 
         self.work_space = self.data_manager.work_space
+
+        self.algo_param = algo_param
+
+        self.train_args = train_args
 
         self.epoch = 0
 
@@ -107,13 +113,21 @@ class BaseRLAlgo(abc.ABC):
     def optimize(self):
         print("---------------epoch:{}---------------".format(self.epoch + 1))
         self.cal_episode_info(True)
-        opt_info = self._optimize()
+        args = {
+            'tf_data': True,
+            'traj_length': self.train_args.traj_length,
+            'overlap_size': self.train_args.overlap_size
+        }
+
+        data_dict_ac = self.data_manager.get_input_data(args_dict=args)
+
+        opt_info = self._optimize(data_dict_ac)
         for key, val in opt_info.items():
             print(key + ": {}".format(val))
         self.epoch += 1
 
     @abc.abstractmethod
-    def _optimize(self):
+    def _optimize(self, data_dict_ac):
         """
         Policy optimization method.
         :return:

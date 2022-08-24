@@ -144,38 +144,108 @@ class DataManager:
 
         return ret_dic
 
-    def get_input_data(self):
+    def get_input_data(self, is_batch_timesteps=False, args_dict: dict = {'tf_data': True}):
         """
+        Return like {'actor':[data1,data2,...],'next_actor':[data1,data2,...]}
 
         :return: dict contains tensor.
         """
         actor_inputs_data = []
 
         for key1 in self.actor_input_info:
-            actor_inputs_data.append(tf.cast(self.obs[key1].data, dtype=tf.float32))
+            actor_inputs_data.append(self.obs[key1].data)
 
         next_actor_input_data = []
 
         for key1 in self.actor_input_info:
-            next_actor_input_data.append(tf.cast(self.next_obs[key1].data, dtype=tf.float32))
+            next_actor_input_data.append(self.next_obs[key1].data)
 
         critic_inputs_data = []
 
         for key1 in self.critic_input_info:
-            critic_inputs_data.append(tf.cast(self.obs[key1].data, dtype=tf.float32))
+            critic_inputs_data.append(self.obs[key1].data)
 
         next_critic_inputs_data = []
 
         for key1 in self.critic_input_info:
-            next_critic_inputs_data.append(tf.cast(self.next_obs[key1].data, dtype=tf.float32))
+            next_critic_inputs_data.append(self.next_obs[key1].data)
 
         act = []
 
         for key1, values in self.action.items():
             act.append(tf.cast(values.data, dtype=tf.float32))
 
-        return {'actor': actor_inputs_data, 'next_actor': next_actor_input_data, 'critic': critic_inputs_data,
-                'next_critic': next_critic_inputs_data, 'action': act}
+        out_dict = {'actor': actor_inputs_data, 'next_actor': next_actor_input_data, 'critic': critic_inputs_data,
+                    'next_critic': next_critic_inputs_data, 'action': act}
+        mapping_dict = {
+            'actor': list(self.actor_input_info),
+            'next_actor': list(self.actor_input_info),
+            'critic': list(self.critic_input_info),
+            'next_critic': list(self.critic_input_info),
+            'action': list(self.action)
+        }
+        if is_batch_timesteps:
+            for key, value in out_dict.items():
+                buffer = dict(zip(mapping_dict[key], value))
+                batch_timesteps = self.batch_timesteps(buffer, args_dict.get('traj_length'),
+                                                       args_dict.get('overlap_size'))
+                out_dict[key] = list(batch_timesteps.values())
+
+        if args_dict['tf_data']:
+            for key, value in out_dict.items():
+                buffer = dict(zip(mapping_dict[key], value))
+                tf_data = self.convert_tensor(buffer)
+                out_dict[key] = list(tf_data.values())
+
+        return out_dict
+
+    def batch_timesteps(self, input_dic: dict, traj_length=None, overlap_size=None):
+        """
+        Convert input data into time step (batchsize,timestep,features). This function is used in RNN.
+
+        :param input_dic: (dict) The data is needed to convert.
+        :param overlap_size:
+        :param traj_length: overlap_size and traj_length must be used at the same time.
+        :return:
+        """
+        index_done = np.where(self.mask.data == 0)[0] + 1
+
+        start_index = 0
+        move_step = None
+
+        if traj_length is not None:
+            if overlap_size is not None:
+                move_step = traj_length - overlap_size
+            else:
+                move_step = traj_length
+
+        output_dic = dict()
+
+        for key in list(input_dic):
+            output_dic[key] = []
+
+        for end_index in index_done:
+            buffer = dict()
+
+            for key, value in input_dic.items():
+                buffer[key] = value[start_index:end_index]
+
+            if traj_length is not None:
+                start_ind = 0
+                end_ind = int(start_index + traj_length)
+                while end_ind <= end_index:
+                    for key, value in buffer.items():
+                        output_dic[key].append(value[start_ind:end_ind])
+
+                    start_ind = start_ind + move_step
+                    end_ind = start_ind + traj_length
+            else:
+                for key, value in buffer.items():
+                    output_dic[key].append(value)
+
+        for key, value in output_dic.items():
+            output_dic[key] = np.vstack(value)
+        return output_dic
 
     @staticmethod
     def slice_tuple_list(data, start, end):
@@ -183,6 +253,19 @@ class DataManager:
 
         for array in data:
             buffer.append(array[start: end])
+
+        return buffer
+
+    @staticmethod
+    def convert_tensor(input_dic: dict):
+        """
+
+        :param input_dic: {'name':array}
+        :return: dict
+        """
+        buffer = dict()
+        for key, value in input_dic.items():
+            buffer[key] = tf.cast(value, tf.float32)
 
         return buffer
 

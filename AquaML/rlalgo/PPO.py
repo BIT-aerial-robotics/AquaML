@@ -1,6 +1,5 @@
 from AquaML.rlalgo.BaseAlgo import BaseRLAlgo
-from AquaML.args.RLArgs import PPOHyperParam
-from AquaML.args.TrainArgs import TrainArgs
+from AquaML.args.RLArgs import PPOHyperParam, TrainArgs
 from AquaML.manager.DataManager import DataManager
 from AquaML.manager.RLPolicyManager import RLPolicyManager
 import tensorflow as tf
@@ -20,17 +19,16 @@ class ProximalPolicyOptimization(BaseRLAlgo):
         """
         super().__init__(algo_param=algo_param, train_args=train_args, data_manager=data_manager, policy=policy)
 
-        self.algo_param = algo_param
+        # self.algo_param = algo_param
         self.data_manager = data_manager
-        self.train_args = train_args
+        # self.train_args = train_args
         self.policy = policy
 
         self.critic_optimizer = tf.optimizers.Adam(learning_rate=self.algo_param.critic_learning_rate)
         self.actor_optimizer = tf.optimizers.Adam(learning_rate=self.algo_param.actor_learning_rate)
 
-    def _optimize(self):
+    def _optimize(self, data_dict_ac):
         # prepare data
-        data_dict_ac = self.data_manager.get_input_data()
 
         data_dict_ac['actor'].append(True)
         data_dict_ac['critic'].append(True)

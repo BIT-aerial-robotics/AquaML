@@ -11,6 +11,7 @@ class GymEnvWrapper:
         observation = observation.reshape(1, -1)
 
         obs = {'obs': observation, 'pos': observation[:, :2]}
+        # obs = {'obs': observation}
         reward = {'total_reward': reward}
 
         return obs, reward, done
@@ -19,6 +20,7 @@ class GymEnvWrapper:
         observation = self.env.reset()
         observation = observation.reshape(1, -1)
 
+        # obs = {'obs': observation}
         obs = {'obs': observation, 'pos': observation[:, :2]}
 
         return obs

@@ -1,11 +1,36 @@
 import abc
 import numpy as np
 from AquaML.manager.DataManager import DataManager
+from AquaML.Tool.RLRecoder import Recoder
+from numba import jit
+
+
+# @jit(nopython=True)
+def gae_target(rewards, values, next_values, mask, gamma, lambada):
+    gae = np.zeros_like(rewards)
+    n_steps_target = np.zeros_like(rewards)
+    cumulate_gae = 0.0
+    length = len(rewards)
+    # print(length)
+    # next_val = 0
+    index = length - 1
+
+    for i in range(length):
+        index = index - 1
+        # print(i)
+        delta = rewards[index] + gamma * next_values[index] - values[index]
+        cumulate_gae = gamma * lambada * cumulate_gae * mask[index] + delta
+        gae[index] = cumulate_gae
+        # next_val = values[i]
+        n_steps_target[index] = gae[index] + values[index]
+        # index = index - 1
+
+    return gae, n_steps_target
 
 
 class BaseRLAlgo(abc.ABC):
     def __init__(self, algo_param, train_args, data_manager: DataManager,
-                 policy):
+                 policy, recoder: Recoder):
         """
         Provide basic manipulate.
 
@@ -21,6 +46,10 @@ class BaseRLAlgo(abc.ABC):
         self.algo_param = algo_param
 
         self.train_args = train_args
+
+        self.recoder = recoder
+
+        self.recoder = recoder
 
         self.epoch = 0
 
@@ -49,19 +78,35 @@ class BaseRLAlgo(abc.ABC):
 
         return discount_rewards
 
+    # @jit(nopython=True)
+    # def cal_gae_target(self, rewards, values, next_values, mask):
+    #     gae = np.zeros_like(rewards)
+    #     n_steps_target = np.zeros_like(rewards)
+    #     cumulate_gae = 0
+    #     length = len(rewards)
+    #     # next_val = 0
+    #     index = length - 1
+    #
+    #     for i in range(length):
+    #         index = index - length
+    #         delta = rewards[index] + self.algo_param.gamma * next_values[index] - values[index]
+    #         cumulate_gae = self.algo_param.gamma * self.algo_param.lambada * cumulate_gae * mask[index] + delta
+    #         gae[index] = cumulate_gae
+    #         # next_val = values[i]
+    #         n_steps_target[index] = gae[index] + values[index]
+    #
+    #     return gae, n_steps_target
+
+    # @jit(nopython=True)
     def cal_gae_target(self, rewards, values, next_values, mask):
-        gae = np.zeros_like(rewards)
-        n_steps_target = np.zeros_like(rewards)
-        cumulate_gae = 0
-        # next_val = 0
 
-        for i in reversed(range(0, len(rewards))):
-            delta = rewards[i] + self.algo_param.gamma * next_values[i] - values[i]
-            cumulate_gae = self.algo_param.gamma * self.algo_param.lambada * cumulate_gae * mask[i] + delta
-            gae[i] = cumulate_gae
-            # next_val = values[i]
-            n_steps_target[i] = gae[i] + values[i]
+        rewards = rewards.astype(np.float32)
+        values = values.astype(np.float32)
+        next_values = next_values.astype(np.float32)
+        mask = mask.astype(np.float32)
 
+        gae, n_steps_target = gae_target(rewards=rewards, values=values, next_values=next_values, mask=mask,
+                                         gamma=self.algo_param.gamma, lambada=self.algo_param.lambada)
         return gae, n_steps_target
 
     def cal_episode_info(self, verbose=False):
@@ -112,7 +157,10 @@ class BaseRLAlgo(abc.ABC):
 
     def optimize(self):
         print("---------------epoch:{}---------------".format(self.epoch + 1))
-        self.cal_episode_info(True)
+        # start = time.time()
+        reward_summary = self.cal_episode_info(True)
+
+        self.recoder.recode_reward(reward_summary, epoch=self.epoch + 1)
         args = {
             'tf_data': True,
             'traj_length': self.train_args.traj_length,
@@ -121,8 +169,13 @@ class BaseRLAlgo(abc.ABC):
 
         data_dict_ac = self.data_manager.get_input_data(self.train_args.actor_is_batch_timesteps,
                                                         self.train_args.critic_is_batch_timesteps, args_dict=args)
+        # end = time.time()
+
+        # print('prepare time for optimize:{}'.format(end-start))
 
         opt_info = self._optimize(data_dict_ac, args)
+
+        self.recoder.recode_training_info('PPO', opt_info, self.epoch + 1)
         for key, val in opt_info.items():
             print(key + ": {}".format(val))
         self.epoch += 1

@@ -53,14 +53,14 @@ action_dims = env.action_space.shape[0]
 
 env_args = EnvArgs(
     max_steps=200,
-    total_steps=3*200*30,
+    total_steps=1*200*30,
     worker_num=size - 1
 )
 
 algo_param = PPOHyperParam(
-    epochs=100,
-    batch_size=30,
-    update_times=4
+    epochs=500,
+    batch_size=20,
+    update_times=6
 )
 
 training_args = TrainArgs(
@@ -103,7 +103,7 @@ task_runner = TaskRunner(
     actor_policy=actor_policy,
     critic=critic,
     algo=PPO,
-    work_space='test12',
+    work_space='test25',
     env=GymEnvWrapper('Pendulum-v1'),
     comm=comm
 )

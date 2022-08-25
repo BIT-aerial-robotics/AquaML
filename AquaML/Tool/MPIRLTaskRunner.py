@@ -7,6 +7,7 @@ import time
 import os
 import AquaML as A
 from mpi4py import MPI
+from AquaML.Tool.RLRecoder import Recoder
 import numpy as np
 
 
@@ -56,6 +57,7 @@ class TaskRunner:
 
         if self.rank == 0:
             hierarchical_info = {'hierarchical': A.MAIN_THREAD, 'start_pointer': -1, 'end_pointer': -1}
+            self.recoder = Recoder(self.work_space)
             self.data_manager = DataManager(
                 obs_dic=self.task_args.obs_info,
                 action_dic=self.task_args.actor_outputs_info,
@@ -74,7 +76,7 @@ class TaskRunner:
                                                   actor_is_batch_timestep=self.task_args.training_args.actor_is_batch_timesteps
                                                   )
             self.optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
-                                       data_manager=self.data_manager, policy=self.policy_manager)
+                                       data_manager=self.data_manager, policy=self.policy_manager, recoder=self.recoder)
         else:
             start, end = self.task_args.env_args.sync(self.rank)
             hierarchical_info = {'hierarchical': A.SUB_THREAD, 'start_pointer': start, 'end_pointer': end}

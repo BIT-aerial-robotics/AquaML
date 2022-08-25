@@ -6,9 +6,12 @@ import tensorflow as tf
 import numpy as np
 
 
+# import time
+
+
 class ProximalPolicyOptimization(BaseRLAlgo):
     def __init__(self, algo_param: PPOHyperParam, train_args: TrainArgs, data_manager: DataManager,
-                 policy: RLPolicyManager):
+                 policy: RLPolicyManager, recoder):
         """
         https://arxiv.org/abs/1707.06347
 
@@ -17,7 +20,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
         :param data_manager: Manage data.
         :param policy: Manage the policy.
         """
-        super().__init__(algo_param=algo_param, train_args=train_args, data_manager=data_manager, policy=policy)
+        super().__init__(algo_param=algo_param, train_args=train_args, data_manager=data_manager, policy=policy, recoder=recoder)
 
         # self.algo_param = algo_param
         self.data_manager = data_manager
@@ -29,6 +32,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
 
     def _optimize(self, data_dict_ac, args: dict):
         # prepare data
+        # start = time.time()
 
         data_dict_ac['actor'].append(True)
         data_dict_ac['critic'].append(True)
@@ -41,26 +45,41 @@ class ProximalPolicyOptimization(BaseRLAlgo):
         data_dict_ac['next_critic'].append(True)
         next_critic_inputs = data_dict_ac['next_critic']
 
+        # end = time.time()
+
+        # print('get data time:{}'.format(end - start))
+
+        # start = time.time()
         # get value
         if self.data_manager.action.get('value') is None:
-            if self.train_args.critic_is_batch_timesteps:
-                tf_value = self.policy.critic(*critic_inputs)
-                tf_next_value = self.policy.critic(*next_critic_inputs)
-            else:
+            if self.train_args.actor_is_batch_timesteps:
                 new_critic_inputs = self.data_manager.batch_features(critic_inputs[:-1], True)
                 new_critic_inputs.append(True)
                 new_next_critic_inputs = self.data_manager.batch_features(next_critic_inputs[:-1], True)
                 new_next_critic_inputs.append(True)
                 tf_value = self.policy.critic(*new_critic_inputs)
                 tf_next_value = self.policy.critic(*new_next_critic_inputs)
+            else:
+                tf_value = self.policy.critic(*critic_inputs)
+                tf_next_value = self.policy.critic(*next_critic_inputs)
         else:
             tf_value = tf.convert_to_tensor(self.data_manager.action['value'].data, dtype=tf.float32)
             tf_next_value = tf.zeros_like(tf_value)
             tf_next_value[:-1] = tf_value[1:]
 
+        # end = time.time()
+
+        # print('get value time:{}'.format(end-start))
+
+        # start = time.time()
+
         gae, target = self.cal_gae_target(self.data_manager.reward['total_reward'].data, tf_value.numpy(),
-                                          tf_next_value,
+                                          tf_next_value.numpy(),
                                           self.data_manager.mask.data)
+
+        # end = time.time()
+
+        # print('get gae time:{}'.format(end - start))
 
         if self.train_args.actor_is_batch_timesteps:
             buffer = self.data_manager.batch_timesteps({'gae': gae, 'target': target}, args.get('traj_length'),
@@ -82,6 +101,8 @@ class ProximalPolicyOptimization(BaseRLAlgo):
             end_pointer = self.algo_param.batch_size
 
             while True:
+                # start = time.time()
+
                 batch_actor_inputs = self.data_manager.slice_tuple_list(actor_inputs[:-1], start_pointer, end_pointer)
                 batch_actor_inputs.append(True)
                 batch_critic_inputs = self.data_manager.slice_tuple_list(critic_inputs[:-1], start_pointer, end_pointer)
@@ -100,8 +121,18 @@ class ProximalPolicyOptimization(BaseRLAlgo):
                     batch_target = batch_target[0]
                     batch_critic_inputs.append(True)
 
+                # end = time.time()
+
+                # print('prepare time for training:{}'.format(end - start))
+
+                # start = time.time()
+
                 optimization_info = self.train_policy(batch_actor_inputs, batch_critic_inputs, batch_act, batch_gae,
                                                       batch_target)
+
+                # end = time.time()
+
+                # print('training time:{}'.format(end - start))
 
                 total_opt_info.append(tuple(optimization_info.values()))
 
@@ -121,7 +152,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
 
         return total_opt_info
 
-    # @tf.function
+    @tf.function
     def train_policy(self, act_obs: tuple, critic_obs: tuple, act: tuple, gae, target):
         """
         Optimize the policy.

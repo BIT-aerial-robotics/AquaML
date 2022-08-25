@@ -48,6 +48,18 @@ training_args = TrainArgs(
     actor_is_batch_timesteps=True
 )
 
+# task_args = TaskArgs(
+#     algo_param=algo_param,
+#     obs_info={'obs': (observation_dims,)},
+#     actor_inputs_info=list({'obs'}),
+#     actor_outputs_info={'action': (action_dims,), 'prob': (action_dims,)},
+#     critic_inputs_info=list({'obs'}),
+#     reward_info=list({'total_reward'}),
+#     distribution_info={'is_distribution': True},
+#     env_args=env_args,
+#     training_args=training_args,
+# )
+
 task_args = TaskArgs(
     algo_param=algo_param,
     obs_info={'obs': (observation_dims,), 'pos': (2,)},
@@ -84,7 +96,7 @@ task_runner = TaskRunner(
     actor_policy=actor_policy,
     critic=critic,
     algo=PPO,
-    work_space='test5',
+    work_space='PPO_debug',
     env=GymEnvWrapper('Pendulum-v1'),
 )
 

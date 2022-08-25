@@ -51,7 +51,7 @@ class EnvArgs:
 
 
 class PPOHyperParam:
-    def __init__(self, epochs=100, clip_ratio=0.1, actor_learning_rate=3e-4,
+    def __init__(self, epochs=100, clip_ratio=0.1, actor_learning_rate=2e-4,
                  critic_learning_rate=2e-3, entropy_ratio=0.00, gamma=0.99, lambada=0.95,
                  update_times=4, batch_size=64):
         self.clip_ratio = clip_ratio

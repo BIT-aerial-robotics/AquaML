@@ -5,6 +5,7 @@ from AquaML.policy.GaussianPolicy import GaussianPolicy
 from AquaML import RLWorker
 import os
 import AquaML as A
+from AquaML.Tool.RLRecoder import Recoder
 
 
 def mkdir(path):
@@ -39,6 +40,8 @@ class TaskRunner:
         mkdir(self.model_path)
         mkdir(self.logs_path)
 
+        self.recoder = Recoder(self.work_space)
+
         self.actor_policy = actor_policy
         self.critic = critic
 
@@ -64,7 +67,7 @@ class TaskRunner:
         )
 
         self.optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
-                                   data_manager=self.data_manager, policy=self.policy_manager)
+                                   data_manager=self.data_manager, policy=self.policy_manager, recoder=self.recoder)
 
         # self.data_manager = DataManager(
         #     obs_dic=task_args.obs_info,

@@ -24,18 +24,38 @@ class LSTMActor1(tf.keras.Model):
         action = self.actor_model(whole_seq, training=training)
         return action
 
-    # @tf.function
+    # @tf.autograph.experimental.do_not_convert
+    # def call(self, obs, training=False):
+    #     # if obs.dims == 2:
+    #     if training:
+    #         whole_seq, last_seq, hidden_state = self.lstm(obs, training=training)
+    #     else:
+    #         whole_seq, last_seq, hidden_state = self.lstm(obs, self.hidden_state, training=training)
+    #         self.hidden_state = (last_seq, hidden_state)
+    #     #     obs = tf.expand_dims(obs, axis=0)
+    #
+    #     action = self.call_actor(whole_seq, training=training)
+    #     # print(action)
+    #
+    #     return action
+
     def call(self, obs, training=False):
-        # if obs.dims == 2:
-        #     obs = tf.expand_dims(obs, axis=0)
-        whole_seq, last_seq, hidden_state = self.lstm(obs, self.hidden_state, training=training)
+        hidden_state = self.hidden_state
+        action, hidden_state = self.run_model(obs, hidden_state, training)
 
-        self.hidden_state = (last_seq, hidden_state)
-
-        action = self.call_actor(whole_seq, training=training)
-        # print(action)
+        if training:
+            pass
+        else:
+            self.hidden_state = hidden_state
 
         return action
+
+    @tf.function
+    def run_model(self, obs, hidden_state, training=False):
+        whole_seq, last_seq, hidden_state = self.lstm(obs, hidden_state, training=training)
+        action = self.actor_model(whole_seq, training=training)
+
+        return action, (last_seq, hidden_state)
 
     def reset(self, batch_size):
         self.hidden_state = (

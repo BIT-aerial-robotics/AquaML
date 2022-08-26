@@ -316,15 +316,14 @@ class DataManager:
 
         out_dic = dict()
 
-        for key in list(input_dic):
-            out_dic[key] = []
+        # for key in list(input_dic):
+        #     out_dic[key] = []
 
         for key, values in input_dic.items():
-            for value in values:
-                out_dic[key].append(value)
+            out_dic[key] = np.concatenate(values, axis=0)
 
-        for key, value in out_dic.items():
-            out_dic[key] = np.vstack(value)
+        # for key, value in out_dic.items():
+        #     out_dic[key] = np.vstack(value)
 
         if convert_tensor:
             out_dic = DataManager.convert_tensor(out_dic)

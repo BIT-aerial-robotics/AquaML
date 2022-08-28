@@ -95,14 +95,14 @@ class LSTMActorValue1(tf.keras.Model):
         :return:
         """
         hidden_state = self.hidden_state
-        action, hidden_state = self.run_actor_model(obs, hidden_state, training)
+        action, value, hidden_state = self.run_actor_model(obs, hidden_state, training)
 
         if training:
             pass
         else:
             self.hidden_state = hidden_state
 
-        return action
+        return action, value
 
     # def build(self, input_shape):
     #     """
@@ -147,9 +147,9 @@ class LSTMActorValue1(tf.keras.Model):
         whole_seq, last_seq, hidden_state = self.lstm(obs, hidden_state, training=training)
         out = self.share_dense(whole_seq, training=training)
         action = self.actor_model(out, training=training)
-        self.value_model(out, training=False)
+        value = self.value_model(out, training=training)
 
-        return action, (last_seq, hidden_state)
+        return action, value, (last_seq, hidden_state)
 
     # @property
     # def trainable_variables(self):

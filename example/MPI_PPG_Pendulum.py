@@ -57,16 +57,26 @@ env_args = EnvArgs(
     worker_num=size - 1
 )
 
+# algo_param = PPGHyperParam(
+#     epochs=500,
+#     batch_size=30,
+#     update_times=4,
+#     update_actor_times=1,
+#     update_critic_times=2,
+#     n_pi=16,
+#     update_aux_times=6,
+#     beta_clone=100,
+#     PPG_batch_size=32
+# )
+
 algo_param = PPGHyperParam(
-    epochs=500,
+    epochs=200,
     batch_size=30,
     update_times=4,
-    update_actor_times=1,
-    update_critic_times=2,
-    n_pi=16,
-    update_aux_times=6,
-    beta_clone=100,
-    PPG_batch_size=32
+    update_actor_times=4,
+    update_critic_times=6,
+    c1=0.5,
+    c2=0.001,
 )
 
 training_args = TrainArgs(
@@ -77,7 +87,7 @@ task_args = TaskArgs(
     algo_param=algo_param,
     obs_info={'obs': (observation_dims,), 'pos': (2,)},
     actor_inputs_info=list({'pos'}),
-    actor_outputs_info={'action': (action_dims,), 'prob': (action_dims,)},
+    actor_outputs_info={'action': (action_dims,), 'prob': (action_dims,), 'joint_loss': (1,)},
     critic_inputs_info=list({'obs'}),
     reward_info=list({'total_reward'}),
     distribution_info={'is_distribution': True},
@@ -109,7 +119,7 @@ task_runner = TaskRunner(
     actor_policy=actor_policy,
     critic=critic,
     algo=PPG,
-    work_space='PPG_all_16_1',
+    work_space='PPG_ours_1',
     env=GymEnvWrapper('Pendulum-v1'),
     comm=comm
 )

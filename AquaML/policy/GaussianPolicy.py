@@ -65,7 +65,7 @@ class GaussianPolicy(BasePolicy):
         action = mu + noise * sigma
 
         if isinstance(out, tuple):
-            out = (action, prob, *out[2:])
+            out = (action, prob, *out[1:])
         else:
             out = (action, prob)
 
@@ -127,7 +127,7 @@ class GaussianPolicy(BasePolicy):
         # action = noise + mu*sigma
 
         if isinstance(out, tuple):
-            out = (mu, prob, *out[2:])
+            out = (mu, prob, *out[1:])
         else:
             out = (mu, prob)
 

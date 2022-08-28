@@ -84,10 +84,10 @@ class PPOHyperParam:
 
 
 class PPGHyperParam:
-    def __init__(self, epochs=100, clip_ratio=0.1, actor_learning_rate=2e-3,
+    def __init__(self, epochs=100, clip_ratio=0.1, actor_learning_rate=2e-4,
                  critic_learning_rate=2e-3, entropy_ratio=0.00, beta_clone=1, gamma=0.99,
                  lambada=0.95, n_pi=32, update_critic_times=1, update_actor_times=1,
-                 update_aux_times=6, PPG_batch_size=30,
+                 update_aux_times=6, PPG_batch_size=30, c1=0.5, c2=0.001,
                  update_times=1, batch_size=64):
         """
 
@@ -126,6 +126,9 @@ class PPGHyperParam:
         self.n_pi = n_pi
 
         self.PPG_batch_size = PPG_batch_size
+
+        self.c1 = c1
+        self.c2 = c2
 
 
 class TaskArgs:

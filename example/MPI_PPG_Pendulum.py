@@ -1,13 +1,13 @@
 import sys
 
 sys.path.append('../')
-from AquaML.args.RLArgs import PPOHyperParam, EnvArgs, TaskArgs, TrainArgs
-from AquaML.rlalgo.PPO import ProximalPolicyOptimization as PPO
+from AquaML.args.RLArgs import PPGHyperParam, EnvArgs, TaskArgs, TrainArgs
+from AquaML.rlalgo.PPG import PhasicPolicyGradient as PPG
 from AquaML.Tool.neural import mlp
 from AquaML.Tool.MPIRLTaskRunner import TaskRunner
 from AquaML.Tool.GymEnvWrapper import GymEnvWrapper
 from AquaML.policy.GaussianPolicy import GaussianPolicy
-from ModelExample import LSTMActor1
+from ModelExample import LSTMActorValue1
 import numpy as np
 import gym
 import os
@@ -53,16 +53,20 @@ action_dims = env.action_space.shape[0]
 
 env_args = EnvArgs(
     max_steps=200,
-    total_steps=1*200*30,
+    total_steps=1 * 200 * 30,
     worker_num=size - 1
 )
 
-algo_param = PPOHyperParam(
+algo_param = PPGHyperParam(
     epochs=500,
     batch_size=30,
     update_times=4,
     update_actor_times=1,
-    update_critic_times=8
+    update_critic_times=2,
+    n_pi=16,
+    update_aux_times=6,
+    beta_clone=100,
+    PPG_batch_size=32
 )
 
 training_args = TrainArgs(
@@ -96,7 +100,7 @@ critic = mlp(
 #     output_activation='tanh'
 # )
 
-actor = LSTMActor1()
+actor = LSTMActorValue1()
 actor(np.zeros((1, 1, 2)))
 actor_policy = GaussianPolicy(actor, name='actor', reset_flag=True)
 
@@ -104,8 +108,8 @@ task_runner = TaskRunner(
     task_args=task_args,
     actor_policy=actor_policy,
     critic=critic,
-    algo=PPO,
-    work_space='test28',
+    algo=PPG,
+    work_space='PPG_all_16_1',
     env=GymEnvWrapper('Pendulum-v1'),
     comm=comm
 )

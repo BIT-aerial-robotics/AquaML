@@ -29,6 +29,7 @@ def gae_target(rewards, values, next_values, mask, gamma, lambada):
 
 
 class BaseRLAlgo(abc.ABC):
+    # TODO: In the future, all the parameters can be tuned in the training process.
     def __init__(self, algo_param, train_args, data_manager: DataManager,
                  policy, recoder: Recoder):
         """
@@ -175,7 +176,7 @@ class BaseRLAlgo(abc.ABC):
 
         opt_info = self._optimize(data_dict_ac, args)
 
-        self.recoder.recode_training_info('PPO', opt_info, self.epoch + 1)
+        self.recoder.recode_training_info(self.name, opt_info, self.epoch + 1)
         for key, val in opt_info.items():
             print(key + ": {}".format(val))
         self.epoch += 1

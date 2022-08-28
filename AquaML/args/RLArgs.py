@@ -52,8 +52,23 @@ class EnvArgs:
 
 class PPOHyperParam:
     def __init__(self, epochs=100, clip_ratio=0.1, actor_learning_rate=2e-4,
-                 critic_learning_rate=2e-3, entropy_ratio=0.00, gamma=0.99, lambada=0.95,
-                 update_times=4, batch_size=64):
+                 critic_learning_rate=2e-3, entropy_ratio=0.00, gamma=0.99,
+                 lambada=0.95, update_critic_times=1, update_actor_times=1,
+                 update_times=1, batch_size=64):
+        """
+
+        :param epochs:
+        :param clip_ratio:
+        :param actor_learning_rate:
+        :param critic_learning_rate:
+        :param entropy_ratio:
+        :param gamma:
+        :param lambada:
+        :param update_critic_times:
+        :param update_actor_times:
+        :param update_times:
+        :param batch_size:
+        """
         self.clip_ratio = clip_ratio
         self.entropy_ratio = entropy_ratio
         self.actor_learning_rate = actor_learning_rate
@@ -63,6 +78,54 @@ class PPOHyperParam:
         self.epochs = epochs
         self.gamma = gamma
         self.lambada = lambada
+
+        self.update_actor_times = update_actor_times
+        self.update_critic_times = update_critic_times
+
+
+class PPGHyperParam:
+    def __init__(self, epochs=100, clip_ratio=0.1, actor_learning_rate=2e-3,
+                 critic_learning_rate=2e-3, entropy_ratio=0.00, beta_clone=1, gamma=0.99,
+                 lambada=0.95, n_pi=32, update_critic_times=1, update_actor_times=1,
+                 update_aux_times=6, PPG_batch_size=30,
+                 update_times=1, batch_size=64):
+        """
+
+        :param beta_clone:
+        :param epochs:
+        :param clip_ratio:
+        :param actor_learning_rate:
+        :param critic_learning_rate:
+        :param entropy_ratio:
+        :param gamma:
+        :param lambada:
+        :param n_pi:
+        :param update_critic_times:
+        :param update_actor_times:
+        :param update_aux_times:
+        :param update_times:
+        :param batch_size:
+        """
+        self.clip_ratio = clip_ratio
+        self.entropy_ratio = entropy_ratio
+        self.actor_learning_rate = actor_learning_rate
+        self.critic_learning_rate = critic_learning_rate
+        self.update_times = update_times
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.gamma = gamma
+        self.lambada = lambada
+
+        self.update_actor_times = update_actor_times
+        self.update_critic_times = update_critic_times
+
+        self.update_aux_times = update_aux_times
+
+        self.beta_clone = beta_clone
+
+        self.n_pi = n_pi
+
+        self.PPG_batch_size = PPG_batch_size
 
 
 class TaskArgs:

@@ -90,4 +90,19 @@ class RLPolicyManager:
     def reset_actor(self, args):
         self.actor_policy.reset(args)
 
-    # def save_model(self):
+    def get_actor_value(self, *args):
+        """
+        If your model has multi parts and train not at the same time,
+        __call__ will just run actor parts, this function runs actor and value parts.
+
+        :param: args: ((obs1,obs2,...., training),(action,))
+        :return: (mu, prob, value,...)
+        """
+
+        out = self.actor_policy.get_actor_value(*args)
+
+        return out
+
+    @property
+    def get_actor_critic_variable(self):
+        return self.actor_policy.get_actor_critic_variable

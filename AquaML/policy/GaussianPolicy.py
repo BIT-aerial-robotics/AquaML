@@ -133,6 +133,35 @@ class GaussianPolicy(BasePolicy):
 
         return out
 
+    def get_actor_value(self, *args):
+        """
+        If your model has multi parts and train not at same time,
+        __call__ will just run actor parts, this function runs actor and value parts.
+        We assume the out of the model is (mu, sigma, value, hidden, ), if len(out)==2,
+        the out is (mu, value). If log_std is none, len(out) == 4, out is (mu, sigma, value, hidden,).
+
+
+        :param: args: ((obs1,obs2,...., training),(action,))
+        :return: (mu, prob, value,...)
+        """
+        out = self.model.actor_critic(*args[0])
+
+        if self.log_std is not None:
+            mu = out[0]
+            value = out[1]
+            sigma = tf.exp(self.tf_log_std)
+        else:
+            mu = out[0]
+            sigma = out[1]
+            value = out[2]
+        pi = tfp.distributions.Normal(mu, sigma)
+        prob = pi.prob(*args[1])
+        prob = tf.clip_by_value(prob, 1e-6, 1)
+
+        out = (mu, prob, value)
+
+        return out
+
     # @tf.function
     def run_model(self, *args):
 
@@ -140,6 +169,13 @@ class GaussianPolicy(BasePolicy):
 
     @property
     def get_variable(self):
+        """
+        Just get actor variable.
+        Attention ! Reimplement trainable_variables in your model, if you use
+        multiple model.
+
+        :return:
+        """
         # return self.model.trainable_variables + [self.tf_log_std]
         if self.tf_log_std is not None:
             return self.model.trainable_variables + [self.tf_log_std]
@@ -149,3 +185,13 @@ class GaussianPolicy(BasePolicy):
     def close(self):
         if self.log_std is not None:
             self.log_std.close()
+
+    @property
+    def get_actor_critic_variable(self):
+        """
+        get all model variable.
+        """
+        if self.tf_log_std is not None:
+            return self.model.trainable_variables + [self.tf_log_std]
+        else:
+            return self.model.trainable_variables

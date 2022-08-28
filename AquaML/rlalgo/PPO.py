@@ -20,8 +20,10 @@ class ProximalPolicyOptimization(BaseRLAlgo):
         :param data_manager: Manage data.
         :param policy: Manage the policy.
         """
-        super().__init__(algo_param=algo_param, train_args=train_args, data_manager=data_manager, policy=policy, recoder=recoder)
+        super().__init__(algo_param=algo_param, train_args=train_args, data_manager=data_manager, policy=policy,
+                         recoder=recoder)
 
+        self.name = 'PPO'
         # self.algo_param = algo_param
         self.data_manager = data_manager
         # self.train_args = train_args
@@ -73,7 +75,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
 
         # start = time.time()
 
-        gae, target = self.cal_gae_target(self.data_manager.reward['total_reward'].data, tf_value.numpy(),
+        gae, target = self.cal_gae_target((self.data_manager.reward['total_reward'].data+8)/8, tf_value.numpy(),
                                           tf_next_value.numpy(),
                                           self.data_manager.mask.data)
 
@@ -112,14 +114,15 @@ class ProximalPolicyOptimization(BaseRLAlgo):
                 batch_act = self.data_manager.slice_tuple_list(act, start_pointer, end_pointer)
 
                 self.policy.reset_actor(batch_target.shape[0])
+                if self.train_args.actor_is_batch_timesteps:
+                    if self.train_args.critic_is_batch_timesteps:
+                        pass
+                    else:
+                        batch_critic_inputs = self.data_manager.batch_features(batch_critic_inputs[:-1], True)
+                        batch_target = self.data_manager.batch_features([batch_target, ], True)
+                        batch_target = batch_target[0]
+                        batch_critic_inputs.append(True)
 
-                if self.train_args.critic_is_batch_timesteps:
-                    pass
-                else:
-                    batch_critic_inputs = self.data_manager.batch_features(batch_critic_inputs[:-1], True)
-                    batch_target = self.data_manager.batch_features([batch_target, ], True)
-                    batch_target = batch_target[0]
-                    batch_critic_inputs.append(True)
 
                 # end = time.time()
 
@@ -153,7 +156,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
         return total_opt_info
 
     @tf.function
-    def train_policy(self, act_obs: tuple, critic_obs: tuple, act: tuple, gae, target):
+    def train_policy(self, act_obs: tuple or list, critic_obs: tuple or list, act: tuple or list, gae, target):
         """
         Optimize the policy.
 
@@ -170,36 +173,36 @@ class ProximalPolicyOptimization(BaseRLAlgo):
         action = act[0]
 
         actor_inputs = (actor_model_inputs, (action,))
+        for _ in range(self.algo_param.update_actor_times):
+            with tf.GradientTape() as tape1:
+                out = self.policy.actor(*actor_inputs)
+                mu, new_prob = out[0], out[1]
+                ratio = new_prob / act[1]
 
-        with tf.GradientTape() as tape1:
-            out = self.policy.actor(*actor_inputs)
-            mu, new_prob = out[0], out[1]
-            ratio = new_prob / act[1]
-
-            actor_surrogate_loss = tf.reduce_mean(
-                tf.minimum(
-                    ratio * gae,
-                    tf.clip_by_value(ratio, 1 - self.algo_param.clip_ratio,
-                                     1 + self.algo_param.clip_ratio
-                                     ) * gae
+                actor_surrogate_loss = tf.reduce_mean(
+                    tf.minimum(
+                        ratio * gae,
+                        tf.clip_by_value(ratio, 1 - self.algo_param.clip_ratio,
+                                         1 + self.algo_param.clip_ratio
+                                         ) * gae
+                    )
                 )
-            )
 
-            entropy_loss = -tf.reduce_mean(new_prob * tf.math.log(new_prob))
+                entropy_loss = -tf.reduce_mean(new_prob * tf.math.log(new_prob))
 
-            loss = -(actor_surrogate_loss - entropy_loss * self.algo_param.entropy_ratio)
+                loss = -(actor_surrogate_loss - entropy_loss * self.algo_param.entropy_ratio)
 
-        actor_grad = tape1.gradient(loss, self.policy.get_actor_trainable_variables())
+            actor_grad = tape1.gradient(loss, self.policy.get_actor_trainable_variables())
 
-        self.actor_optimizer.apply_gradients(zip(actor_grad, self.policy.get_actor_trainable_variables()))
+            self.actor_optimizer.apply_gradients(zip(actor_grad, self.policy.get_actor_trainable_variables()))
 
-        with tf.GradientTape() as tape2:
-            v = self.policy.critic(*critic_obs)
-            critic_loss = tf.reduce_mean(tf.square(target - v))
+        for _ in range(self.algo_param.update_critic_times):
+            with tf.GradientTape() as tape2:
+                v = self.policy.critic(*critic_obs)
+                critic_loss = tf.reduce_mean(tf.square(target - v))
 
-        critic_grad = tape2.gradient(critic_loss, self.policy.get_critic_trainable_variables())
-        self.critic_optimizer.apply_gradients(zip(critic_grad, self.policy.get_critic_trainable_variables()))
-
+            critic_grad = tape2.gradient(critic_loss, self.policy.get_critic_trainable_variables())
+            self.critic_optimizer.apply_gradients(zip(critic_grad, self.policy.get_critic_trainable_variables()))
         dic = {
             'surrogate': actor_surrogate_loss,
             'entropy': entropy_loss,

@@ -27,8 +27,13 @@ if rank == 0:
             print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
     else:
         print("Not enough GPU hardware devices available")
+
+    tf.random.set_seed(0)
+    np.random.seed(0)
 else:
     os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    tf.random.set_seed(rank)
+    np.random.seed(rank)
     # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 # class Model(tf.keras.Model):
@@ -70,14 +75,18 @@ env_args = EnvArgs(
 # )
 
 algo_param = PPGHyperParam(
-    epochs=200,
+    epochs=120,
     batch_size=30,
     update_times=4,
     update_actor_times=4,
-    update_critic_times=6,
-    c1=0.5,
-    c2=0.001,
+    update_critic_times=4,
+    c1=0.1,
+    c2=0.3,
+    n_pi=8,
+    beta_clone=1,
 )
+
+# 0.08
 
 training_args = TrainArgs(
     actor_is_batch_timesteps=True
@@ -119,7 +128,7 @@ task_runner = TaskRunner(
     actor_policy=actor_policy,
     critic=critic,
     algo=PPG,
-    work_space='PPG_ours_1',
+    work_space='PPG_ours_c2',
     env=GymEnvWrapper('Pendulum-v1'),
     comm=comm
 )

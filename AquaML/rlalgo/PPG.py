@@ -101,6 +101,12 @@ class PhasicPolicyGradient(BaseRLAlgo):
         action = act[0]
         actor_inputs = (actor_model_inputs, (action,))
 
+        with tf.GradientTape() as tape2:
+            v = self.policy.critic(*critic_obs)
+            value_loss = tf.reduce_mean(tf.square(v - target_))
+        value_grad = tape2.gradient(value_loss, self.policy.get_critic_trainable_variables())
+        self.actor_optimizer.apply_gradients(zip(value_grad, self.policy.get_critic_trainable_variables()))
+
         # optimize policy parts
         with tf.GradientTape() as tape1:
             joint_policy_out = self.policy.get_actor_value(*actor_inputs)
@@ -114,11 +120,7 @@ class PhasicPolicyGradient(BaseRLAlgo):
         self.actor_optimizer.apply_gradients(zip(joint_grad, self.policy.get_actor_critic_variable))
 
         # target_ = tf.concat(target, axis=0)
-        with tf.GradientTape() as tape2:
-            v = self.policy.critic(*critic_obs)
-            value_loss = tf.reduce_mean(tf.square(v - target_))
-        value_grad = tape2.gradient(value_loss, self.policy.get_critic_trainable_variables())
-        self.actor_optimizer.apply_gradients(zip(value_grad, self.policy.get_critic_trainable_variables()))
+
 
         dic = {
             'aux_loss': aux_loss,
@@ -254,82 +256,82 @@ class PhasicPolicyGradient(BaseRLAlgo):
 
         total_opt_info = dict(zip(tuple(optimization_info), total_opt_info))
 
-        # if (self.epoch + 1) % self.algo_param.n_pi == 0:
-        #     total_opt_info2 = []
-        #     buffer = dict()
-        #
-        #     for key in list(self.buffer):
-        #         buffer[key] = []
-        #     for key, values in self.buffer.items():
-        #         for value in values:
-        #             if len(value) > 1:
-        #                 value = tf.concat(values, axis=1)
-        #                 for data in value:
-        #                     buffer[key].append(data)
-        #                 break
-        #             else:
-        #                 value = tf.concat(values, axis=1)
-        #                 buffer[key].append(tf.squeeze(value, axis=0))
-        #                 break
-        #
-        #     buffer['actor'].append(True)
-        #     buffer['critic'].append(True)
-        #     critic_inputs = buffer['critic']
-        #     actor_inputs = tuple(buffer['actor'])
-        #     act = tuple(buffer['action'])
-        #     target = buffer['target']
-        #
-        #     # target_ = self.data_manager.batch_features(target, convert_tensor=True)[0]
-        #
-        #     target = target[0]
-        #
-        #     for _ in range(self.algo_param.update_aux_times):
-        #         start_pointer = 0
-        #         end_pointer = self.algo_param.batch_size
-        #         while True:
-        #             batch_actor_inputs = self.data_manager.slice_tuple_list(actor_inputs[:-1], start_pointer,
-        #                                                                     end_pointer)
-        #             batch_actor_inputs.append(True)
-        #             batch_critic_inputs = self.data_manager.slice_tuple_list(critic_inputs[:-1], start_pointer,
-        #                                                                      end_pointer)
-        #             batch_critic_inputs.append(True)
-        #
-        #             if self.train_args.actor_is_batch_timesteps:
-        #
-        #                 if self.train_args.critic_is_batch_timesteps:
-        #                     pass
-        #                 else:
-        #                     batch_critic_inputs = self.data_manager.batch_features(batch_critic_inputs[:-1], True)
-        #                     batch_critic_inputs.append(True)
-        #             batch_target = target[start_pointer:end_pointer]
-        #             batch_target_ = self.data_manager.batch_features((batch_target,), True)[0]
-        #             batch_act = self.data_manager.slice_tuple_list(act, start_pointer, end_pointer)
-        #             self.policy.reset_actor(batch_target.shape[0])
-        #             optimization_info = self.train_phase2(batch_actor_inputs, batch_critic_inputs, batch_act,
-        #                                                   batch_target, batch_target_)
-        #             total_opt_info2.append(tuple(optimization_info.values()))
-        #
-        #             start_pointer = end_pointer
-        #
-        #             end_pointer = end_pointer + self.algo_param.PPG_batch_size
-        #
-        #             if end_pointer > max_step:
-        #                 break
-        #
-        #     total_opt_info2 = np.mean(total_opt_info2, axis=0)
-        #     total_opt_info2 = dict(zip(list(optimization_info), total_opt_info2))
-        #
-        #     name1 = list(total_opt_info)
-        #     name2 = list(total_opt_info2)
-        #
-        #     value1 = list(total_opt_info.values())
-        #     value2 = list(total_opt_info2.values())
-        #
-        #     name = name1 + name2
-        #     value = value1 + value2
-        #
-        #     total_opt_info = dict(zip(name, value))
-        #
-        #     self.buffer = {'actor': [], 'critic': [], 'action': [], 'target': []}
+        if (self.epoch + 1) % self.algo_param.n_pi == 0:
+            total_opt_info2 = []
+            buffer = dict()
+
+            for key in list(self.buffer):
+                buffer[key] = []
+            for key, values in self.buffer.items():
+                for value in values:
+                    if len(value) > 1:
+                        value = tf.concat(values, axis=1)
+                        for data in value:
+                            buffer[key].append(data)
+                        break
+                    else:
+                        value = tf.concat(values, axis=1)
+                        buffer[key].append(tf.squeeze(value, axis=0))
+                        break
+
+            buffer['actor'].append(True)
+            buffer['critic'].append(True)
+            critic_inputs = buffer['critic']
+            actor_inputs = tuple(buffer['actor'])
+            act = tuple(buffer['action'])
+            target = buffer['target']
+
+            # target_ = self.data_manager.batch_features(target, convert_tensor=True)[0]
+
+            target = target[0]
+
+            for _ in range(self.algo_param.update_aux_times):
+                start_pointer = 0
+                end_pointer = self.algo_param.batch_size
+                while True:
+                    batch_actor_inputs = self.data_manager.slice_tuple_list(actor_inputs[:-1], start_pointer,
+                                                                            end_pointer)
+                    batch_actor_inputs.append(True)
+                    batch_critic_inputs = self.data_manager.slice_tuple_list(critic_inputs[:-1], start_pointer,
+                                                                             end_pointer)
+                    batch_critic_inputs.append(True)
+
+                    if self.train_args.actor_is_batch_timesteps:
+
+                        if self.train_args.critic_is_batch_timesteps:
+                            pass
+                        else:
+                            batch_critic_inputs = self.data_manager.batch_features(batch_critic_inputs[:-1], True)
+                            batch_critic_inputs.append(True)
+                    batch_target = target[start_pointer:end_pointer]
+                    batch_target_ = self.data_manager.batch_features((batch_target,), True)[0]
+                    batch_act = self.data_manager.slice_tuple_list(act, start_pointer, end_pointer)
+                    self.policy.reset_actor(batch_target.shape[0])
+                    optimization_info = self.train_phase2(batch_actor_inputs, batch_critic_inputs, batch_act,
+                                                          batch_target, batch_target_)
+                    total_opt_info2.append(tuple(optimization_info.values()))
+
+                    start_pointer = end_pointer
+
+                    end_pointer = end_pointer + self.algo_param.PPG_batch_size
+
+                    if end_pointer > max_step:
+                        break
+
+            total_opt_info2 = np.mean(total_opt_info2, axis=0)
+            total_opt_info2 = dict(zip(list(optimization_info), total_opt_info2))
+
+            name1 = list(total_opt_info)
+            name2 = list(total_opt_info2)
+
+            value1 = list(total_opt_info.values())
+            value2 = list(total_opt_info2.values())
+
+            name = name1 + name2
+            value = value1 + value2
+
+            total_opt_info = dict(zip(name, value))
+
+            self.buffer = {'actor': [], 'critic': [], 'action': [], 'target': []}
 
         return total_opt_info

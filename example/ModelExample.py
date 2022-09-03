@@ -63,6 +63,7 @@ class LSTMActor1(tf.keras.Model):
 
 
 class LSTMActorValue1(tf.keras.Model):
+    # TODO: optimize base function adn policy
     def __init__(self, obs_dims=2):
         """
         PPG joint model example.

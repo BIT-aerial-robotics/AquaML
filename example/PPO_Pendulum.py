@@ -28,7 +28,7 @@ if len(physical_devices) > 0:
         tf.config.experimental.set_memory_growth(physical_devices[k], True)
         print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
 
-env = gym.make("Pendulum-v1")
+env = gym.make("Swimmer-v4")
 observation_dims = env.observation_space.shape[0]
 action_dims = env.action_space.shape[0]
 
@@ -81,16 +81,16 @@ critic = mlp(
     name='value'
 )
 
-# actor = mlp(
-#     state_dims=observation_dims,
-#     output_dims=1,
-#     hidden_size=(32, 32),
-#     name='actor',
-#     output_activation='tanh'
-# )
+actor = mlp(
+    state_dims=observation_dims,
+    output_dims=1,
+    hidden_size=(32, 32),
+    name='actor',
+    output_activation='tanh'
+)
 
-actor = ModelExample.LSTMActor1(2)
-# actor(np.array([1, 1]))
+# actor = ModelExample.LSTMActor1(2)
+# # actor(np.array([1, 1]))
 actor_policy = GaussianPolicy(actor, name='actor', reset_flag=True)
 
 task_runner = TaskRunner(

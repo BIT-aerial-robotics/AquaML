@@ -1,7 +1,17 @@
-from multiprocessing import shared_memory
+import gym
 
-shm = shared_memory.SharedMemory(name='test5_probs', size=8000)
-# shm = shared_memory.SharedMemory(create=True, name='test4_obs', size=4)
-shm.unlink()
-shm.close()
-print(shm)
+
+env = gym.make('Swimmer-v4')
+
+env.reset()
+
+for i in range(10000):
+    observation, reward, done, info = env.step(env.action_space.sample())
+
+    # print(reward)
+
+    if done:
+        print(i)
+        observation = env.reset()
+
+env.close()

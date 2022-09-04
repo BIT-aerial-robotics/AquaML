@@ -101,10 +101,10 @@ class BaseRLAlgo(abc.ABC):
     # @jit(nopython=True)
     def cal_gae_target(self, rewards, values, next_values, mask):
 
-        rewards = rewards.astype(np.float32)
-        values = values.astype(np.float32)
-        next_values = next_values.astype(np.float32)
-        mask = mask.astype(np.float32)
+        # rewards = rewards.astype(np.float32)
+        # values = values.astype(np.float32)
+        # next_values = next_values.astype(np.float32)
+        # mask = mask.astype(np.float32)
 
         gae, n_steps_target = gae_target(rewards=rewards, values=values, next_values=next_values, mask=mask,
                                          gamma=self.algo_param.gamma, lambada=self.algo_param.lambada)

@@ -60,6 +60,8 @@ class GaussianPolicy(BasePolicy):
             mu = out[0]
             sigma = tf.exp(out[1])
 
+        mu = tf.squeeze(mu)
+
         noise, prob = self.noise_and_prob()
 
         action = mu + noise * sigma

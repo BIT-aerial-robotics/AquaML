@@ -148,6 +148,7 @@ class BaseRLAlgo(abc.ABC):
             reward_summary[key] = np.mean(val)
 
         if verbose:
+            print("####Reward information####")
             for key, val in reward_summary.items():
                 print(key + ": {}".format(val))
 
@@ -177,6 +178,7 @@ class BaseRLAlgo(abc.ABC):
         opt_info = self._optimize(data_dict_ac, args)
 
         self.recoder.recode_training_info(self.name, opt_info, self.epoch + 1)
+        print("####Alogo information####")
         for key, val in opt_info.items():
             print(key + ": {}".format(val))
         self.epoch += 1

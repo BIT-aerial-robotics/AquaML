@@ -27,7 +27,7 @@ class TrainArgs:
 
 
 class EnvArgs:
-    def __init__(self, max_steps, total_steps, worker_num=1):
+    def __init__(self, max_steps, total_steps, worker_num=1, episode_clip=None):
         self.max_steps = max_steps
         self.total_steps = total_steps
         self.worker_num = worker_num
@@ -36,6 +36,17 @@ class EnvArgs:
 
         # computing each thread
         self.one_thread_total_steps = int(self.total_steps / worker_num)
+        self.episode_clip = episode_clip
+        if self.episode_clip is None:
+            self.episode_clip = max_steps
+
+        self.args = {
+            'max_steps': self.max_steps,
+            'total_steps': total_steps,
+            'workers': self.worker_num,
+            'one thread total steps': self.one_thread_total_steps,
+            'episode clip': self.episode_clip
+        }
 
     def sync(self, process_id):
         """
@@ -81,6 +92,20 @@ class PPOHyperParam:
 
         self.update_actor_times = update_actor_times
         self.update_critic_times = update_critic_times
+
+        self.args = {
+            'clip ratio': self.clip_ratio,
+            'entropy ratio': self.entropy_ratio,
+            'actor learning rate': self.actor_learning_rate,
+            'critic learning rate': self.critic_learning_rate,
+            'update times': self.update_times,
+            'batch size': self.batch_size,
+            'epochs': self.epochs,
+            'gamma': self.gamma,
+            'lambada': lambada,
+            'update actor times': update_actor_times,
+            'update critic times': update_critic_times
+        }
 
 
 class PPGHyperParam:
@@ -129,6 +154,22 @@ class PPGHyperParam:
 
         self.c1 = c1
         self.c2 = c2
+
+        self.args = {
+            'clip ratio': self.clip_ratio,
+            'entropy ratio': self.entropy_ratio,
+            'actor learning rate': self.actor_learning_rate,
+            'critic learning rate': self.critic_learning_rate,
+            'update times': self.update_times,
+            'batch size': self.batch_size,
+            'epochs': self.epochs,
+            'gamma': self.gamma,
+            'lambada': lambada,
+            'update actor times': update_actor_times,
+            'update critic times': update_critic_times,
+            'c1(entropy ratio)': c1,
+            'c2(joint value ratio)': c2
+        }
 
 
 class TaskArgs:

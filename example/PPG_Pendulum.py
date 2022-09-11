@@ -35,20 +35,19 @@ action_dims = env.action_space.shape[0]
 env_args = EnvArgs(
     max_steps=200,
     total_steps=4000,
-    worker_num=1
+    worker_num=1,
+    episode_clip=50
 )
 
 algo_param = PPGHyperParam(
-    epochs=100,
+    epochs=120,
     batch_size=20,
-    update_times=1,
-    update_actor_times=2,
+    update_times=4,
+    update_actor_times=4,
     update_critic_times=4,
-    n_pi=3,
-    beta_clone=1,
-    update_aux_times=8
+    c1=0.02,
+    c2=0.8,
 )
-
 training_args = TrainArgs(
     actor_is_batch_timesteps=True
 )

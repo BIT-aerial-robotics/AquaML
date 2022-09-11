@@ -150,6 +150,7 @@ class TaskRunner:
     def run(self):
         for i in range(self.task_args.algo_param.epochs):
             if self.rank == 0:
+                start = time.time()
                 self.policy_manager.sync(self.model_path)
             else:
                 pass
@@ -163,6 +164,9 @@ class TaskRunner:
 
             if self.rank == 0:
                 self.optimizer.optimize()
+                end = time.time()
+
+                print('time:{}s'.format(end-start))
             self.comm.Barrier()
 
         self.policy_manager.close()

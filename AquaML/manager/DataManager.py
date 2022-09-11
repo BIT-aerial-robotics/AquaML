@@ -49,6 +49,10 @@ class DataManager:
         self.mask = DataPool(name=work_space + '_' + 'mask', shape=(1,), total_length=total_length,
                              hierarchical=hierarchical_info['hierarchical'], dtype=np.int32)
 
+        self.mask_clip_episode = DataPool(name=work_space + '_' + 'mask_clip_episode', shape=(1,),
+                                          total_length=total_length,
+                                          hierarchical=hierarchical_info['hierarchical'], dtype=np.int32)
+
         # store data address
         self.mapping_dict = {'obs': self.obs, 'action': self.action, 'reward': self.reward, 'next_obs': self.next_obs}
 
@@ -66,10 +70,11 @@ class DataManager:
 
         self.pointer = self.start_pointer
 
-    def store(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
+    def store(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int, clip_mask:int):
         """
         Store data in data_pool.
 
+        :param clip_mask:
         :param obs: (dict) observation.
         :param action: (dict) action.
         :param reward: (dict) reward.
@@ -96,6 +101,7 @@ class DataManager:
             self.next_obs[key].store(value, index)
 
         self.mask.store(mask, index)
+        self.mask_clip_episode.store(clip_mask, index)
 
         self.pointer = self.pointer + 1
 

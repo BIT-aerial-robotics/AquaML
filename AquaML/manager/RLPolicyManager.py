@@ -75,7 +75,7 @@ class RLPolicyManager:
         return action
 
     def sync(self, sync_path):
-        if self.hierarchical == A.MAIN_THREAD:
+        if self.hierarchical == A.MAIN_THREAD or self.hierarchical == 0:
             self.actor_policy.save_weights(sync_path)
             self.critic.save_weights(sync_path)
         else:

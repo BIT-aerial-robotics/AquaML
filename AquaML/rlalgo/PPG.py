@@ -32,7 +32,7 @@ class PhasicPolicyGradient(BaseRLAlgo):
         self.actor_optimizer = tf.optimizers.Adam(learning_rate=self.algo_param.actor_learning_rate)
 
         # store data
-        self.buffer = {'actor': [], 'critic': [], 'action': [], 'target': []}
+        # self.buffer = {'actor': [], 'critic': [], 'action': [], 'target': []}
 
     @tf.function
     def train_phase1(self, act_obs: tuple, critic_obs: tuple, act: tuple, gae, target, target_):
@@ -121,7 +121,6 @@ class PhasicPolicyGradient(BaseRLAlgo):
 
         # target_ = tf.concat(target, axis=0)
 
-
         dic = {
             'aux_loss': aux_loss,
             'kl_div': kl_div,
@@ -132,11 +131,6 @@ class PhasicPolicyGradient(BaseRLAlgo):
         return dic
 
     def _optimize(self, data_dict_ac, args: dict):
-        # prepare data
-        # start = time.time()
-        self.buffer['actor'].append(copy.deepcopy(data_dict_ac['actor']))
-        self.buffer['critic'].append(copy.deepcopy(data_dict_ac['critic']))
-        self.buffer['action'].append(copy.deepcopy(data_dict_ac['action']))
 
         data_dict_ac['actor'].append(True)
         data_dict_ac['critic'].append(True)
@@ -145,15 +139,9 @@ class PhasicPolicyGradient(BaseRLAlgo):
         critic_inputs = data_dict_ac['critic']
         act = data_dict_ac['action']
 
-        # next_actor_inputs = data_dict_ac['next_actor'].append(True)
         data_dict_ac['next_critic'].append(True)
         next_critic_inputs = data_dict_ac['next_critic']
 
-        # end = time.time()
-
-        # print('get data time:{}'.format(end - start))
-
-        # start = time.time()
         # get value
         if self.data_manager.action.get('value') is None:
             if self.train_args.actor_is_batch_timesteps:
@@ -179,7 +167,7 @@ class PhasicPolicyGradient(BaseRLAlgo):
 
         gae, target = self.cal_gae_target(self.data_manager.reward['total_reward'].data, tf_value.numpy(),
                                           tf_next_value.numpy(),
-                                          self.data_manager.mask.data)
+                                          self.data_manager.mask_clip_episode.data)
 
         # end = time.time()
 
@@ -191,7 +179,7 @@ class PhasicPolicyGradient(BaseRLAlgo):
             gae = buffer['gae']
             target = buffer['target']
 
-        self.buffer['target'].append(copy.deepcopy([target, ]))
+        # self.buffer['target'].append(copy.deepcopy([target, ]))
 
         tf_gae = tf.convert_to_tensor(gae, dtype=tf.float32)
         tf_target = tf.convert_to_tensor(target, dtype=tf.float32)
@@ -255,83 +243,5 @@ class PhasicPolicyGradient(BaseRLAlgo):
         total_opt_info = np.mean(total_opt_info, axis=0)
 
         total_opt_info = dict(zip(tuple(optimization_info), total_opt_info))
-
-        if (self.epoch + 1) % self.algo_param.n_pi == 0:
-            total_opt_info2 = []
-            buffer = dict()
-
-            for key in list(self.buffer):
-                buffer[key] = []
-            for key, values in self.buffer.items():
-                for value in values:
-                    if len(value) > 1:
-                        value = tf.concat(values, axis=1)
-                        for data in value:
-                            buffer[key].append(data)
-                        break
-                    else:
-                        value = tf.concat(values, axis=1)
-                        buffer[key].append(tf.squeeze(value, axis=0))
-                        break
-
-            buffer['actor'].append(True)
-            buffer['critic'].append(True)
-            critic_inputs = buffer['critic']
-            actor_inputs = tuple(buffer['actor'])
-            act = tuple(buffer['action'])
-            target = buffer['target']
-
-            # target_ = self.data_manager.batch_features(target, convert_tensor=True)[0]
-
-            target = target[0]
-
-            for _ in range(self.algo_param.update_aux_times):
-                start_pointer = 0
-                end_pointer = self.algo_param.batch_size
-                while True:
-                    batch_actor_inputs = self.data_manager.slice_tuple_list(actor_inputs[:-1], start_pointer,
-                                                                            end_pointer)
-                    batch_actor_inputs.append(True)
-                    batch_critic_inputs = self.data_manager.slice_tuple_list(critic_inputs[:-1], start_pointer,
-                                                                             end_pointer)
-                    batch_critic_inputs.append(True)
-
-                    if self.train_args.actor_is_batch_timesteps:
-
-                        if self.train_args.critic_is_batch_timesteps:
-                            pass
-                        else:
-                            batch_critic_inputs = self.data_manager.batch_features(batch_critic_inputs[:-1], True)
-                            batch_critic_inputs.append(True)
-                    batch_target = target[start_pointer:end_pointer]
-                    batch_target_ = self.data_manager.batch_features((batch_target,), True)[0]
-                    batch_act = self.data_manager.slice_tuple_list(act, start_pointer, end_pointer)
-                    self.policy.reset_actor(batch_target.shape[0])
-                    optimization_info = self.train_phase2(batch_actor_inputs, batch_critic_inputs, batch_act,
-                                                          batch_target, batch_target_)
-                    total_opt_info2.append(tuple(optimization_info.values()))
-
-                    start_pointer = end_pointer
-
-                    end_pointer = end_pointer + self.algo_param.PPG_batch_size
-
-                    if end_pointer > max_step:
-                        break
-
-            total_opt_info2 = np.mean(total_opt_info2, axis=0)
-            total_opt_info2 = dict(zip(list(optimization_info), total_opt_info2))
-
-            name1 = list(total_opt_info)
-            name2 = list(total_opt_info2)
-
-            value1 = list(total_opt_info.values())
-            value2 = list(total_opt_info2.values())
-
-            name = name1 + name2
-            value = value1 + value2
-
-            total_opt_info = dict(zip(name, value))
-
-            self.buffer = {'actor': [], 'critic': [], 'action': [], 'target': []}
 
         return total_opt_info

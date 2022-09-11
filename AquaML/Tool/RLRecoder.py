@@ -17,6 +17,8 @@ class Recoder:
 
         self.main_summary_writer = tf.summary.create_file_writer(log_dir + "/main")
 
+        self.log_dir = log_dir
+
     def recode_reward(self, reward: dict, epoch: int):
         for key, value in reward.items():
             with self.main_summary_writer.as_default():
@@ -26,3 +28,10 @@ class Recoder:
         for key, value in training_info.items():
             with self.main_summary_writer.as_default():
                 tf.summary.scalar(algo_name + '/' + key, value, step=epoch)
+
+    @staticmethod
+    def recode_params(filename, params):
+        dic = params.args
+        with open(filename, 'w') as f:
+            [f.write('{0},{1}\n'.format(key, value)) for key, value in dic.items()]
+

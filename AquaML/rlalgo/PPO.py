@@ -77,7 +77,7 @@ class ProximalPolicyOptimization(BaseRLAlgo):
 
         gae, target = self.cal_gae_target((self.data_manager.reward['total_reward'].data+8)/8, tf_value.numpy(),
                                           tf_next_value.numpy(),
-                                          self.data_manager.mask.data)
+                                          self.data_manager.mask_clip_episode.data)
 
         # end = time.time()
 

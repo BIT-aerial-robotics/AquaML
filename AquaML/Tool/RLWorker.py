@@ -36,15 +36,21 @@ class RLWorker:
         self.step_count += 1
 
         if self.step_count >= self.env_args.max_steps:
+            clip_mask = 0
             mask = 0
             done = True
         else:
             if done:
                 mask = 0
+                clip_mask = 0
             else:
                 mask = 1
+                if self.step_count % self.env_args.episode_clip == 0:
+                    clip_mask = 0
+                else:
+                    clip_mask = 1
 
-        self.dara_manager.store(self.obs, action, reward, obs_, mask)
+        self.dara_manager.store(self.obs, action, reward, obs_, mask, clip_mask)
 
         if done:
             self.reset_flag = True

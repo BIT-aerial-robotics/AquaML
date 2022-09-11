@@ -6,6 +6,7 @@ from AquaML import RLWorker
 import os
 import AquaML as A
 from AquaML.Tool.RLRecoder import Recoder
+import time
 
 
 def mkdir(path):
@@ -69,6 +70,12 @@ class TaskRunner:
         self.optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
                                    data_manager=self.data_manager, policy=self.policy_manager, recoder=self.recoder)
 
+        # recode param
+        log_dir = self.recoder.log_dir
+        self.recoder.recode_params(log_dir+'/algo_param.txt', self.task_args.algo_param)
+        self.recoder.recode_params(log_dir+'/training_args.txt', self.task_args.training_args)
+        self.recoder.recode_params(log_dir+'/env_args.txt', self.task_args.env_args)
+
         # self.data_manager = DataManager(
         #     obs_dic=task_args.obs_info,
         #     action_dic=task_args.actor_outputs_info,
@@ -92,8 +99,13 @@ class TaskRunner:
     def run(self):
 
         for i in range(self.task_args.algo_param.epochs):
+            start = time.time()
             self.worker.roll()
             self.optimizer.optimize()
+            self.policy_manager.sync(self.recoder.log_dir)
+            end = time.time()
+
+            print("time:{}s".format(end-start))
 
     # def run(self):
     #     sampling_threads = [mp.Process(target=self.sample, args=(i + 2,)) for i in
@@ -108,37 +120,37 @@ class TaskRunner:
 
     # optimize_thread.join()
 
-    def sample(self, process_id=0):
-        """
-        sample thread
-
-        :param process_id:
-        :return:
-        """
-        import tensorflow as tf
-        # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-
-        # print("sampling")
-
-        if process_id == 1:
-            raise ValueError("Sampling thread can't create share memory block.")
-
-        self.barrier2.wait()
-
-        self.initial(process_id)
-        worker = RLWorker(
-            env_args=self.task_args.env_args,
-            policy=self.policy_manager,
-            dara_manager=self.data_manager,
-            env=self.env
-        )
-
-        for epoch in range(self.task_args.algo_param.epochs):
-            self.policy_manager.sync(self.model_path)
-            worker.roll()
-            self.barrier.wait()
-        self.data_manager.close()
-        self.policy_manager.close()
+    # def sample(self, process_id=0):
+    #     """
+    #     sample thread
+    #
+    #     :param process_id:
+    #     :return:
+    #     """
+    #     import tensorflow as tf
+    #     # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    #
+    #     # print("sampling")
+    #
+    #     if process_id == 1:
+    #         raise ValueError("Sampling thread can't create share memory block.")
+    #
+    #     self.barrier2.wait()
+    #
+    #     self.initial(process_id)
+    #     worker = RLWorker(
+    #         env_args=self.task_args.env_args,
+    #         policy=self.policy_manager,
+    #         dara_manager=self.data_manager,
+    #         env=self.env
+    #     )
+    #
+    #     for epoch in range(self.task_args.algo_param.epochs):
+    #         self.policy_manager.sync(self.model_path)
+    #         worker.roll()
+    #         self.barrier.wait()
+    #     self.data_manager.close()
+    #     self.policy_manager.close()
 
     def initial(self, process_id=0):
         """
@@ -179,31 +191,31 @@ class TaskRunner:
 
         # return data_manager, policy_manager
 
-    def create_optimizer(self):
-        # import tensorflow as tf
-
-        # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-        # physical_devices = tf.config.experimental.list_physical_devices('GPU')
-        # if len(physical_devices) > 0:
-        #     for k in range(len(physical_devices)):
-        #         tf.config.experimental.set_memory_growth(physical_devices[k], True)
-        #         print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
-
-        # if self.task_args.env_args.worker_num > 1:
-        process_id = A.MAIN_THREAD
-
-        self.initial(process_id)
-        # print(1)
-
-        optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
-                              data_manager=self.data_manager, policy=self.policy_manager)
-        # print(2)
-        for epoch in range(self.task_args.algo_param.epochs):
-            self.policy_manager.sync(self.model_path)
-            if epoch == 0:
-                # print('ok')
-                self.barrier2.wait()
-            self.barrier.wait()
-            optimizer.optimize()
-        self.data_manager.close()
-        self.policy_manager.close()
+    # def create_optimizer(self):
+    #     # import tensorflow as tf
+    #
+    #     # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    #     # physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    #     # if len(physical_devices) > 0:
+    #     #     for k in range(len(physical_devices)):
+    #     #         tf.config.experimental.set_memory_growth(physical_devices[k], True)
+    #     #         print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
+    #
+    #     # if self.task_args.env_args.worker_num > 1:
+    #     process_id = A.MAIN_THREAD
+    #
+    #     self.initial(process_id)
+    #     # print(1)
+    #
+    #     optimizer = self.algo(algo_param=self.task_args.algo_param, train_args=self.task_args.training_args,
+    #                           data_manager=self.data_manager, policy=self.policy_manager)
+    #     # print(2)
+    #     for epoch in range(self.task_args.algo_param.epochs):
+    #         self.policy_manager.sync(self.model_path)
+    #         if epoch == 0:
+    #             # print('ok')
+    #             self.barrier2.wait()
+    #         self.barrier.wait()
+    #         optimizer.optimize()
+    #     self.data_manager.close()
+    #     self.policy_manager.close()

@@ -52,6 +52,30 @@ class PhasicPolicyGradient(BaseRLAlgo):
         action = act[0]
 
         actor_inputs = (actor_model_inputs, (action,))
+
+        for _ in range(self.algo_param.update_critic_times):
+            with tf.GradientTape() as tape2:
+                v = self.policy.critic(*critic_obs)
+                critic_loss = tf.reduce_mean(tf.square(target_ - v))
+
+            critic_grad = tape2.gradient(critic_loss, self.policy.get_critic_trainable_variables())
+            self.critic_optimizer.apply_gradients(zip(critic_grad, self.policy.get_critic_trainable_variables()))
+
+        vc = self.policy.critic(*critic_obs)
+        vc_vr = tf.math.reduce_mean(tf.square(vc - target_))
+        vc = tf.reshape(vc, target.shape)
+
+        out = self.policy.actor(*actor_inputs)
+        mu, new_prob, joint_value = out[0], out[1], out[2]
+
+        vj_vc = tf.math.reduce_mean(tf.square(joint_value - vc))
+
+        distance = tf.sqrt(vc_vr)+tf.sqrt(vj_vc)
+
+        lam = 1/distance
+
+        lam = tf.clip_by_value(lam, 0, self.algo_param.c2)
+
         for _ in range(self.algo_param.update_actor_times):
             with tf.GradientTape() as tape1:
                 out = self.policy.actor(*actor_inputs)
@@ -72,25 +96,21 @@ class PhasicPolicyGradient(BaseRLAlgo):
                 entropy_loss = -tf.reduce_mean(new_prob * tf.math.log(new_prob))
 
                 loss = -(
-                        actor_surrogate_loss + entropy_loss * self.algo_param.c1 - self.algo_param.c2 * joint_value_loss)
+                        actor_surrogate_loss + entropy_loss * self.algo_param.c1 - lam * joint_value_loss)
+
+                # loss = -(
+                #         actor_surrogate_loss + entropy_loss * self.algo_param.c1 - self.algo_param.c2 * joint_value_loss)
 
             actor_grad = tape1.gradient(loss, self.policy.get_actor_trainable_variables())
 
             self.actor_optimizer.apply_gradients(zip(actor_grad, self.policy.get_actor_trainable_variables()))
-
-        for _ in range(self.algo_param.update_critic_times):
-            with tf.GradientTape() as tape2:
-                v = self.policy.critic(*critic_obs)
-                critic_loss = tf.reduce_mean(tf.square(target_ - v))
-
-            critic_grad = tape2.gradient(critic_loss, self.policy.get_critic_trainable_variables())
-            self.critic_optimizer.apply_gradients(zip(critic_grad, self.policy.get_critic_trainable_variables()))
         dic = {
             'surrogate': actor_surrogate_loss,
             'entropy': entropy_loss,
             'actor_loss': loss,
             'critic_loss': critic_loss,
-            'joint_value_loss': joint_value_loss
+            'joint_value_loss': joint_value_loss,
+            'lam': lam
         }
 
         return dic

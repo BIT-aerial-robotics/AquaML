@@ -46,7 +46,7 @@ algo_param = PPGHyperParam(
     update_actor_times=4,
     update_critic_times=4,
     c1=0.02,
-    c2=0.8,
+    c2=1,
 )
 training_args = TrainArgs(
     actor_is_batch_timesteps=True

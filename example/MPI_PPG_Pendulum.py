@@ -81,9 +81,7 @@ algo_param = PPGHyperParam(
     update_actor_times=4,
     update_critic_times=4,
     c1=0.1,
-    c2=0.3,
-    n_pi=8,
-    beta_clone=1,
+    c2=1,
 )
 
 # 0.08
@@ -128,7 +126,7 @@ task_runner = TaskRunner(
     actor_policy=actor_policy,
     critic=critic,
     algo=PPG,
-    work_space='PPG_ours_c2',
+    work_space='PPG_ours_v2',
     env=GymEnvWrapper('Pendulum-v1'),
     comm=comm
 )

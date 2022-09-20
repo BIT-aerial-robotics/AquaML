@@ -82,6 +82,8 @@ algo_param = PPGHyperParam(
     update_critic_times=4,
     c1=0.1,
     c2=1,
+    recovery_epoch=-1,
+    recovery_update_steps=4
 )
 
 # 0.08

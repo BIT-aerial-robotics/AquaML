@@ -35,6 +35,21 @@ class PhasicPolicyGradient(BaseRLAlgo):
         # self.buffer = {'actor': [], 'critic': [], 'action': [], 'target': []}
 
     @tf.function
+    def recovery_critic(self, critic_obs: tuple, target_):
+        for _ in range(self.algo_param.recovery_update_steps):
+            with tf.GradientTape() as tape2:
+                v = self.policy.critic(*critic_obs)
+                critic_loss = tf.reduce_mean(tf.square(target_ - v))
+
+            critic_grad = tape2.gradient(critic_loss, self.policy.get_critic_trainable_variables())
+            self.critic_optimizer.apply_gradients(zip(critic_grad, self.policy.get_critic_trainable_variables()))
+        dic = {
+            "recovery loss": critic_loss
+        }
+
+        return dic
+
+    @tf.function
     def train_phase1(self, act_obs: tuple, critic_obs: tuple, act: tuple, gae, target, target_):
         """
         Optimize the phase1 policy.
@@ -70,9 +85,9 @@ class PhasicPolicyGradient(BaseRLAlgo):
 
         vj_vc = tf.math.reduce_mean(tf.square(joint_value - vc))
 
-        distance = tf.sqrt(vc_vr)+tf.sqrt(vj_vc)
+        distance = tf.sqrt(vc_vr) + tf.sqrt(vj_vc)
 
-        lam = 1/distance
+        lam = 1 / distance
 
         lam = tf.clip_by_value(lam, 0, self.algo_param.c2)
 
@@ -111,41 +126,6 @@ class PhasicPolicyGradient(BaseRLAlgo):
             'critic_loss': critic_loss,
             'joint_value_loss': joint_value_loss,
             'lam': lam
-        }
-
-        return dic
-
-    @tf.function
-    def train_phase2(self, act_obs: tuple, critic_obs: tuple, act: tuple, target, target_):
-        actor_model_inputs = (*act_obs,)  # (obs1,obs2,..,training)
-        action = act[0]
-        actor_inputs = (actor_model_inputs, (action,))
-
-        with tf.GradientTape() as tape2:
-            v = self.policy.critic(*critic_obs)
-            value_loss = tf.reduce_mean(tf.square(v - target_))
-        value_grad = tape2.gradient(value_loss, self.policy.get_critic_trainable_variables())
-        self.actor_optimizer.apply_gradients(zip(value_grad, self.policy.get_critic_trainable_variables()))
-
-        # optimize policy parts
-        with tf.GradientTape() as tape1:
-            joint_policy_out = self.policy.get_actor_value(*actor_inputs)
-            mu, new_prob, value = joint_policy_out[0], joint_policy_out[1], joint_policy_out[2]
-            aux_loss = 0.5 * tf.reduce_mean(tf.square(value - target))
-            kl_div = tf.reduce_mean(tf.keras.losses.KLD(act[1], new_prob))
-            # kl_div = tf.reduce_sum(act[1] * (tf.math.log(act[1]) - tf.math.log(new_prob)))
-            joint_loss = aux_loss + self.algo_param.beta_clone * kl_div
-
-        joint_grad = tape1.gradient(joint_loss, self.policy.get_actor_critic_variable)
-        self.actor_optimizer.apply_gradients(zip(joint_grad, self.policy.get_actor_critic_variable))
-
-        # target_ = tf.concat(target, axis=0)
-
-        dic = {
-            'aux_loss': aux_loss,
-            'kl_div': kl_div,
-            'joint_loss': joint_loss,
-            'value_loss': value_loss
         }
 
         return dic
@@ -240,9 +220,11 @@ class PhasicPolicyGradient(BaseRLAlgo):
                 # print('prepare time for training:{}'.format(end - start))
 
                 # start = time.time()
-
-                optimization_info = self.train_phase1(batch_actor_inputs, batch_critic_inputs, batch_act, batch_gae,
-                                                      batch_target, batch_target_)
+                if self.epoch < self.algo_param.recovery_epoch:
+                    optimization_info = self.recovery_critic(batch_critic_inputs, batch_target_)
+                else:
+                    optimization_info = self.train_phase1(batch_actor_inputs, batch_critic_inputs, batch_act, batch_gae,
+                                                          batch_target, batch_target_)
 
                 # end = time.time()
 

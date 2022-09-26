@@ -1,17 +1,32 @@
-import gym
+# import tensorflow as tf
 
 
-env = gym.make('Swimmer-v4')
+class Test:
+    def __init__(self, tf_handle):
+        self.tf = tf_handle
 
-env.reset()
+        a = self.tf.zeros(shape=(12, 1), dtype=self.tf.float32)
 
-for i in range(10000):
-    observation, reward, done, info = env.step(env.action_space.sample())
+        print(a)
 
-    # print(reward)
 
-    if done:
-        print(i)
-        observation = env.reset()
+if __name__ == "__main__":
+    import multiprocessing as mp
 
-env.close()
+    def running(id):
+        import os
+        import tensorflow as tf
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+        test = Test(tf)
+
+        print(id)
+
+
+    processes = [mp.Process(target=running, args=(1,)) for i in range(10)]
+
+    for proces in processes:
+        proces.start()
+
+    proces.join()
+

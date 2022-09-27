@@ -4,8 +4,8 @@ import numpy as np
 from multiprocessing import shared_memory
 
 
-class DataPool:
-    def __init__(self, name: str, shape: tuple, total_length: int, dtype=np.float32, share_memory=False):
+class ParamData:
+    def __init__(self, name: str, shape: tuple,dtype=np.float32, share_memory=False):
         """
         DataPool is the data storage unit and is used to create a data storage warehouse and synchronize the shared-memory address.
         :param name:(str) The name of the warehouse.
@@ -16,7 +16,6 @@ class DataPool:
         """
 
         self.name = name
-        self.total_length = total_length
 
         self.shape = shape  # single data shape
 
@@ -24,26 +23,21 @@ class DataPool:
 
         self.dtype = dtype
 
-        shapes = []
-
-        shapes.append(total_length)
-
-        for value in shape:
-            shapes.append(value)
-
-        self.shapes = shapes  # total length, single shape
+        self.shapes = shape  # total length, single shape
 
         if share_memory:
-            data_pool = np.zeros(shape=shapes, dtype=dtype)
+            data_pool = np.zeros(shape=shape, dtype=dtype)
             try:
                 self.shm_data_pool = shared_memory.SharedMemory(create=True, size=data_pool.nbytes, name=self.name)
+                self.master_thread = True
             except Exception:
                 self.shm_data_pool = shared_memory.SharedMemory(size=data_pool.nbytes, name=self.name)
+                self.master_thread = False
 
             self._data = np.ndarray(data_pool.shape, dtype=dtype, buffer=self.shm_data_pool.buf)
 
         else:
-            self._data = np.zeros(shape=shapes, dtype=dtype)
+            self._data = np.zeros(shape=shape, dtype=dtype)
 
     def store(self, data, index):
         """
@@ -71,11 +65,18 @@ class DataPool:
             except Exception:
                 pass
 
+    def data_block(self, start, end):
+        return self._data[start:end]
+
     @property
     def data(self):
         c = copy.deepcopy(self._data)
         return c
 
-    def data_block(self, start, end):
-        return self._data[start:end]
+    def set_value(self, value):
+        if self.share_memory:
+            if self.master_thread:
+                self._data[:] = value[:]
+        else:
+            self._data[:] = value[:]
 

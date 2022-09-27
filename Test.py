@@ -8,8 +8,8 @@ class Test:
         self.a = self.tf.ones(shape=(12, 1), dtype=self.tf.float32)
 
         @tf_handle.function
-        def multi():
-            return 2 * self.a
+        def multi(b):
+            return b * self.a
 
         self.multi = multi
 
@@ -25,10 +25,10 @@ if __name__ == "__main__":
 
         test = Test(tf)
 
-        print(test.multi())
+        print(test.multi(id))
 
 
-    processes = [mp.Process(target=running, args=(1,)) for i in range(10)]
+    processes = [mp.Process(target=running, args=(i,)) for i in range(10)]
 
     for proces in processes:
         proces.start()

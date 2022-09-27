@@ -1,14 +1,16 @@
-import tensorflow as tf
+# import tensorflow as tf
 import abc
 
 
 class BasePolicy(abc.ABC):
-    def __init__(self, model: tf.keras.Model, name: str, reset_flag=False):
+    def __init__(self, model, name: str, tf_handle, reset_flag=False):
         self.model = model
         self.name = name
 
         self.target_model = None
         self.reset_flag = reset_flag
+
+        self.tf = tf_handle
 
     def set_target_model(self):
         """
@@ -17,7 +19,7 @@ class BasePolicy(abc.ABC):
         :return: None
         """
 
-        self.target_model = tf.keras.models.clone_model(self.model)
+        self.target_model = self.tf.keras.models.clone_model(self.model)
 
     def soft_update(self, tau):
         new_weights = []
@@ -45,17 +47,17 @@ class BasePolicy(abc.ABC):
                 raise ValueError('Target model is not used.')
 
     def save_model(self, file_path, save_target=False):
-        tf.keras.models.save_model(self.model, file_path + '/' + self.name + '.h5', overwrite=True)
+        self.tf.keras.models.save_model(self.model, file_path + '/' + self.name + '.h5', overwrite=True)
         if save_target:
             if self.target_model:
-                tf.keras.models.save_model(self.model, file_path + '/' + self.name + '_target.h5', overwrite=True)
+                self.tf.keras.models.save_model(self.model, file_path + '/' + self.name + '_target.h5', overwrite=True)
             else:
                 raise ValueError('Target model is not used.')
 
     def load_model(self, file_path, load_targets=False):
-        tf.keras.models.load_model(file_path + '/' + self.name + '.h5', compile=False)
+        self.tf.keras.models.load_model(file_path + '/' + self.name + '.h5', compile=False)
         if load_targets:
-            tf.keras.models.load_model(file_path + '/' + self.name + '_target.h5', compile=False)
+            self.tf.keras.models.load_model(file_path + '/' + self.name + '_target.h5', compile=False)
 
     @property
     def get_variable(self):

@@ -5,13 +5,18 @@ class Test:
     def __init__(self, tf_handle):
         self.tf = tf_handle
 
-        a = self.tf.zeros(shape=(12, 1), dtype=self.tf.float32)
+        self.a = self.tf.ones(shape=(12, 1), dtype=self.tf.float32)
 
-        print(a)
+        @tf_handle.function
+        def multi():
+            return 2 * self.a
+
+        self.multi = multi
 
 
 if __name__ == "__main__":
     import multiprocessing as mp
+
 
     def running(id):
         import os
@@ -20,7 +25,7 @@ if __name__ == "__main__":
 
         test = Test(tf)
 
-        print(id)
+        print(test.multi())
 
 
     processes = [mp.Process(target=running, args=(1,)) for i in range(10)]
@@ -29,4 +34,3 @@ if __name__ == "__main__":
         proces.start()
 
     proces.join()
-

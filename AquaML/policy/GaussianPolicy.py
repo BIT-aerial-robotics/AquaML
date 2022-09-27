@@ -1,4 +1,4 @@
-import tensorflow as tf
+# import tensorflow as tf
 import tensorflow_probability as tfp
 from AquaML.policy.BasePolicy import BasePolicy
 from AquaML.data.ParamData import ParamData
@@ -6,8 +6,9 @@ import AquaML as A
 
 
 class GaussianPolicy(BasePolicy):
-    def __init__(self, model: tf.keras.Model, name: str, reset_flag=False):
-        super().__init__(model=model, name=name, reset_flag=reset_flag)
+    def __init__(self, model, name: str, tf_handle, reset_flag=False):
+        super().__init__(model=model, name=name, reset_flag=reset_flag, tf_handle=tf_handle)
+        self._noise_and_prob = None
         self.type = A.STOCHASTIC
         self.distribution = None
         self.hierarchical = None
@@ -17,28 +18,35 @@ class GaussianPolicy(BasePolicy):
 
     def create_log_std(self, shape, hierarchical, work_space: str):
         if hierarchical == 0 or hierarchical == 1:
-            self.log_std = ParamData(work_space + '_' + self.name + '_log_std', shape=shape, hierarchical=hierarchical)
-            self.tf_log_std = tf.Variable(self.log_std.data - 0.5, trainable=True)
+            self.log_std = ParamData(work_space + '_' + self.name + '_log_std', shape=shape)
+            self.tf_log_std = self.tf.Variable(self.log_std.data - 0.5, trainable=True)
             self.hierarchical = hierarchical
         else:
-            self.log_std = ParamData(work_space + '_' + self.name + '_log_std', shape=shape, hierarchical=hierarchical)
-            self.tf_log_std = tf.cast(self.log_std.data, dtype=tf.float32)
+            self.log_std = ParamData(work_space + '_' + self.name + '_log_std', shape=shape)
+            self.tf_log_std = self.tf.cast(self.log_std.data, dtype=self.tf.float32)
             self.hierarchical = hierarchical
 
+        @self.tf.function
+        def noise_and_prob():
+            noise = self.distribution.sample()
+            prob = self.distribution.prob(noise)
+
+            prob = self.tf.clip_by_value(prob, 1e-6, 1)
+            # prob = tf.squeeze(prob)
+
+            return noise, prob
+
+        self._noise_and_prob = noise_and_prob
+
     def create_distribution(self, shape):
-        mu = tf.zeros(shape=shape, dtype=tf.float32)
-        sigma = tf.ones(shape=shape, dtype=tf.float32)
+        mu = self.tf.zeros(shape=shape, dtype=self.tf.float32)
+        sigma = self.tf.ones(shape=shape, dtype=self.tf.float32)
         self.distribution = tfp.distributions.Normal(mu, sigma)
 
     # @tf.function
-    # def noise_and_prob(self):
-    #     noise = self.distribution.sample()
-    #     prob = self.distribution.prob(noise)
-    #
-    #     prob = tf.clip_by_value(prob, 1e-6, 1)
-    #     prob = tf.squeeze(prob)
-    #
-    #     return noise, prob
+    def noise_and_prob(self):
+
+        return self._noise_and_prob()
 
     def get_action(self, *args):
         """
@@ -54,13 +62,13 @@ class GaussianPolicy(BasePolicy):
                 mu = out[0]
             else:
                 mu = out
-            sigma = tf.exp(self.tf_log_std)
+            sigma = self.tf.exp(self.tf_log_std)
         else:
             out = self.run_model(*args)
             mu = out[0]
-            sigma = tf.exp(out[1])
+            sigma = self.tf.exp(out[1])
 
-        mu = tf.squeeze(mu)
+        mu = self.tf.squeeze(mu)
 
         noise, prob = self.noise_and_prob()
 
@@ -84,17 +92,17 @@ class GaussianPolicy(BasePolicy):
         else:
             # print("load complete")
             log_std = self.log_std.data
-            self.tf_log_std = tf.Variable(log_std)
+            self.tf_log_std = self.tf.Variable(log_std)
 
-    @tf.function
-    def noise_and_prob(self):
-        noise = self.distribution.sample()
-        prob = self.distribution.prob(noise)
-
-        prob = tf.clip_by_value(prob, 1e-6, 1)
-        # prob = tf.squeeze(prob)
-
-        return noise, prob
+    # @tf.function
+    # def noise_and_prob(self):
+    #     noise = self.distribution.sample()
+    #     prob = self.distribution.prob(noise)
+    #
+    #     prob = self.tf.clip_by_value(prob, 1e-6, 1)
+    #     # prob = tf.squeeze(prob)
+    #
+    #     return noise, prob
 
     # @tf.function
     def __call__(self, *args):
@@ -114,16 +122,16 @@ class GaussianPolicy(BasePolicy):
                 mu = out[0]
             else:
                 mu = out
-            sigma = tf.exp(self.tf_log_std)
+            sigma = self.tf.exp(self.tf_log_std)
         else:
             out = self.model(*args[0])
             mu = out[0]
-            sigma = tf.exp(out[1])
+            sigma = self.tf.exp(out[1])
 
         # action = args[1]
         pi = tfp.distributions.Normal(mu, sigma)
         prob = pi.prob(*args[1])
-        prob = tf.clip_by_value(prob, 1e-6, 1)
+        prob = self.tf.clip_by_value(prob, 1e-6, 1)
 
         # noise, prob = self.noise_and_prob()
         # action = noise + mu*sigma
@@ -151,14 +159,14 @@ class GaussianPolicy(BasePolicy):
         if self.log_std is not None:
             mu = out[0]
             value = out[1]
-            sigma = tf.exp(self.tf_log_std)
+            sigma = self.tf.exp(self.tf_log_std)
         else:
             mu = out[0]
             sigma = out[1]
             value = out[2]
         pi = tfp.distributions.Normal(mu, sigma)
         prob = pi.prob(*args[1])
-        prob = tf.clip_by_value(prob, 1e-6, 1)
+        prob = self.tf.clip_by_value(prob, 1e-6, 1)
 
         out = (mu, prob, value)
 

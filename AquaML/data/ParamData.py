@@ -5,7 +5,7 @@ from multiprocessing import shared_memory
 
 
 class ParamData:
-    def __init__(self, name: str, shape: tuple,dtype=np.float32, share_memory=False):
+    def __init__(self, name: str, shape: tuple, dtype=np.float32, share_memory=False):
         """
         DataPool is the data storage unit and is used to create a data storage warehouse and synchronize the shared-memory address.
         :param name:(str) The name of the warehouse.
@@ -79,4 +79,3 @@ class ParamData:
                 self._data[:] = value[:]
         else:
             self._data[:] = value[:]
-

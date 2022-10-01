@@ -92,6 +92,8 @@ training_args = TrainArgs(
     actor_is_batch_timesteps=True
 )
 
+# TODO: reduce the number of args
+
 task_args = TaskArgs(
     algo_param=algo_param,
     obs_info={'obs': (observation_dims,), 'pos': (2,)},

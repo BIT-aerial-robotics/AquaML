@@ -5,7 +5,7 @@ from multiprocessing import shared_memory
 
 
 class DataPool:
-    def __init__(self, name: str, shape: tuple, total_length: int, dtype=np.float32, share_memory=False):
+    def __init__(self, name: str, shape: tuple, total_length, dtype=np.float32, share_memory=False):
         """
         DataPool is the data storage unit and is used to create a data storage warehouse and synchronize the shared-memory address.
         :param name:(str) The name of the warehouse.
@@ -26,7 +26,12 @@ class DataPool:
 
         shapes = []
 
-        shapes.append(total_length)
+        if isinstance(total_length, int):
+            shapes.append(total_length)
+        else:
+            # master node need.
+            for v in total_length:
+                shapes.append(v)
 
         for value in shape:
             shapes.append(value)
@@ -78,4 +83,3 @@ class DataPool:
 
     def data_block(self, start, end):
         return self._data[start:end]
-

@@ -26,6 +26,8 @@ class MPIStarter:
 
         global_rank = global_comm.Get_rank()
 
+        group = global_comm.Get_group()
+
         level1_size = task_list['level1'].max_processes  # master size
 
         self.epoch = task_list['epoch']  # every node has epoch
@@ -88,7 +90,11 @@ class MPIStarter:
             else:
                 master_id = global_rank  # id = 0
 
+            level2_group = group.Incl(sm_ranks)
+            level2_comm = global_comm.Create(level2_group)
+
         # communicator between master and global_node
         master_ranks = [i + 1 for i in range(level1_size)]
-
-
+        master_ranks.insert(0, 0)
+        master_group = group.Incl(master_ranks)
+        master_comm = global_comm.Create(master_ranks)

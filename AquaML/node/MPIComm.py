@@ -1,9 +1,11 @@
 from mpi4py import MPI
 from AquaML.data.DataPool import DataPool
 from AquaML.data.ParamData import ParamData
+from AquaML.data.DataCollector import DataCollector
 import numpy as np
 
 
+# TODO: How to sync process
 class MPIComm:
     def __init__(self, comm: MPI.COMM_WORLD):
         """
@@ -44,3 +46,17 @@ class MPIComm:
         self.comm.Bcast(buffer)
 
         return buffer
+
+    def gather(self, data_collector: DataCollector):
+        """
+
+        :param data_collector:
+        :return:
+        """
+        # in main thread data_pool shape is [size, total_steps, features]
+        for key, val in data_collector.data_pool.items():
+            recv = self.gather_one(val)
+            # TODO: need barrier?
+            if self.rank == 0:
+                val._data[:] = recv[:]
+

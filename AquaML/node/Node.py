@@ -35,6 +35,7 @@ class Node:
 
     def run(self):
         for i in range(self.epochs):
+            # TODO: every task must have sync method
             self.node_task.sync()
             self.node_task.run()
-            # TODO: implement data
+            # TODO: implement data transition method

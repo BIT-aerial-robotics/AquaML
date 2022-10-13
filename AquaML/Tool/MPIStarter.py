@@ -1,6 +1,7 @@
 from mpi4py import MPI
 import os
 from AquaML.node.Node import Node
+from AquaML.node.MPIComm import MPIComm
 
 
 def mkdir(path):
@@ -74,6 +75,7 @@ class MPIStarter:
 
         # create communicator between lever1 and level2
         if 'level 2' in task_list:
+            # sub_thread
             # TODO: need to specify root node.
             base_sm_ranks = [i for i in range(ave_nodes)]
 
@@ -92,9 +94,12 @@ class MPIStarter:
 
             level2_group = group.Incl(sm_ranks)
             level2_comm = global_comm.Create(level2_group)
+            level2_communicator = MPIComm(level2_comm)
+            self.node.set_communicator(level2_communicator)
 
         # communicator between master and global_node
         master_ranks = [i + 1 for i in range(level1_size)]
         master_ranks.insert(0, 0)
         master_group = group.Incl(master_ranks)
-        master_comm = global_comm.Create(master_ranks)
+        master_comm = global_comm.Create(master_group)
+        master_communicator = MPIComm(master_comm)

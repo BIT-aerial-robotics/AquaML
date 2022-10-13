@@ -83,3 +83,6 @@ class DataPool:
 
     def data_block(self, start, end):
         return self._data[start:end]
+
+    def set_all_data(self, data):
+        self._data[:] = data[:]

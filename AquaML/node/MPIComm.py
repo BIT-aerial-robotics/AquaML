@@ -58,5 +58,5 @@ class MPIComm:
             recv = self.gather_one(val)
             # TODO: need barrier?
             if self.rank == 0:
-                val._data[:] = recv[:]
+                val.set_all_data(recv)
 

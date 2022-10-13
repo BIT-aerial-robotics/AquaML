@@ -9,10 +9,14 @@ class Node:
     def __init__(self, node_task, data_args: dict, epochs, name: str, task_args=None, master_name=None):
         """
         The minimum running task. Initial tensorflow for every thread. In our framework, RLNode is composed by task, datacollector, policy.
+        Current, we just consider how sync level2 thread with master thread.
+        Level2 thread has the same structure with master thread.
+        Global thread and master thread are synced by MPIStarter.
         :param node_task: The node will run this task. node_task can be an instance of a class, at this situation, task_args=None. Or node_task is a class.
         :param task_args: see node_task. None or dict.
         """
 
+        self.level2_com = None
         self.task_args = task_args
 
         self.name = name
@@ -39,3 +43,6 @@ class Node:
             self.node_task.sync()
             self.node_task.run()
             # TODO: implement data transition method
+
+    def set_communicator(self, level2_com=None):
+        self.level2_com = level2_com

@@ -70,7 +70,7 @@ class DataManager:
 
         self.pointer = self.start_pointer
 
-    def store(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int, clip_mask:int):
+    def store(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int, clip_mask: int):
         """
         Store data in data_pool.
 
@@ -335,6 +335,38 @@ class DataManager:
             out_dic = DataManager.convert_tensor(out_dic)
 
         return list(out_dic.values())
+
+    def save_data(self):
+        for key, value in self.obs.items():
+            value.save_data(self.work_space)
+
+        for key, value in self.next_obs.items():
+            value.save_data(self.work_space)
+
+        for key, value in self.action.items():
+            value.save_data(self.work_space)
+
+        for key, value in self.reward.items():
+            value.save_data(self.work_space)
+
+        self.mask.save_data(self.work_space)
+        self.mask_clip_episode.save_data(self.work_space)
+
+    def load_data(self):
+        for key, value in self.obs.items():
+            value.load_data(self.work_space)
+
+        for key, value in self.next_obs.items():
+            value.load_data(self.work_space)
+
+        for key, value in self.action.items():
+            value.load_data(self.work_space)
+
+        for key, value in self.reward.items():
+            value.load_data(self.work_space)
+
+        self.mask.load_data(self.work_space)
+        self.mask_clip_episode.load_data(self.work_space)
 
 
 if __name__ == "__main__":

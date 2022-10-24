@@ -80,3 +80,9 @@ class DataPool:
     # @property
     def data_block(self, start, end):
         return self.data_pool[start: end]
+
+    def save_data(self, path):
+        np.save(path + '/' + self.name + '.npy', self.data_pool)
+
+    def load_data(self, path):
+        self.data_pool = np.load(path + '/' + self.name + '.npy')

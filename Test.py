@@ -80,9 +80,8 @@
 # a = [i for i in range(10)]
 #
 # print(a)
+import numpy as np
 
-a = [1, 2, 3, 4]
+a = np.array([1, 2, 3, 4])
 
-a.insert(0, 0)
-
-print(a)
+print(a[-2:])

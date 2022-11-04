@@ -3,8 +3,11 @@ import copy
 import numpy as np
 from multiprocessing import shared_memory
 
+import copy
+
 
 class DataUnit:
+    # TODO: Add group communicator
     def __init__(self, name: str, shape: tuple, total_length, dtype=np.float32, share_memory=False):
         """
         DataPool is the data storage unit and is used to create a data storage warehouse and synchronize the shared-memory address.
@@ -92,3 +95,32 @@ class DataUnit:
 
     def load_data(self, path):
         self._data = np.load(path + '/' + self.name + '.npy')
+
+        self.update_info(self._data.shape[1:], self._data.shape, self._data.shape[0])
+
+    def update_info(self, shape, shapes, total_length):
+        self.shape = shape
+        self.shapes = shapes
+        self.total_length = total_length
+
+    def get_signal_data(self, index):
+        return self._data[index]
+
+    def create_share_memory(self):
+        data_pool = np.zeros(shape=self.shapes, dtype=self.dtype)
+        self.shm_data_pool = shared_memory.SharedMemory(create=True, size=data_pool.nbytes, name=self.name)
+
+        buffer = copy.deepcopy(self._data)
+
+        self._data = np.ndarray(data_pool.shape, dtype=self.dtype, buffer=self.shm_data_pool.buf)
+        self._data[:] = buffer[:]
+
+        del buffer
+
+        return data_pool.nbytes
+
+    def load_share_memory(self, size=None):
+        data_pool = np.zeros(shape=self.shapes, dtype=self.dtype)
+        self.shm_data_pool = shared_memory.SharedMemory(size=data_pool.nbytes, name=self.name)
+
+        self._data = np.ndarray(data_pool.shape, dtype=self.dtype, buffer=self.shm_data_pool.buf)

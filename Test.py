@@ -82,6 +82,6 @@
 # print(a)
 import numpy as np
 
-a = np.array([1, 2, 3, 4])
+a = np.array([1, 2], dtype=np.int8)
 
-print(a[-2:])
+print(a.nbytes)

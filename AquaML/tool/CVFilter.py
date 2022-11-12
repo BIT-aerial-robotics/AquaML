@@ -16,9 +16,9 @@ class PencilFilter:
         gray_img_32_bit = gray_img.copy().astype(np.uint32)
         dialted_my = ((gray_img_32_bit * 255) / dialted).astype(np.uint8)
         penciled = np.where(np.isnan(dialted_my), 255, dialted_my).astype(np.uint8)
-        penciled_rgb = cv.cvtColor(penciled, cv.COLOR_GRAY2RGB)
+        # penciled_rgb = cv.cvtColor(penciled, cv.COLOR_GRAY2RGB)
 
-        return penciled_rgb
+        return penciled
 
     def dilatation(self, img):
         element = cv.getStructuringElement(self.dilation_shape,

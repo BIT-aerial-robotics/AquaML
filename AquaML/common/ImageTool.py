@@ -19,3 +19,25 @@ def check_size(dir,shape, length, format='.png'):
         if img.shape[0] != shape[0]:
             img = cv2.resize(img,shape)
             cv2.imwrite(name, img)
+
+def add_texture(img, texture, channel_weight, threshold=200):
+    """Enhanced by green-sreen technology.
+
+    Args:
+        img (ndarray): input image.
+        texture (ndarray): texture img. img and texture must have the same shape.
+        channel_weight (ndarray): The color of target object.
+    """
+
+    weight_img = img[:,:,0]*channel_weight[0]+img[:,:,1]*channel_weight[1]+img[:,:,2]*channel_weight[2]
+
+    index = np.where(weight_img>threshold)
+
+    img[index[0],index[1],:] = texture[index[0],index[1],:]
+
+    return img
+
+def gray_img(img, channel_weight):
+    weight_img = img[:,:,0]*channel_weight[0]+img[:,:,1]*channel_weight[1]+img[:,:,2]*channel_weight[2]
+    return weight_img
+

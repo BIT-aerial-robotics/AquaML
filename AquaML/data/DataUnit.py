@@ -24,7 +24,7 @@ class DataUnit:
 
         self.name = name
 
-        self.shape = shape
+        self._shape = shape
         self.dtype = dtype
 
         self.computer_type = computer_type
@@ -38,6 +38,8 @@ class DataUnit:
             self.buffer = None
             self.__nbytes == None
 
+        self.shm_buffer = None
+
     
     def create_shared_memory(self):
         """Create shared-memory.
@@ -47,19 +49,27 @@ class DataUnit:
 
         if self.level == 0:
             self.shm_buffer = shared_memory.SharedMemory(create=True, size=self.__nbytes, name=self.name)
-            self.buffer = np.ndarray(self.shape, dtype=self.dtype, buffer=self.shm_buffer)
+            self.buffer = np.ndarray(self._shape, dtype=self.dtype, buffer=self.shm_buffer)
         else:
             raise Exception("Current thread is sub thread!")
     
     def read_shared_memory(self,shape:tuple):
+        """Read shared memory.
+
+        Args:
+            shape (tuple): Buffer shape.
+
+        Raises:
+            Exception: can't be used in main thread!
+        """
         if self.computer_type == 'HPC':
             warnings.warn("HPC can't support shared memory!")
         
         if self.level == 1:
             self.__nbytes = self.compute_nbytes(shape)
-            self.shape = shape
+            self._shape = shape
             self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
-            self.buffer = np.ndarray(self.shape,dtype=self.dtype,buffer=self.shm_buffer)
+            self.buffer = np.ndarray(self._shape,dtype=self.dtype,buffer=self.shm_buffer)
         else:
             raise Exception("Current thread is main thread!")
         
@@ -87,5 +97,26 @@ class DataUnit:
         total_szie = total_szie*single_nbytes
 
         return total_szie
+
+    
+    def store(self,data,index:int):
+        """Store data in buffer.
+
+        Args:
+            data (any): feature in the training.
+            index (int): index of data.
+        """
+        self.buffer[index] = data
+    
+    def close(self):
+        del self.buffer
+
+        if self.level==1 and self.shm_buffer is not None:
+            import time
+            time.sleep(0.5)
+            self.shm_buffer.close()
+            self.shm_buffer.unlink()
+        else:
+            self.shm_buffer.close()
     
 

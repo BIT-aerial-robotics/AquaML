@@ -1,14 +1,17 @@
 import numpy as np
 from multiprocessing import shared_memory
+import copy
 import warnings
 
 class DataUnit:
     """
     The smallest data storage unit. It can be used in HPC (MPI) and 
     shared memory system.
+
+    It can load from exit numpy array for data set learning.
     """
 
-    def __init__(self, name:str, shape=None, dtype=np.float32, computer_type='PC'):
+    def __init__(self, name:str, shape=None, dtype=np.float32, computer_type='PC',dataset:np.ndarray=None):
         """Create data unit. If shape is not none, this data unit is used in main thread.
         The unit is created depend on your computer type. If you use in high performance
         computer(HPC), shared memmory isn't used.
@@ -20,6 +23,8 @@ class DataUnit:
              Defaults to None.
             dtype (nd.type): type of this data unit. Defaults to np.float32.
             computer_type(str):When computer type is 'PC', mutlti thread is based on shared memory.Defaults to 'PC'.
+            dataset(np.ndarry, None): create unit from dataset.
+
         """
 
         self.name = name
@@ -27,7 +32,7 @@ class DataUnit:
         self._shape = shape
         self.dtype = dtype
 
-        self.computer_type = computer_type
+        self._computer_type = computer_type
 
         if shape is not None:
             self.level = 0
@@ -36,20 +41,36 @@ class DataUnit:
         else:
             self.level = 1
             self.buffer = None
-            self.__nbytes == None
+            self.__nbytes = None
+        
+        if dataset is not None:
+            self.copy_from_exist_array(dataset)
 
         self.shm_buffer = None
+
+    def copy_from_exist_array(self, dataset:np.ndarray, level:int=0):
+        """Copy data from exist np array.
+
+        Args:
+            dataset (np.ndarray): Dataset.
+            level (int): Thread level. Defaults to 0.
+        """
+        self.buffer = copy.deepcopy(dataset)
+        del dataset
+        self.level = level
+        self.__nbytes = self.buffer.nbytes
+        self.dtype = self.buffer.dtype
 
     
     def create_shared_memory(self):
         """Create shared-memory.
         """
-        if self.computer_type == 'HPC':
+        if self._computer_type == 'HPC':
             warnings.warn("HPC can't support shared memory!")
 
         if self.level == 0:
             self.shm_buffer = shared_memory.SharedMemory(create=True, size=self.__nbytes, name=self.name)
-            self.buffer = np.ndarray(self._shape, dtype=self.dtype, buffer=self.shm_buffer)
+            self.buffer = np.ndarray(self._shape, dtype=self.dtype, buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is sub thread!")
     
@@ -62,14 +83,14 @@ class DataUnit:
         Raises:
             Exception: can't be used in main thread!
         """
-        if self.computer_type == 'HPC':
+        if self._computer_type == 'HPC':
             warnings.warn("HPC can't support shared memory!")
         
         if self.level == 1:
             self.__nbytes = self.compute_nbytes(shape)
             self._shape = shape
             self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
-            self.buffer = np.ndarray(self._shape,dtype=self.dtype,buffer=self.shm_buffer)
+            self.buffer = np.ndarray(self._shape,dtype=self.dtype,buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is main thread!")
         
@@ -109,14 +130,16 @@ class DataUnit:
         self.buffer[index] = data
     
     def close(self):
+        """
+        delete data.
+        """
         del self.buffer
 
-        if self.level==1 and self.shm_buffer is not None:
-            import time
-            time.sleep(0.5)
-            self.shm_buffer.close()
-            self.shm_buffer.unlink()
-        else:
-            self.shm_buffer.close()
-    
-
+        if self.shm_buffer is not None:
+            if self.level == 1:
+                self.shm_buffer.close()
+                self.shm_buffer.unlink()
+            else:
+                import time
+                time.sleep(0.5)
+                self.shm_buffer.close()

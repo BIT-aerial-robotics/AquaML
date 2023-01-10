@@ -11,7 +11,7 @@ class DataUnit:
     It can load from exit numpy array for data set learning.
     """
 
-    def __init__(self, name:str, shape=None, dtype=np.float32, computer_type='PC',dataset:np.ndarray=None):
+    def __init__(self, name:str, shape=None, dtype=np.float32, computer_type='PC',dataset:np.ndarray=None, level=None):
         """Create data unit. If shape is not none, this data unit is used in main thread.
         The unit is created depend on your computer type. If you use in high performance
         computer(HPC), shared memmory isn't used.
@@ -23,7 +23,8 @@ class DataUnit:
              Defaults to None.
             dtype (nd.type): type of this data unit. Defaults to np.float32.
             computer_type(str):When computer type is 'PC', mutlti thread is based on shared memory.Defaults to 'PC'.
-            dataset(np.ndarry, None): create unit from dataset.
+            dataset(np.ndarry, None): create unit from dataset. Defaults to None
+            level(int, None): Clarify level.
 
         """
 
@@ -45,6 +46,9 @@ class DataUnit:
         
         if dataset is not None:
             self.copy_from_exist_array(dataset)
+
+        if level is not None:
+            self.level = level
 
         self.shm_buffer = None
 

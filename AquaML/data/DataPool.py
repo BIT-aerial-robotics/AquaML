@@ -88,6 +88,7 @@ class DataPool:
             1. create buffer from dic
             2. create share memory
             3. read shared memory
+            
             """
             if self.level == 0:
                 self.create_buffer_from_dic(info_dic)

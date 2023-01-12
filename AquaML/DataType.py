@@ -1,6 +1,6 @@
 import numpy as np
 
-
+# TODO: 添加diplay()函数方便以后debug
 class DataInfo:
     """
     Information of dateset or buffer.
@@ -76,6 +76,11 @@ class RLIOInfo:
                 data_type_info_dict[key] = obs_type_info[key]
             else:
                 data_type_info_dict[key] = obs_type_info
+        
+        # add next_obs_info to data_info
+        for key in obs_info.keys(): 
+            data_info_dict['next_'+key] = shape
+            data_type_info_dict['next_'+key] = data_type_info_dict[key]
 
         # add actor_out_info to data_info
         for key, shape in actor_out_info.items():
@@ -86,16 +91,25 @@ class RLIOInfo:
         for key in reward_info:
             data_info_dict[key] = (buffer_size, 1)
             data_type_info_dict[key] = np.float32
+
+        # check reward info wheather have 'total reward'
+        # if not, add it
+        if 'total_reward' not in reward_info:
+            data_info_dict['total_reward'] = (buffer_size, 1)
+            data_type_info_dict['total_reward'] = np.float32
         
         # create data_info
         self.data_info = DataInfo(tuple(data_info_dict.keys()), tuple(data_info_dict.values()), tuple(data_type_info_dict.values()))
 
-        self.actor_input_info = actor_input_info
-        self.critic_input_info = critic_input_info
+        self.actor_input_info = actor_input_info # tuple
+        self.critic_input_info = critic_input_info # tuple
+
+        # store action infor
+        self.action_info = actor_out_info # dict
 
 # test
 if __name__ == "__main__":
-    test = RLIOInfo({'obs':(1,2)}, np.float32, ('obs',), {'actor_out':(1,2)}, ('obs','actor_out'), ('reward',), 4)
+    test = RLIOInfo({'obs':1}, np.float32, ('obs',), {'actor_out':(1,2)}, ('obs','actor_out'), ('reward',), 4)
 
     print(test.data_info.shape_dict)
     print(test.data_info.type_dict)

@@ -69,6 +69,12 @@ class DataPool:
 
     # TODO: 当前还需要指定shape，升级自动获取版本
     def multi_sync(self, info_dic:DataInfo, type:str='dataset'):
+        """multi thread sync.
+        Args:
+            info_dic (DataInfo): store data information.
+            type (str, optional): 'dataset' or 'buffer'. Defaults to 'dataset'.
+        """
+
         if type == 'dataset':
             """
             1. copy from exist array
@@ -82,6 +88,7 @@ class DataPool:
                     self.create_share_memory()
             else:
                 self.read_shared_memory(info_dic)
+
         elif type == 'buffer':
             """
             Used for reinforcement learning.
@@ -96,3 +103,18 @@ class DataPool:
                     self.create_share_memory()
             else:
                 self.read_shared_memory(info_dic)
+    
+
+    # close shared memory buffer
+    def close(self):
+        for name, data_unit in self.data_pool.items():
+            data_unit.close()
+
+
+# test in sub thread
+if __name__ == '__main__':
+    test_info = DataInfo(names=('test',),shapes=((4,1),),dtypes=np.float32)
+
+    test = DataPool(name='test', level=1, computer_type='PC')
+
+    test.multi_sync(test_info, type='buffer')

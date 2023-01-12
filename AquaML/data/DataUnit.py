@@ -37,11 +37,11 @@ class DataUnit:
 
         if shape is not None:
             self.level = 0
-            self.buffer = np.zeros(shape=shape,dtype=self.dtype)
-            self.__nbytes = self.buffer.nbytes
+            self._buffer = np.zeros(shape=shape,dtype=self.dtype)
+            self.__nbytes = self._buffer.nbytes
         else:
             self.level = 1
-            self.buffer = None
+            self._buffer = None
             self.__nbytes = None
         
         if dataset is not None:
@@ -59,11 +59,11 @@ class DataUnit:
             dataset (np.ndarray): Dataset.
             level (int): Thread level. Defaults to 0.
         """
-        self.buffer = copy.deepcopy(dataset)
+        self._buffer = copy.deepcopy(dataset)
         del dataset
         self.level = level
-        self.__nbytes = self.buffer.nbytes
-        self.dtype = self.buffer.dtype
+        self.__nbytes = self._buffer.nbytes
+        self.dtype = self._buffer.dtype
 
     
     def create_shared_memory(self):
@@ -74,7 +74,7 @@ class DataUnit:
 
         if self.level == 0:
             self.shm_buffer = shared_memory.SharedMemory(create=True, size=self.__nbytes, name=self.name)
-            self.buffer = np.ndarray(self._shape, dtype=self.dtype, buffer=self.shm_buffer.buf)
+            self._buffer = np.ndarray(self._shape, dtype=self.dtype, buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is sub thread!")
     
@@ -94,7 +94,7 @@ class DataUnit:
             self.__nbytes = self.compute_nbytes(shape)
             self._shape = shape
             self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
-            self.buffer = np.ndarray(self._shape,dtype=self.dtype,buffer=self.shm_buffer.buf)
+            self._buffer = np.ndarray(self._shape,dtype=self.dtype,buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is main thread!")
         
@@ -131,13 +131,34 @@ class DataUnit:
             data (any): feature in the training.
             index (int): index of data.
         """
-        self.buffer[index] = data
+        self._buffer[index] = data
     
+    # set value. This is for args
+    def set_value(self, value):
+        """Set value.
+
+        Args:
+            value (any): value.
+        """
+        if self.level == 0:
+            self._buffer[:] = value[:]
+        else:
+            raise Exception("Current thread is sub thread!")
+
+    @property
+    def buffer(self):
+        """Get buffer.
+
+        Returns:
+            _type_: np.ndarray
+        """
+        return self._buffer
+
     def close(self):
         """
         delete data.
         """
-        del self.buffer
+        del self._buffer
 
         if self.shm_buffer is not None:
             if self.level == 1:

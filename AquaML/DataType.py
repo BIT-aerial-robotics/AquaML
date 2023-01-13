@@ -82,6 +82,8 @@ class RLIOInfo:
             data_info_dict['next_'+key] = shape
             data_type_info_dict['next_'+key] = data_type_info_dict[key]
 
+        # check 'action' whether in actor_out_info
+
         # add actor_out_info to data_info
         for key, shape in actor_out_info.items():
             data_info_dict[key] = insert_buffer_size(shape)
@@ -105,7 +107,13 @@ class RLIOInfo:
         self.critic_input_info = critic_input_info # tuple
 
         # store action infor
-        self.action_info = actor_out_info # dict
+        self.actor_out_info = actor_out_info # dict
+
+        # veritify exploration info
+        if 'log_std' in self.actor_out_info.keys():
+            self.explore_info = 'auxiliary'
+        else:
+            self.explore_info = 'self'
 
 # test
 if __name__ == "__main__":
@@ -115,6 +123,7 @@ if __name__ == "__main__":
     print(test.data_info.type_dict)
     print(test.actor_input_info)
     print(test.critic_input_info)
+    print(test.actor_out_info)
 
     # for name, val in test.data_info.type_dict.items():
     #     print(name, val)

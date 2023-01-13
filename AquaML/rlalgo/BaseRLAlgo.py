@@ -2,8 +2,8 @@ import abc
 from AquaML.data.DataPool import DataPool
 from AquaML.DataType import RLIOInfo
 from AquaML.data.DataUnit import DataUnit
+from AquaML.rlalgo import ExplorePolicy
 import numpy as np
-
 
 class BaseRLalgo(abc.ABC):
 
@@ -88,6 +88,10 @@ class BaseRLalgo(abc.ABC):
         pass
 
     # Gaussian exploration policy
-
-            
+    def create_gaussian_exploration_policy(self):
+        # veritify the style of log_std
+        if self.rl_io_info.explore_info == 'self':
+            # log_std provided by actor
+            # create explore policy
+            self.explore_policy = ExplorePolicy.GuassianExplorePolicy(self.rl_io_info.action_info['action'])            
 

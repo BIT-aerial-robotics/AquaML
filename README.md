@@ -1,10 +1,20 @@
 # AquaML
 
+## Features
+
+1. Support reinforcement learning, generative learning algorithm.
+2. Support reinforcement learning training with recurrent neural networks.
+3. Support multi-thread sampling and parameters tuning.
+4. Support high performance computer(HPC)
+5.  Data communication has almost zero latency when running on a single machine.
+
+## Install
+
 ## Tutorials
 
-### Create  neural network model for reinforcement learning
+### Build neural network model for reinforcement learning
 
-
+### Build new reinforcement algorithm
 
 ## Change logs
 

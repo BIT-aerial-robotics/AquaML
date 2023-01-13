@@ -35,7 +35,7 @@ class DataPool:
     def create_buffer_from_dic(self, info_dic:DataInfo):
         """ Create buffer. Usually, used in reinforcement learning.
 
-        Main threaad.
+        Main thread.
 
         Args:
             info_dic (DataInfo): store data information.
@@ -68,8 +68,8 @@ class DataPool:
         
 
     # TODO: 当前还需要指定shape，升级自动获取版本
-    def multi_sync(self, info_dic:DataInfo, type:str='dataset'):
-        """multi thread sync.
+    def multi_init(self, info_dic:DataInfo, type:str='dataset'):
+        """multi thread initial.
         Args:
             info_dic (DataInfo): store data information.
             type (str, optional): 'dataset' or 'buffer'. Defaults to 'dataset'.
@@ -104,11 +104,45 @@ class DataPool:
             else:
                 self.read_shared_memory(info_dic)
     
+    def get_unit(self, name:str):
+        """get data unit.
+
+        Args:
+            name (str): second level name. Algo search param via this name.
+
+        Returns:
+            DataUnit: data unit.
+        """
+        return self.data_pool[name]
+    
+    #get data from data unit
+    def get_unit_data(self, name:str):
+        """get data from data unit.
+
+        Args:
+            name (str): second level name. Algo search param via this name.
+
+        Returns:
+            np.ndarray: data.
+        """
+        return self.data_pool[name].buffer
+    
 
     # close shared memory buffer
     def close(self):
+        """close shared memory buffer.
+        """
         for name, data_unit in self.data_pool.items():
-            data_unit.close()
+            self.data_pool[name].close()
+    
+    def add_unit(self, name:str, data_unit:DataUnit):
+        """add data unit.
+
+        Args:
+            name (str): second level name. Algo search param via this name.
+            data_unit (DataUnit): data unit.
+        """
+        self.data_pool[name] = data_unit
 
 
 # test in sub thread

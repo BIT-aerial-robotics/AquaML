@@ -31,13 +31,13 @@ class DataUnit:
         self.name = name
 
         self._shape = shape
-        self.dtype = dtype
+        self._dtype = dtype
 
         self._computer_type = computer_type
 
         if shape is not None:
             self.level = 0
-            self._buffer = np.zeros(shape=shape,dtype=self.dtype)
+            self._buffer = np.zeros(shape=shape,dtype=self._dtype)
             self.__nbytes = self._buffer.nbytes
         else:
             self.level = 1
@@ -63,7 +63,7 @@ class DataUnit:
         del dataset
         self.level = level
         self.__nbytes = self._buffer.nbytes
-        self.dtype = self._buffer.dtype
+        self._dtype = self._buffer.dtype
 
     
     def create_shared_memory(self):
@@ -74,7 +74,7 @@ class DataUnit:
 
         if self.level == 0:
             self.shm_buffer = shared_memory.SharedMemory(create=True, size=self.__nbytes, name=self.name)
-            self._buffer = np.ndarray(self._shape, dtype=self.dtype, buffer=self.shm_buffer.buf)
+            self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is sub thread!")
     
@@ -94,7 +94,7 @@ class DataUnit:
             self.__nbytes = self.compute_nbytes(shape)
             self._shape = shape
             self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
-            self._buffer = np.ndarray(self._shape,dtype=self.dtype,buffer=self.shm_buffer.buf)
+            self._buffer = np.ndarray(self._shape,dtype=self._dtype,buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is main thread!")
         
@@ -109,19 +109,19 @@ class DataUnit:
             _type_: int
         """
 
-        a = np.arange(1,  dtype=self.dtype)
+        a = np.arange(1,  dtype=self._dtype)
 
         single_nbytes = a.nbytes
 
-        total_szie = 1
+        total_size = 1
 
         for size in shape:
-            total_szie = total_szie*size
+            total_size = total_size*size
         
 
-        total_szie = total_szie*single_nbytes
+        total_size = total_size*single_nbytes
 
-        return total_szie
+        return total_size
 
     
     def store(self,data,index:int):
@@ -144,6 +144,20 @@ class DataUnit:
             self._buffer[:] = value[:]
         else:
             raise Exception("Current thread is sub thread!")
+        
+    # get data slice
+    def get_slice(self, start:int, end:int):
+        """Get slice.
+
+        Args:
+            start (int): start index.
+            end (int): end index.
+
+        Returns:
+            _type_: np.ndarray
+        """
+        return self._buffer[start:end]
+
 
     @property
     def buffer(self):
@@ -168,3 +182,21 @@ class DataUnit:
                 import time
                 time.sleep(0.5)
                 self.shm_buffer.close()
+    
+    @property
+    def shape(self):
+        """Get shape.
+
+        Returns:
+            _type_: tuple
+        """
+        return self._shape
+    
+    @property
+    def dtype(self):
+        """Get dtype.
+
+        Returns:
+            _type_: np.type
+        """
+        return self._dtype

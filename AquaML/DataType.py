@@ -6,7 +6,7 @@ class DataInfo:
     Information of dateset or buffer.
     """
     def __init__(self, names:tuple, shapes:tuple, dtypes, dataset=None):
-        """Data info srtuct.
+        """Data info struct.
 
         Args:
             names (tuple): data names.
@@ -29,6 +29,23 @@ class DataInfo:
             self.dataset_dict = dict(zip(names, dataset))
         else:
             self.dataset_dict = None
+    
+    def add_info(self, name:str, shape, dtype):
+        """add info.
+
+        Args:
+            name (str): name.
+            shape (tuple): shape.
+            dtype (type): dtype.
+        """
+        self.shape_dict[name] = shape
+        self.type_dict[name] = dtype
+        
+        # add element to names
+        names = list(self.names)
+        names.append(name)
+        self.names = tuple(names)
+        
 
 class RLIOInfo:
     """
@@ -36,6 +53,7 @@ class RLIOInfo:
     """
     def __init__(self, obs_info:dict,obs_type_info, actor_input_info:tuple, actor_out_info:dict, critic_input_info:tuple , reward_info:tuple, buffer_size:int):
         """Reinforcement learning model input-output(IO) information.
+        
 
         Args:
             obs_info (dict): observation information. (name,shape)
@@ -45,9 +63,11 @@ class RLIOInfo:
             critic_input_info (tuple): critic input information.
             reward_info (tuple): reward information.
             buffer_size (int): buffer size.
+        return:
+            raise Exception: obs_info and actor_out_info must have same keys.
         """
 
-        # incert buffer size into shapes
+        # insert buffer size into shapes
         def insert_buffer_size(shape):
             shapes = []
             shapes.append(buffer_size)
@@ -83,6 +103,13 @@ class RLIOInfo:
             data_type_info_dict['next_'+key] = data_type_info_dict[key]
 
         # check 'action' whether in actor_out_info
+        # if not, rasing error
+        if 'action' not in actor_out_info:
+            raise ValueError("actor_out_info must have 'action'")
+        
+        # add mask_info to data_info
+        data_info_dict['mask'] = (buffer_size, 1)
+        data_type_info_dict['mask'] = np.int32
 
         # add actor_out_info to data_info
         for key, shape in actor_out_info.items():
@@ -94,7 +121,7 @@ class RLIOInfo:
             data_info_dict[key] = (buffer_size, 1)
             data_type_info_dict[key] = np.float32
 
-        # check reward info wheather have 'total reward'
+        # check reward info whether have 'total reward'
         # if not, add it
         if 'total_reward' not in reward_info:
             data_info_dict['total_reward'] = (buffer_size, 1)
@@ -105,19 +132,33 @@ class RLIOInfo:
 
         self.actor_input_info = actor_input_info # tuple
         self.critic_input_info = critic_input_info # tuple
+        self.reward_info = reward_info # tuple
 
-        # store action infor
+        # store action info
         self.actor_out_info = actor_out_info # dict
 
-        # veritify exploration info
+        # verify exploration info
         if 'log_std' in self.actor_out_info.keys():
             self.explore_info = 'auxiliary'
         else:
             self.explore_info = 'self'
+    
+    def add_info(self, name:str, shape, dtype):
+        """Add information to data_info.
+
+        Args:
+            name (str): name of information.
+            shape (tuple): shape of information.
+            dtype (type): type of information.
+        """
+        self.data_info.add_info(name, shape, dtype)
+        
 
 # test
 if __name__ == "__main__":
-    test = RLIOInfo({'obs':1}, np.float32, ('obs',), {'actor_out':(1,2)}, ('obs','actor_out'), ('reward',), 4)
+    test = RLIOInfo({'obs':1}, np.float32, ('obs',), {'action':(1,2)}, ('obs','action'), ('reward',), 4)
+    
+    test.add_info('test', (4,5), np.float32)
 
     print(test.data_info.shape_dict)
     print(test.data_info.type_dict)

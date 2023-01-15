@@ -46,7 +46,7 @@ class DataInfo:
         names.append(name)
         self.names = tuple(names)
         
-
+# TODO:有些成员转换成私有和保护类型
 class RLIOInfo:
     """
     Information of reinforcement learning model input and output.
@@ -57,11 +57,18 @@ class RLIOInfo:
 
         Args:
             obs_info (dict): observation information. (name,shape)
+            
             obs_type_info: observation type information. dict or type. Like: {'obs':np.float32} or np.float32
+            
             actor_input_info (tuple): actor input information.
-            actor_out_info (dict): actor output information. (name,shape)
+            
+            actor_out_info (dict): actor output information. (name,shape) Example: {'action':(2,), 'log_std':(2,)}
+            Notice: actor_out_info must have key 'action'.
+            
             critic_input_info (tuple): critic input information.
+            
             reward_info (tuple): reward information.
+            
             buffer_size (int): buffer size.
         return:
             raise Exception: obs_info and actor_out_info must have same keys.
@@ -115,6 +122,12 @@ class RLIOInfo:
         for key, shape in actor_out_info.items():
             data_info_dict[key] = insert_buffer_size(shape)
             data_type_info_dict[key] = np.float32
+        
+         # if 'prob' in actor_out_info, add it to data_info
+        if 'prob' not in actor_out_info:
+            shape = actor_out_info['action']
+            data_info_dict['prob'] = insert_buffer_size(shape)
+            data_type_info_dict['prob'] = np.float32
 
         # add reward_info to data_info
         for key in reward_info:
@@ -136,12 +149,21 @@ class RLIOInfo:
 
         # store action info
         self.actor_out_info = actor_out_info # dict
+        self.actor_out_name = tuple(actor_out_info.keys()) # tuple
+        
+        # if 'prob' not in actor_out_info, add it
+        if 'prob' not in self.actor_out_info:
+            self.actor_out_info['prob'] = actor_out_info['action']
+            self.actor_out_name = tuple(self.actor_out_info.keys())
 
         # verify exploration info
         if 'log_std' in self.actor_out_info.keys():
             self.explore_info = 'auxiliary'
         else:
             self.explore_info = 'self'
+        
+        # buffer size
+        self.__buffer_size = buffer_size
     
     def add_info(self, name:str, shape, dtype):
         """Add information to data_info.
@@ -153,6 +175,9 @@ class RLIOInfo:
         """
         self.data_info.add_info(name, shape, dtype)
         
+    @property
+    def buffer_size(self):
+        return self.__buffer_size
 
 # test
 if __name__ == "__main__":
@@ -165,6 +190,7 @@ if __name__ == "__main__":
     print(test.actor_input_info)
     print(test.critic_input_info)
     print(test.actor_out_info)
+    print(test.actor_out_name)
 
     # for name, val in test.data_info.type_dict.items():
     #     print(name, val)

@@ -4,6 +4,7 @@ from AquaML.data.DataPool import DataPool
 from AquaML.DataType import RLIOInfo
 from AquaML.data.DataUnit import DataUnit
 from AquaML.rlalgo import ExplorePolicy
+from AquaML.tool.RLWorker import RLWorker
 import numpy as np
 
 class BaseRLalgo(abc.ABC):
@@ -11,13 +12,15 @@ class BaseRLalgo(abc.ABC):
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
 
-    def __init__(self, rl_io_info:RLIOInfo, name:str ,computer_type:str='PC', level:int=0, thread_ID:int=-1):
+    def __init__(self,env,rl_io_info:RLIOInfo,name:str, update_interval:int=0, computer_type:str='PC', level:int=0, thread_ID:int=-1, total_threads:int=1,):
         """create base for reinforcement learning algorithm.
         This base class provides exploration policy, data pool(multi thread).
         Some tools are also provided for reinforcement learning algorithm such as 
         calculate general advantage estimation. 
         
         When you create a reinforcement learning algorithm, you should inherit this class. And do the following things:
+        
+        Point out hyper parameters, use self.hyper_parameters (dict) to store hyper parameters.
         
         And you should run init() function in your __init__ function. The position of init() function is at the end of __init__ function.
 
@@ -32,11 +35,25 @@ class BaseRLalgo(abc.ABC):
         
         
         Args:
+            env (AquaML.rlalgo.EnvBase): reinforcement learning environment.
+            
             rl_io_info (RLIOInfo): reinforcement learning input and output information.
+            
             name (str): reinforcement learning name.
+            
+            update_interval (int, optional): update interval. This is an important parameter. 
+            It determines how many steps to update the model. If update_interval == 1, it means update model after each step.
+            if update_interval == 0, it means update model after buffer is full. Defaults to 0.
+            That is unusually used in on-policy algorithm.
+            if update_interval > 0, it is used in off-policy algorithm.
+            
             computer_type (str, optional): 'PC' or 'HPC'. Defaults to 'PC'.
+            
             level (int, optional): thread level. 0 means main thread, 1 means sub thread. Defaults to 0.
+            
             thread_ID (int, optional): ID is given by mpi. -1 means single thread. Defaults to -1.
+            
+            total_threads (int, optional): total threads. Defaults to 1.
 
         Raises:
             ValueError: if thread_ID == -1, it means single thread, then level must be 0.
@@ -47,6 +64,8 @@ class BaseRLalgo(abc.ABC):
         self.level = level
         self.thread_ID = thread_ID # if thread_ID == -1, it means single thread
         self.name = name
+        self.env = env
+        self.update_interval = update_interval
 
         # check thread level
         # if thread_ID == -1, it means single thread, then level must be 0
@@ -60,7 +79,44 @@ class BaseRLalgo(abc.ABC):
 
        
             
-        self.__explore_init_dict = {} # store explore policy, convenient for multi thread
+        self.__explore_dict = {} # store explore policy, convenient for multi thread
+        
+        # TODO: 需要升级为异步执行的方式
+        # allocate start index and size for each thread
+        # main thread will part in sample data
+        # just used when computer_type == 'PC'
+        if self._computer_type == 'PC':
+            if self.thread_ID > -1:
+                # thread ID start from 0
+                self.each_thread_size = int(self.rl_io_info.buffer_size / total_threads)
+                self.each_thread_start_index = self.thread_ID * self.each_thread_size
+                
+                if self.update_interval == 0:
+                    # if update_interval == 0, it means update model after buffer is full
+                    self.each_thread_update_interval = self.each_thread_size # update interval for each thread
+                else:
+                    # if update_interval != 0, it means update model after each step
+                    # then we need to calculate how many steps to update model for each thread
+                    self.each_thread_update_interval = int(self.update_interval / total_threads) # update interval for each thread
+            else:
+                self.each_thread_size = self.rl_io_info.buffer_size
+                self.each_thread_start_index = 0
+                self.each_thread_update_interval = self.update_interval # update interval for each thread
+                
+        else:
+            # TODO: HPC will implement in the future
+            self.each_thread_size = None
+            self.each_thread_start_index = None
+            self.each_thread_update_interval = None
+            
+        # create worker
+        self.worker = RLWorker(self)
+        
+        # hyper parameters
+        # the hyper parameters is a dictionary
+        # you should point out the hyper parameters in your algorithm
+        # will be used in optimize function
+        self.hyper_parameters = None 
 
     
     # initial algorithm
@@ -74,7 +130,6 @@ class BaseRLalgo(abc.ABC):
             self.data_pool.create_buffer_from_dic(self.rl_io_info.data_info.buffer_dict)
         
         # check some information
-        
         # actor model must be given
         if self.actor == None:
             raise ValueError('Actor model must be given.')
@@ -169,24 +224,105 @@ class BaseRLalgo(abc.ABC):
         del reward_dict
         
         return reward_summary
+    
+    # store data to buffer
+    def store_data(self, obs:dict, action:dict, reward:dict, next_obs:dict, mask:int):
+        """
+        store data to buffer.
+
+        Args:
+            obs (dict): observation. eg. {'obs':np.array([1,2,3])}
+            action (dict): action. eg. {'action':np.array([1,2,3])}
+            reward (dict): reward. eg. {'reward':np.array([1,2,3])}
+            next_obs (dict): next observation. eg. {'next_obs':np.array([1,2,3])}
+            mask (int): done. eg. 1 or 0
+        """
+        # store data to buffer
+        # support multi thread
+        
+        id = (self.worker.step_count - 1) % self.each_thread_size
+        index = self.each_thread_start_index + id # index in each thread
+        
+        # store obs to buffer
+        self.data_pool.store(obs,index)
+        
+        # store next_obs to buffer
+        self.data_pool.store(next_obs,index)
+        
+        # store action to buffer
+        self.data_pool.store(action,index)
+        
+        # store reward to buffer
+        self.data_pool.store(reward,index)
+        
+        # store mask to buffer
+        self.data_pool.data_pool['mask'].store(mask,index)
+        
+        
         
 
     # get action in the training process
+    # TODO:根据网络模型的特点需要修改
     def get_action_train(self, obs:dict):
-        # TODO:根据网络模型的特点需要修改
+        """
+        Get action in the training process.
+        This function can be used in all algorithms since 
+        the explore policy is given.
+
+        Args:
+            obs (dict): observation from environment. eg. {'obs':np.array([1,2,3])}
+
+        Returns:
+            _type_: dict. action. eg. {'action':np.array([1,2,3]), 'log_prob':np.array([1,2,3])}
+        """
         
         # get actor input
-        input_obs = []
+        input_obs = dict()
         
+        # Notice: the order of input_obs must be the same as the order of input in actor model
         for key in self.rl_io_info.actor_input_info:
-            input_obs.append(obs[key])
+            # if the input is time sequence, data style (batch, timesteps, feature)
+            if self.actor.rnn_flag:
+                input_obs[key] = np.expand_dims(obs[key], axis=0)
+            else:
+                input_obs[key] = obs[key]
+                
+        # call actor model
+        actor_out = self.actor(*input_obs) # out is a dict
+        
+        # explore policy input
+        explore_input = dict()
+        
+        # add actor output to explore input
+        for name in self.rl_io_info.actor_out_name:
+            explore_input[name] = actor_out[name]
+            
+        # add __explore_dict to explore_input
+        for name, value in self.__explore_dict.items():
+            explore_input[name] = value
 
+        # run explore policy
+        action, prob = self.explore_policy(explore_input)
+        
+        # add action and prob to actor_out
+        actor_out['action'] = action
+        actor_out['prob'] = prob
+        
+        # create return dict according to rl_io_info.actor_out_name
+        return_dict = dict()
+        for name in self.rl_io_info.actor_out_name:
+            return_dict[name] = actor_out[name]
+    
+        return return_dict
+        
+        
     # Gaussian exploration policy
     def create_gaussian_exploration_policy(self):
         # verity the style of log_std
         if self.rl_io_info.explore_info == 'self':
             # log_std provided by actor
             # create explore policy
+            # self.__explore_dict = None
             pass
         elif self.rl_io_info.explore_info == 'auxiliary':
             # log_std provided by auxiliary variable
@@ -196,10 +332,30 @@ class BaseRLalgo(abc.ABC):
             
             self.log_std.set_value(np.zeros(self.rl_io_info.action_info['action'].shape, dtype=np.float32)-0.5)
             self.tf_log_std = tf.Variable(self.log_std.get_value(), trainable=True)
+            self.__explore_dict = {'log_std':self.tf_log_std}
         
         self.explore_policy = ExplorePolicy(shape = self.rl_io_info.action_info['action'])
         
         # add initial information
         self.rl_io_info.add_info(name='log_std',shape=self.log_std.shape, data_type=self.log_std.data_type)
         self.data_pool.add_unit(name='log_std', data_unit=self.log_std)
+    
+    # optimize model
+    @abc.abstractclassmethod
+    def _optimize_(self, *args, **kwargs):
+        """
+        optimize model.
+        It is a abstract method.
+        
+        Recommend when you implement this method, input of this method should be hyperparameters. 
+        The hyperparameters can be tuned in the training process.
+        
+        Returns:
+            _type_: dict. Optimizer information. eg. {'loss':data, 'total_reward':data}
+        """
+    
+    # optimize in the main thread
+    def optimize(self):
+        
+        optimize_info = self._optimize_()
         

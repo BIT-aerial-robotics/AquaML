@@ -34,9 +34,15 @@ class ExplorePolicyBase(abc.ABC):
         """
     def __call__(self, inputs_dict:dict):
         """inputs_dict is a dict. The key is the name of input. The value is the input.
+        inputs_dict must contain all the output of actor model.
+        such as:
+        inputs_dict = {'mu':mu, 'log_std':log_std}
         
         args:
         inputs_dict (dict): dict of inputs. The key is the name of input. The value is the input.
+        return:
+        action (tf.Tensor): action of environment.
+        prob (tf.Tensor): probability of action.
         """
         # get inputs from inputs_dict
         

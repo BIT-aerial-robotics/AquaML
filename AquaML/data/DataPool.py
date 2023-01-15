@@ -143,6 +143,18 @@ class DataPool:
             data_unit (DataUnit): data unit.
         """
         self.data_pool[name] = data_unit
+    
+    def store(self, data_dict:dict, index:int):
+        """store data.
+        
+        This function stores data in data units. data_dict no need to contain datapool's all data units.
+
+        Args:
+            data (dict): data.
+            index (int): index.
+        """
+        for name, data in data_dict.items():
+            self.data_pool[name].store(data, index)
 
 
 # test in sub thread

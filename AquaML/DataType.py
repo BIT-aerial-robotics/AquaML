@@ -47,6 +47,7 @@ class DataInfo:
         self.names = tuple(names)
         
 # TODO:有些成员转换成私有和保护类型
+# TODO: need to check before run
 class RLIOInfo:
     """
     Information of reinforcement learning model input and output.
@@ -123,7 +124,8 @@ class RLIOInfo:
             data_info_dict[key] = insert_buffer_size(shape)
             data_type_info_dict[key] = np.float32
         
-         # if 'prob' in actor_out_info, add it to data_info
+        # NOTE: actor_out contains exploration policy output
+        # if 'prob' in actor_out_info, add it to data_info
         if 'prob' not in actor_out_info:
             shape = actor_out_info['action']
             data_info_dict['prob'] = insert_buffer_size(shape)
@@ -150,6 +152,7 @@ class RLIOInfo:
         # store action info
         self.actor_out_info = actor_out_info # dict
         self.actor_out_name = tuple(actor_out_info.keys()) # tuple
+        self.actor_model_out_name = tuple(actor_out_info) # tuple
         
         # if 'prob' not in actor_out_info, add it
         if 'prob' not in self.actor_out_info:
@@ -191,6 +194,7 @@ if __name__ == "__main__":
     print(test.critic_input_info)
     print(test.actor_out_info)
     print(test.actor_out_name)
+    print(test.actor_model_out_name)
 
     # for name, val in test.data_info.type_dict.items():
     #     print(name, val)

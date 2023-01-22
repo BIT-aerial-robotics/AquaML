@@ -7,7 +7,7 @@ from AquaML.rlalgo import ExplorePolicy
 from AquaML.tool.RLWorker import RLWorker
 import numpy as np
 
-class BaseRLalgo(abc.ABC):
+class BaseRLAlgo(abc.ABC):
 
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
@@ -117,11 +117,17 @@ class BaseRLalgo(abc.ABC):
         # you should point out the hyper parameters in your algorithm
         # will be used in optimize function
         self.hyper_parameters = None 
+        
+        # optimizer are created in main thread
+        self.optimizer_dict = {} # store optimizer, convenient search
+        
 
     
     # initial algorithm
     def init(self):
         """initial algorithm.
+        
+        This function will be called by starter.
         """
         # multi thread initial
         if self.thread_ID > -1: # multi thread
@@ -139,7 +145,12 @@ class BaseRLalgo(abc.ABC):
     def calculate_GAE(self, rewards, values, next_values, masks, gamma, lamda):
         """
         calculate general advantage estimation.
-        https://arxiv.org/abs/1506.02438
+        
+        Reference:
+        ----------
+        [1] Schulman J, Moritz P, Levine S, Jordan M, Abbeel P. High-dimensional continuous 
+        control using generalized advantage estimation. arXiv preprint arXiv:1506.02438. 2015 Jun 8.
+        
         Args:
             rewards (np.ndarray): rewards.
             values (np.ndarray): values.
@@ -288,7 +299,10 @@ class BaseRLalgo(abc.ABC):
                 input_obs[key] = obs[key]
                 
         # call actor model
-        actor_out = self.actor(*input_obs) # out is a dict
+        actor_out_ = self.actor(*input_obs) # out is a tuple
+        
+        # TODO: Need to check out
+        actor_out = dict(zip(self.rl_io_info.actor_model_out_name, actor_out_))
         
         # explore policy input
         explore_input = dict()
@@ -314,7 +328,52 @@ class BaseRLalgo(abc.ABC):
             return_dict[name] = actor_out[name]
     
         return return_dict
+    
+    # create keras optimizer
+    def create_optimizer(self,name:str,optimizer:str,lr:float):
+        """
+        create keras optimizer for each model.
         
+        Reference:
+            https://keras.io/optimizers/
+
+        Args:
+            name (str): name of this optimizer, you can call by this name.
+            if name is 'actor', then you can call self.actor_optimizer
+            
+            optimizer (str): type of optimizer. eg. 'Adam'. For more information, 
+            please refer to keras.optimizers.
+            
+            lr (float): learning rate.
+        """
+        
+        
+        attribute_name = name + '_optimizer'
+        
+        # in main thread, create optimizer
+        if self.level == 0:
+            # create optimizer
+            optimizer = getattr(tf.keras.optimizers, optimizer)(lr=lr)
+        else:
+            # None
+            optimizer = None
+            
+        # set attribute
+        setattr(self, attribute_name, optimizer)
+        
+        self.optimizer_dict[name] = getattr(self, attribute_name)
+        
+    def create_none_optimizer(self, name:str):
+        """
+        create none optimizer for each model.
+        
+        Args:
+            name (str): name of this optimizer, you can call by this name.
+        """ 
+        
+        attribute_name = name + '_optimizer'
+        optimizer = None
+        setattr(self, attribute_name, optimizer)
         
     # Gaussian exploration policy
     def create_gaussian_exploration_policy(self):
@@ -353,6 +412,53 @@ class BaseRLalgo(abc.ABC):
         Returns:
             _type_: dict. Optimizer information. eg. {'loss':data, 'total_reward':data}
         """
+    @staticmethod
+    def copy_weights(model1, model2):
+        """
+        copy weight from model1 to model2.
+        """
+        new_weights = []
+        target_weights = model1.weights
+        
+        for i, weight in enumerate(model2.weights):
+            new_weights.append(target_weights[i].numpy())
+            
+        model2.set_weights(new_weights)
+    
+    @staticmethod
+    def soft_update_weights(model1, model2, tau):
+        """
+        soft update weight from model1 to model2.
+        
+        
+        args:
+        model1: source model
+        model2: target model
+        """
+        new_weights = []
+        source_weights = model1.weights
+        
+        for i, weight in enumerate(model2.weights):
+            new_weights.append((1-tau)*weight.numpy() + tau*source_weights[i].numpy())
+            
+        model2.set_weights(new_weights)
+        
+    # get trainable actor
+    @property
+    def get_trainable_actor(self):
+        """
+        get trainable weights of this model.
+        
+        actor model is special, it has two parts, actor and explore policy.
+        Maybe in some times, explore policy is independent on actor model.
+        """
+        
+        train_vars = self.actor.trainable_variables
+        
+        for key, value in self.__explore_dict.items():
+            train_vars = train_vars + [value]
+            
+        return train_vars
     
     # optimize in the main thread
     def optimize(self):

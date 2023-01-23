@@ -53,6 +53,7 @@ class SAC2_parameter(BaseParameter):
     def __init__(self, epoch_length: int, n_epochs: int,
                  batch_size: int, 
                  discount: float, alpha: float,tau:float,
+                 alpha_learning_rate: float = 3e-4,
                  update_interval: int = 0):
         """
         Parameters of SAC2 algorithm.
@@ -77,4 +78,5 @@ class SAC2_parameter(BaseParameter):
         self.alpha = alpha
         self.tau = tau
         self.update_interval = update_interval
+        self.alpha_learning_rate = alpha_learning_rate
     

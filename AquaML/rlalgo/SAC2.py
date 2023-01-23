@@ -72,11 +72,14 @@ class SAC2(BaseRLAlgo):
                                                        lr=self.qf1.learning_rate)
             self.create_optimizer(name='qf2', optimizer=self.qf2.optimizer, 
                                                        lr=self.qf2.learning_rate)
+            
+            self.create_optimizer(name='alpha', optimizer='Adam', lr=parameters.alpha_learning_rate)
         else:
             # create the none optimizer
             self.actor_optimizer = None
             self.qf1_optimizer = None
             self.qf2_optimizer = None
+            self.alpha_optimizer = None
             
         # create gaussian noise
         self.create_gaussian_exploration_policy()
@@ -99,6 +102,22 @@ class SAC2(BaseRLAlgo):
                     reward:tf.Tensor, 
                     mask:tf.Tensor, 
                     gamma:float):
+        """
+        
+        train the q function
+
+        Args:
+            qf_obs (tuple): input of q function
+            next_qf_obs (tuple): input of q function
+            actor_obs (tuple): input of actor
+            next_actor_obs (tuple): next input of actor
+            reward (tf.Tensor): reward
+            mask (tf.Tensor): mask
+            gamma (float): hyperparameter, gamma.
+
+        Returns:
+            info: dict, information of training
+        """
         next_log_pi, next_action = self.resample_action(*next_actor_obs)
         log_pi, action = self.resample_action(*actor_obs)
         
@@ -141,6 +160,15 @@ class SAC2(BaseRLAlgo):
     
     @tf.function
     def train_alpha(self, actor_obs:tuple):
+        """
+        train the alpha
+
+        Args:
+            actor_obs (tuple): input of actor
+
+        Returns:
+            info: optional, information of training
+        """
         log_pi, action = self.resample_action(*actor_obs)
         
         with tf.GradientTape() as tape:
@@ -152,6 +180,41 @@ class SAC2(BaseRLAlgo):
         return_dict = {'alpha_loss':alpha_loss,'alpha_grad':alpha_grad}
         
         return return_dict
+    
+    @tf.function
+    def train_actor(self, q_obs:tuple, actor_obs:tuple):
+        
+        """
+        train actor
+        
+        Args:
+        q_obs: input of q function.
+        actor_obs: input of actor.
+
+        Returns:
+            info: dict, information of actor.
+        """
+        # compute log_pi
+        
+        with tf.GradientTape() as tape:
+            log_pi, action = self.resample_action(*actor_obs)
+            
+            # compute min Q(s,a)
+            q1 = self.qf1(*q_obs, action)
+            q2 = self.qf2(*q_obs, action)
+            min_q = tf.minimum(q1, q2)
+            
+            actor_loss = tf.reduce_mean(self.tf_alpha * log_pi - min_q)
+        
+        grad = tape.gradient(actor_loss, self.get_trainable_actor())
+        self.actor_optimizer.apply_gradients(zip(grad, self.get_trainable_actor()))
+        return_dict = {'actor_loss':actor_loss, 'actor_grad':grad}
+        
+        return return_dict
+      
+        
+        
+        
     
     @tf.function
     def _resample_action1_(self, actor_obs:tuple):

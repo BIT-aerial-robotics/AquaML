@@ -12,7 +12,7 @@ class BaseRLAlgo(abc.ABC):
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
 
-    def __init__(self,env,rl_io_info:RLIOInfo,name:str, update_interval:int=0, computer_type:str='PC', level:int=0, thread_ID:int=-1, total_threads:int=1,):
+    def __init__(self,env,rl_io_info:RLIOInfo,name:str, update_interval:int=0, computer_type:str='PC', level:int=0, thread_ID:int=-1, total_threads:int=1, policy_type:str='off'):
         """create base for reinforcement learning algorithm.
         This base class provides exploration policy, data pool(multi thread).
         Some tools are also provided for reinforcement learning algorithm such as 
@@ -20,17 +20,22 @@ class BaseRLAlgo(abc.ABC):
         
         When you create a reinforcement learning algorithm, you should inherit this class. And do the following things:
         
-        Point out hyper parameters, use self.hyper_parameters (dict) to store hyper parameters.
-        
-        And you should run init() function in your __init__ function. The position of init() function is at the end of __init__ function.
+        1. You should run init() function in your __init__ function. The position of init() function is at the end of __init__ function.
 
-        You need to point out which model is the actor, then in __init__ function, you should write:
-        "self.actor = actor"
+        2. You need to point out which model is the actor, then in __init__ function, you should write:
+           "self.actor = actor"
         
-        Explore policy is a function which is used to generate action. You should use or create a explore policy. 
+        3. Explore policy is a function which is used to generate action. You should use or create a explore policy. 
         Then in __init__ function, you should write:
         "self.explore_policy = explore_policy"
         You can create a explore policy by inherit ExplorePolicyBase class(AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase). 
+        
+        4. Notice: after optimize the model, you should update optimize_epoch.
+           The same as sample_epoch.
+        
+        
+        Some recommends for off-policy algorithm:
+        1. mini_buffer_size should given out.
         
         
         
@@ -54,6 +59,8 @@ class BaseRLAlgo(abc.ABC):
             thread_ID (int, optional): ID is given by mpi. -1 means single thread. Defaults to -1.
             
             total_threads (int, optional): total threads. Defaults to 1.
+            
+            policy_type (str, optional): 'off' or 'on'. Defaults to 'off'.
 
         Raises:
             ValueError: if thread_ID == -1, it means single thread, then level must be 0.
@@ -121,6 +128,17 @@ class BaseRLAlgo(abc.ABC):
         # optimizer are created in main thread
         self.optimizer_dict = {} # store optimizer, convenient search
         
+        self.total_segment = total_threads # total segment, convenient for multi 
+        
+        self.sample_epoch = 0 # sample epoch
+        self.optimize_epoch = 0 # optimize epoch
+        
+        self.policy_type = policy_type # 'off' or 'on'
+        
+        # mini buffer size 
+        # according to the type of algorithm, 
+        self.mini_buffer_size = None
+        
 
     
     # initial algorithm
@@ -139,6 +157,14 @@ class BaseRLAlgo(abc.ABC):
         # actor model must be given
         if self.actor == None:
             raise ValueError('Actor model must be given.')
+        
+    def check(self):
+        """
+        check some information.
+        """
+        if self.policy_type == 'off':
+            if self.mini_buffer_size == None:
+                raise ValueError('Mini buffer size must be given.')
         
     # TODO: calculate by multi thread
     # calculate general advantage estimation
@@ -274,6 +300,7 @@ class BaseRLAlgo(abc.ABC):
 
     # get action in the training process
     # TODO:根据网络模型的特点需要修改
+    # TODO:no if...else
     def get_action_train(self, obs:dict):
         """
         Get action in the training process.
@@ -464,4 +491,84 @@ class BaseRLAlgo(abc.ABC):
     def optimize(self):
         
         optimize_info = self._optimize_()
+        
+    # random sample
+    def random_sample(self, batch_size:int):
+        """
+        random sample data from buffer.
+        
+        Args:
+            batch_size (int): batch size.
+            
+        Returns:
+            _type_: dict. data dict.
+        """
+        # if using multi thread, then sample data from each segment
+        # sample data from each segment
+        
+        # compute current segment size
+        if self.sample_epoch == 1: # first epoch
+            buffer_size = self.mini_buffer_size
+        else:
+            running_step = buffer_size + self.optimize_epoch*self.each_thread_update_interval*self.total_segment
+            buffer_size = min(self.max_buffer_size, running_step)
+            
+        sample_index = np.random.choice(range(buffer_size), batch_size,replace=False)
+        
+        index_bias = sample_index*1.0/self.each_thread_size*self.each_thread_size 
+        index_bias = index_bias.astype(np.int32)
+        
+        sample_index = sample_index + index_bias
+        sample_index = sample_index.astype(np.int32)
+        
+        # get data
+        
+        data_dict = self.data_pool.get_data_by_indices(sample_index)
+        
+        return data_dict
+    
+    def get_corresponding_data(self, data_dict:dict, names:tuple, prefix:str='', tf_tensor:bool=True):
+        """
+        
+        Get corresponding data from data dict.
+
+        Args:
+            data_dict (dict): data dict.
+            names (tuple): name of data.
+            prefix (str): prefix of data name.
+        Returns:
+            corresponding data. list or tuple.
+        """
+        
+        data = []
+        
+        for name in names:
+            name = prefix + name
+            buffer = data_dict[name]
+            if tf_tensor:
+                buffer = tf.cast(buffer, dtype=tf.float32)
+            data.append(buffer)
+        
+        return data
+    
+    def concat_dict(self, dict_tuple:tuple):
+        """
+        concat dict.
+        
+        Args:
+            dict_tuple (tuple): dict tuple.
+        Returns:
+            _type_: dict. concat dict.
+        """
+        concat_dict = {}
+        for data_dict in dict_tuple:
+            for key, value in data_dict.items():
+                if key in concat_dict:
+                    Warning('key {} is already in concat dict'.format(key))
+                else:
+                    concat_dict[key] = value
+                    
+        return concat_dict
+        
+        
         

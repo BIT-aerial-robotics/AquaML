@@ -93,6 +93,8 @@ class SAC2(BaseRLAlgo):
         # target entropy
         self.target_entropy = tf.constant(-self.rl_io_info.data_info.shape_dict['action'], dtype=tf.float32)
         
+        self.parameters = parameters
+        
     
     @tf.function
     def train_q_fun(self, qf_obs:tuple, 
@@ -269,7 +271,41 @@ class SAC2(BaseRLAlgo):
         log_prob = tf.math.log(prob)
         
         return action, log_prob
+    
+    def _optimize_(self):
         
+        data_dict = self.random_sample()
+        
+        qf_obs = self.get_corresponding_data(data_dict=data_dict,names=self.qf1.input_name)
+        next_qf_obs = self.get_corresponding_data(data_dict=data_dict,names=self.qf1.input_name, prefix='next_')
+        actor_obs = self.get_corresponding_data(data_dict=data_dict,names=self.actor.input_name)
+        next_actor_obs = self.get_corresponding_data(data_dict=data_dict,names=self.actor.input_name, prefix='next_')
+        
+        mask = tf.cast(data_dict['mask'], dtype=tf.float32)
+        reward = tf.cast(data_dict['total_reward'], dtype=tf.float32)
+        
+        tf_gamma = tf.constant(self.parameters.gamma, dtype=tf.float32)
+        
+        
+        
+        q_optimize_info = self.train_q_fun(
+                                            qf_obs=qf_obs,
+                                            next_qf_obs=next_qf_obs,
+                                            actor_obs=actor_obs,
+                                            next_actor_obs=next_actor_obs,
+                                            reward=reward,
+                                            mask=mask,
+                                            gamma=tf_gamma
+        )
+        
+        policy_optimize_info = self.train_actor(
+            q_obs=qf_obs,
+            actor_obs=actor_obs
+        )
+        
+        alpha_optimize_info = self.train_alpha(
+            actor_obs=actor_obs
+        )
         
         
         

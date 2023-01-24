@@ -52,7 +52,10 @@ class SAC2_parameter(BaseParameter):
     
     def __init__(self, epoch_length: int, n_epochs: int,
                  batch_size: int, 
-                 discount: float, alpha: float,tau:float,
+                 discount: float, 
+                 alpha: float,
+                 tau:float,
+                 mini_buffer_size:int,
                  alpha_learning_rate: float = 3e-4,
                  update_interval: int = 0):
         """
@@ -79,4 +82,7 @@ class SAC2_parameter(BaseParameter):
         self.tau = tau
         self.update_interval = update_interval
         self.alpha_learning_rate = alpha_learning_rate
+        self.mini_buffer_size = mini_buffer_size
+        
+        self.gamma = discount
     

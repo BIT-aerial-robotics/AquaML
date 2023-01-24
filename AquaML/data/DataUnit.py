@@ -158,6 +158,17 @@ class DataUnit:
         """
         return self._buffer[start:end]
 
+    def get_data_by_indenes(self, indenes):
+        """Get data by indenes.
+
+        Args:
+            indenes : indenes.
+
+        Returns:
+            _type_: np.ndarray
+        """
+        return self._buffer[indenes]
+
 
     @property
     def buffer(self):

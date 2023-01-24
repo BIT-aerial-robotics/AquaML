@@ -59,4 +59,11 @@ class RLWorker:
         
         for _ in range(self.rl_algo.each_thread_update_interval):
             self.step()
-        
+    
+    def pre_sample(self, size:int):
+        """pre-sample data from data pool.
+        args:
+        size: the number of data to sample
+        """
+        for _ in range(size):
+            self.step()

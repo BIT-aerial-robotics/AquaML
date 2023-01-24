@@ -1,6 +1,6 @@
 import numpy as np
 
-# TODO: 添加diplay()函数方便以后debug
+# TODO: 添加display()函数方便以后debug
 class DataInfo:
     """
     Information of dateset or buffer.
@@ -49,6 +49,7 @@ class DataInfo:
 # TODO:有些成员转换成私有和保护类型
 # TODO: need to check before run
 class RLIOInfo:
+    # TODO: 移除model info
     """
     Information of reinforcement learning model input and output.
     """

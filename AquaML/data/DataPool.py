@@ -155,6 +155,22 @@ class DataPool:
         """
         for name, data in data_dict.items():
             self.data_pool[name].store(data, index)
+            
+    def get_data_by_indices(self, indices):
+        """get data by indices.
+
+        Args:
+            indices (list): indice.
+
+        Returns:
+            dict: data.
+        """
+        data_dict = dict()
+        
+        for name, data_unit in self.data_pool.items():
+            data_dict[name] = data_unit.get_data_by_indices(indices)
+            
+        return data_dict
 
 
 # test in sub thread

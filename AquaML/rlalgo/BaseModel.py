@@ -8,6 +8,11 @@ class BaseModel(abc.ABC,tf.keras.Model):
     such as, self._optimizer = 'SGD'
     
     The learning rate is 0.001. If you want to change it, you can set _lr.
+    
+    If the model is Q network, _input_name should not contain 'action'
+    
+    You can specify the input name by set self._input_name.
+    If not set, the input name is determined by the RLIOInfo(AquaML.DataTypes.RLIOInfo).
     """
     
     def __init__(self):
@@ -15,6 +20,8 @@ class BaseModel(abc.ABC,tf.keras.Model):
         self.rnn_flag = False
         self._optimizer = 'Adam'
         self._learning_rate = 0.001
+        
+        self._input_name = None
     
     @abc.abstractmethod
     def reset(self):
@@ -41,3 +48,7 @@ class BaseModel(abc.ABC,tf.keras.Model):
     @property
     def learning_rate(self):
         return self._learning_rate
+    
+    @property
+    def input_name(self):
+        return self._input_name

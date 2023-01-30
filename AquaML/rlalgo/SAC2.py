@@ -156,6 +156,8 @@ class SAC2(BaseRLAlgo):
                        'q2_loss':q2_loss,
                        'q1_grad':q1_grad,
                        'q2_grad':q2_grad,
+                       'q1_var':self.qf1.trainable_variables,
+                       'q2_var':self.qf2.trainable_variables,
                        }
 
         return return_dict
@@ -179,7 +181,9 @@ class SAC2(BaseRLAlgo):
         alpha_grad = tape.gradient(alpha_loss, [self.tf_alpha])
         self.alpha_optimizer.apply_gradients(zip(alpha_grad, [self.tf_alpha]))
         
-        return_dict = {'alpha_loss':alpha_loss,'alpha_grad':alpha_grad}
+        return_dict = {'alpha_loss':alpha_loss,
+                       'alpha_grad':alpha_grad, 
+                       'alpha_var':[self.tf_alpha]}
         
         return return_dict
     
@@ -210,7 +214,10 @@ class SAC2(BaseRLAlgo):
         
         grad = tape.gradient(actor_loss, self.get_trainable_actor())
         self.actor_optimizer.apply_gradients(zip(grad, self.get_trainable_actor()))
-        return_dict = {'actor_loss':actor_loss, 'actor_grad':grad}
+        return_dict = {'actor_loss':actor_loss,
+                       'actor_grad':grad, 
+                       'actor_var':self.get_trainable_actor()
+                       }
         
         return return_dict
       

@@ -2,7 +2,7 @@ import abc
 
 class BaseParameter(abc.ABC):
     
-    def __init__(self,epoch_length:int, n_epochs:int, batch_size:int,update_interval:int=0):
+    def __init__(self,epoch_length:int, n_epochs:int, buffer_size:int, batch_size:int,update_interval:int=0):
         """
         Parameters of environment.
         
@@ -14,6 +14,12 @@ class BaseParameter(abc.ABC):
             batch_size (int): batch size.
             update_interval (int): update interval.
         """
+        
+        self.epoch_length = epoch_length
+        self.n_epochs = n_epochs
+        self.buffer_size = buffer_size
+        self.batch_size = batch_size
+        self.update_interval = update_interval
         
         
 
@@ -55,6 +61,7 @@ class SAC2_parameter(BaseParameter):
                  discount: float, 
                  alpha: float,
                  tau:float,
+                 buffer_size:int,
                  mini_buffer_size:int,
                  alpha_learning_rate: float = 3e-4,
                  update_interval: int = 0):

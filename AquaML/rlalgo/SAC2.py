@@ -12,16 +12,44 @@ class SAC2(BaseRLAlgo):
                 env,
                 rl_io_info:RLIOInfo, 
                 parameters:SAC2_parameter,
-                # TODO: remove in the future
                 # policy is class do not instantiate
-                actor:BaseModel, # base class is BasePolicy
-                qf1:BaseModel, 
-                qf2:BaseModel,
+                actor, # base class is BasePolicy
+                qf1, 
+                qf2,
                 computer_type:str='PC',
                 name:str='SAC2',
                 level:int=0, 
                 thread_ID:int=-1, 
                 total_threads:int=1):
+        
+        '''
+        Soft Actor-Critic (SAC) is an algorithm which optimizes a stochastic policy in an off-policy way, 
+        forming a bridge between stochastic policy optimization and DDPG-style approaches.
+        
+        Reference:
+        ---------- 
+        [1] Haarnoja, Tuomas, et al. "Soft actor-critic: Off-policy maximum entropy 
+        deep reinforcement learning with a stochastic actor." 
+        arXiv preprint arXiv:1801.01290 (2018).
+        [2] Haarnoja, Tuomas, et al. "Soft actor-critic algorithms and applications." 
+        arXiv preprint arXiv:1812.05905 (2018).
+        
+        Args:
+        env: environment.
+        rl_io_info: record the input and output information of the RL algorithm.
+        parameters: parameters of the RL algorithm.
+        actor: It is a class, not an instance. And it must be a subclass of AquaML.BaseClass.RLBaseModel
+        qf1: It is a class, not an instance. And it must be a subclass of AquaML.BaseClass.RLBaseModel
+        qf2: It is a class, not an instance. And it must be a subclass of AquaML.BaseClass.RLBaseModel
+        -----------------
+        Those args are automatically added by the framework:
+        computer_type: the type of computer.
+        name: the name of the RL algorithm.
+        level: the level of the RL algorithm.
+        total_threads: the total number of threads.
+        thread_ID: the ID of the thread.        
+        
+        '''
          
         super().__init__(
                 env=env,
@@ -34,17 +62,24 @@ class SAC2(BaseRLAlgo):
                 total_threads=total_threads,
                 )
           
-        # TODO:: initialize the network in the future
+        # TODO: initialize the network in the future
         #Notice: qf just be used  in main thread, actor for all threads         
         if self.level == 0:
             # main thread
-            self.actor = actor 
-            self.qf1 = qf1
-            self.qf2 = qf2
+            self.actor = actor() 
+            self.qf1 = qf1()
+            self.qf2 = qf2()
               
             # create target network
-            self.target_qf1 = qf1
-            self.target_qf2 = qf2
+            self.target_qf1 = qf1()
+            self.target_qf2 = qf2()
+            
+            # initialize the network
+            self.initialize_model_weights(self.actor)
+            self.initialize_model_weights(self.qf1)
+            self.initialize_model_weights(self.qf2)
+            self.initialize_model_weights(self.target_qf1)
+            self.initialize_model_weights(self.target_qf2)
             
             # create tf.Variable for temperature parameter
             
@@ -55,6 +90,9 @@ class SAC2(BaseRLAlgo):
             self.copy_weights(self.qf2, self.target_qf2)
         else:
             self.actor = actor
+            
+            # initialize the network
+            self.initialize_model_weights(self.actor)
               
             # None
             self.qf1 = None
@@ -94,6 +132,8 @@ class SAC2(BaseRLAlgo):
         self.target_entropy = tf.constant(-self.rl_io_info.data_info.shape_dict['action'], dtype=tf.float32)
         
         self.parameters = parameters
+        
+        self._sync_model_dict = {'actor':self.actor,}
         
     
     @tf.function

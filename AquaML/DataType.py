@@ -53,7 +53,7 @@ class RLIOInfo:
     """
     Information of reinforcement learning model input and output.
     """
-    def __init__(self, obs_info:dict,obs_type_info, actor_input_info:tuple, actor_out_info:dict, critic_input_info:tuple , reward_info:tuple, buffer_size:int):
+    def __init__(self, obs_info:dict,obs_type_info, actor_out_info:dict, reward_info:tuple, buffer_size:int):
         """Reinforcement learning model input-output(IO) information.
         
 
@@ -146,8 +146,9 @@ class RLIOInfo:
         # create data_info
         self.data_info = DataInfo(tuple(data_info_dict.keys()), tuple(data_info_dict.values()), tuple(data_type_info_dict.values()))
 
-        self.actor_input_info = actor_input_info # tuple
-        self.critic_input_info = critic_input_info # tuple
+        # move this information to model class
+        # self.actor_input_info = actor_input_info # tuple
+        # self.critic_input_info = critic_input_info # tuple
         self.reward_info = reward_info # tuple
 
         # store action info
@@ -182,20 +183,31 @@ class RLIOInfo:
     @property
     def buffer_size(self):
         return self.__buffer_size
+    
+    def get_data_info(self, name):
+        """Get data information.
+
+        Args:
+            name (str): name of data.
+
+        Returns:
+            tuple: shape of data. (1, feature1, feature2, ...)
+            type: type of data.
+        """
+        
+        shape = self.data_info.shape_dict[name]
+        dtype = self.data_info.type_dict[name]
+        
+        shape = (1,*shape[1:])
+        
+        return shape, dtype
 
 # test
 if __name__ == "__main__":
-    test = RLIOInfo({'obs':1}, np.float32, ('obs',), {'action':(1,2)}, ('obs','action'), ('reward',), 4)
     
-    test.add_info('test', (4,5), np.float32)
-
+    test = RLIOInfo({'obs':(2,)}, np.float32, {'action':(2,), 'log_std':(2,)}, ('reward',), 10)
     print(test.data_info.shape_dict)
     print(test.data_info.type_dict)
-    print(test.actor_input_info)
-    print(test.critic_input_info)
     print(test.actor_out_info)
     print(test.actor_out_name)
     print(test.actor_model_out_name)
-
-    # for name, val in test.data_info.type_dict.items():
-    #     print(name, val)

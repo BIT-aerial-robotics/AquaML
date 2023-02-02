@@ -87,6 +87,9 @@ class DataPool:
                 if self._computer_type == 'PC':
                     self.create_share_memory()
             else:
+                # waite for main thread to create share memory
+                import time
+                time.sleep(6)
                 self.read_shared_memory(info_dic)
 
         elif type == 'buffer':

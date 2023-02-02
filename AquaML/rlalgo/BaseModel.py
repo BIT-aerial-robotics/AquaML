@@ -11,8 +11,7 @@ class BaseModel(abc.ABC,tf.keras.Model):
     
     If the model is Q network, _input_name should not contain 'action'
     
-    You can specify the input name by set self._input_name.
-    If not set, the input name is determined by the RLIOInfo(AquaML.DataTypes.RLIOInfo).
+    You should specify the input name by set self._input_name.
     """
     
     def __init__(self):
@@ -22,6 +21,10 @@ class BaseModel(abc.ABC,tf.keras.Model):
         self._learning_rate = 0.001
         
         self._input_name = None
+        
+        # if the model is an actor, please specify the output info
+        # eg: {'action':(2,), 'log_std':(2,)}
+        self._output_info = None
     
     @abc.abstractmethod
     def reset(self):
@@ -52,3 +55,7 @@ class BaseModel(abc.ABC,tf.keras.Model):
     @property
     def input_name(self):
         return self._input_name
+    
+    @property
+    def output_info(self):
+        return self._output_info

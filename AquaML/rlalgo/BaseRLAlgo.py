@@ -5,9 +5,10 @@ from AquaML.DataType import RLIOInfo
 from AquaML.data.DataUnit import DataUnit
 from AquaML.rlalgo import ExplorePolicy
 from AquaML.tool.RLWorker import RLWorker
+from AquaML.BaseClass import BaseAlgo
 import numpy as np
 
-class BaseRLAlgo(abc.ABC):
+class BaseRLAlgo(BaseAlgo,abc.ABC):
 
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
@@ -32,6 +33,9 @@ class BaseRLAlgo(abc.ABC):
         
         4. Notice: after optimize the model, you should update optimize_epoch.
            The same as sample_epoch.
+           
+        5. Notice: if you want to use multi thread, please specify which model needs to be synchronized by 
+           setting  self._sync_model_dict
         
         
         Some recommends for off-policy algorithm:
@@ -139,6 +143,10 @@ class BaseRLAlgo(abc.ABC):
         # according to the type of algorithm, 
         self.mini_buffer_size = None
         
+        self.cache_path = name + '/cache' # cache path
+        
+        self._sync_model_dict = None # store sync model, convenient for multi thread
+        
 
     
     # initial algorithm
@@ -147,6 +155,7 @@ class BaseRLAlgo(abc.ABC):
         
         This function will be called by starter.
         """
+        # TODO:子线程需要等待时间 check
         # multi thread initial
         if self.thread_ID > -1: # multi thread
             self.data_pool.multi_init(self.rl_io_info.data_info, type='buffer')
@@ -165,6 +174,8 @@ class BaseRLAlgo(abc.ABC):
         if self.policy_type == 'off':
             if self.mini_buffer_size == None:
                 raise ValueError('Mini buffer size must be given.')
+        if self._sync_model_dict == None:
+            raise ValueError('Sync model must be given.')
         
     # TODO: calculate by multi thread
     # calculate general advantage estimation
@@ -550,6 +561,7 @@ class BaseRLAlgo(abc.ABC):
             data.append(buffer)
         
         return data
+
     
     def concat_dict(self, dict_tuple:tuple):
         """
@@ -569,6 +581,35 @@ class BaseRLAlgo(abc.ABC):
                     concat_dict[key] = value
                     
         return concat_dict
+    
+    def initialize_model_weights(self, model):
+        """
+        initial model.
+        """
         
+        input_data_name = model.input_name
         
+        # create tensor according to input data name
+        input_data = []
         
+        for name in input_data_name:
+            shape, _ = self.rl_io_info.get_data_info(name)
+            input_data.append(tf.zeros(shape=shape, dtype=tf.float32))
+        
+        model(*input_data)
+    
+    def sync_model(self):
+        """
+        sync model.
+        Used in multi thread.
+
+        """
+        
+        if self.level == 0:
+            for key, model in self.model_dict.items():
+                model.save_weights(self.cache_path + '/' + key + '.h5')
+        else:
+            for key, model in self.model_dict.items():
+                model.load_weights(self.cache_path + '/' + key + '.h5')
+        
+    

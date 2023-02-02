@@ -180,6 +180,7 @@ class DataUnit:
         return self._buffer
 
     def close(self):
+        # TODO: 元数据里面不要加入等待指令
         """
         delete data.
         """

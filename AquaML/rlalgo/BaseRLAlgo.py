@@ -8,6 +8,7 @@ from AquaML.tool.RLWorker import RLWorker
 from AquaML.BaseClass import BaseAlgo
 import numpy as np
 
+#TODO:model logic has been changed, check the new version
 class BaseRLAlgo(BaseAlgo,abc.ABC):
 
     # TODO:统一输入接口
@@ -68,6 +69,9 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
 
         Raises:
             ValueError: if thread_ID == -1, it means single thread, then level must be 0.
+            ValueError: if computer_type == 'HPC', then level must be 0.
+            ValueError('Sync model must be given.')
+            
         """
 
         self.rl_io_info = rl_io_info
@@ -84,15 +88,16 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
             raise ValueError('If thread_ID == -1, it means single thread, then level must be 0.')
 
         # create data pool according to thread level
-        self.data_pool = DataPool(name=self.name,level=self.level, computer_type=self._computer_type) # data_pool is a handle
+        self.data_pool = DataPool(name=self.name,level=self.level, 
+                                  computer_type=self._computer_type) # data_pool is a handle
         
         self.actor = None # actor model. Need point out which model is the actor.
-
        
-            
+        #TODO: 私有变量会出问题，貌似这个没用
         self.__explore_dict = {} # store explore policy, convenient for multi thread
         
         # TODO: 需要升级为异步执行的方式
+        # TODO: 需要确认主线程和子线程得到得硬件不一样是否影响执行速度 
         # allocate start index and size for each thread
         # main thread will part in sample data
         # just used when computer_type == 'PC'
@@ -103,16 +108,22 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
                 self.each_thread_start_index = self.thread_ID * self.each_thread_size
                 
                 if self.update_interval == 0:
+                    # 这种情形属于将所有buffer填充满以后再更新模型
                     # if update_interval == 0, it means update model after buffer is full
                     self.each_thread_update_interval = self.each_thread_size # update interval for each thread
                 else:
                     # if update_interval != 0, it means update model after each step
                     # then we need to calculate how many steps to update model for each thread
+                    # 每个线程更新多少次等待更新模型
                     self.each_thread_update_interval = int(self.update_interval / total_threads) # update interval for each thread
             else:
                 self.each_thread_size = self.rl_io_info.buffer_size
                 self.each_thread_start_index = 0
-                self.each_thread_update_interval = self.update_interval # update interval for each thread
+                if self.update_interval == 0:
+                    self.each_thread_update_interval = self.each_thread_size # update interval for each thread
+                else:
+                    self.each_thread_update_interval = self.update_interval # update interval for each thread
+                # self.each_thread_update_interval = self.update_interval # update interval for each thread
                 
         else:
             # TODO: HPC will implement in the future
@@ -146,6 +157,7 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
         self.cache_path = name + '/cache' # cache path
         
         self._sync_model_dict = None # store sync model, convenient for multi thread
+        self._sync_explore_dict = None # store sync explore policy, convenient for multi thread
         
 
     
@@ -312,53 +324,92 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
     # get action in the training process
     # TODO:根据网络模型的特点需要修改
     # TODO:no if...else
+    # TODO:需要修改获取actor输入的方式
+    # def get_action_train(self, obs:dict):
+    #     """
+    #     Get action in the training process.
+    #     This function can be used in all algorithms since 
+    #     the explore policy is given.
+
+    #     Args:
+    #         obs (dict): observation from environment. eg. {'obs':np.array([1,2,3])}
+
+    #     Returns:
+    #         _type_: dict. action. eg. {'action':np.array([1,2,3]), 'log_prob':np.array([1,2,3])}
+    #     """
+        
+    #     # get actor input
+    #     input_obs = dict()
+        
+    #     # Notice: the order of input_obs must be the same as the order of input in actor model
+    #     for key in self.rl_io_info.actor_input_info:
+    #         # if the input is time sequence, data style (batch, timesteps, feature)
+    #         if self.actor.rnn_flag:
+    #             input_obs[key] = np.expand_dims(obs[key], axis=0)
+    #         else:
+    #             input_obs[key] = obs[key]
+                
+    #     # call actor model
+    #     actor_out_ = self.actor(*input_obs) # out is a tuple
+        
+    #     # TODO: Need to check out
+    #     actor_out = dict(zip(self.rl_io_info.actor_model_out_name, actor_out_))
+        
+    #     # explore policy input
+    #     explore_input = dict()
+        
+    #     # add actor output to explore input
+    #     for name in self.rl_io_info.actor_out_name:
+    #         explore_input[name] = actor_out[name]
+            
+    #     # add __explore_dict to explore_input
+    #     for name, value in self.__explore_dict.items():
+    #         explore_input[name] = value
+
+    #     # run explore policy
+    #     action, prob = self.explore_policy(explore_input)
+        
+    #     # add action and prob to actor_out
+    #     actor_out['action'] = action
+    #     actor_out['prob'] = prob
+        
+    #     # create return dict according to rl_io_info.actor_out_name
+    #     return_dict = dict()
+    #     for name in self.rl_io_info.actor_out_name:
+    #         return_dict[name] = actor_out[name]
+    
+    #     return return_dict
+    
     def get_action_train(self, obs:dict):
         """
-        Get action in the training process.
-        This function can be used in all algorithms since 
-        the explore policy is given.
+        
+        sample action in the training process.
 
         Args:
-            obs (dict): observation from environment. eg. {'obs':np.array([1,2,3])}
+            obs (dict): observation from environment. eg. {'obs':data}. 
+                        The data must be tensor. And its shape is (batch, feature).
 
         Returns:
-            _type_: dict. action. eg. {'action':np.array([1,2,3]), 'log_prob':np.array([1,2,3])}
+            _type_: _description_
         """
         
+        input_data = []
+        
         # get actor input
-        input_obs = dict()
-        
-        # Notice: the order of input_obs must be the same as the order of input in actor model
-        for key in self.rl_io_info.actor_input_info:
-            # if the input is time sequence, data style (batch, timesteps, feature)
-            if self.actor.rnn_flag:
-                input_obs[key] = np.expand_dims(obs[key], axis=0)
-            else:
-                input_obs[key] = obs[key]
-                
-        # call actor model
-        actor_out_ = self.actor(*input_obs) # out is a tuple
-        
-        # TODO: Need to check out
-        actor_out = dict(zip(self.rl_io_info.actor_model_out_name, actor_out_))
-        
-        # explore policy input
-        explore_input = dict()
-        
-        # add actor output to explore input
-        for name in self.rl_io_info.actor_out_name:
-            explore_input[name] = actor_out[name]
-            
-        # add __explore_dict to explore_input
-        for name, value in self.__explore_dict.items():
-            explore_input[name] = value
+        for key in self.actor.input_info:
+            input_data.append(obs[key])
 
-        # run explore policy
-        action, prob = self.explore_policy(explore_input)
+        actor_out = self.actor(*input_data) # out is a tuple
         
-        # add action and prob to actor_out
-        actor_out['action'] = action
-        actor_out['prob'] = prob
+        policy_out = dict(zip(self.actor.output_info, actor_out))
+        
+        for name, value in self.__explore_dict.items():
+            policy_out[name] = value
+        
+        action, prob = self.explore_policy(policy_out)
+        
+        policy_out['action'] = action
+        policy_out['prob'] = prob
         
         # create return dict according to rl_io_info.actor_out_name
         return_dict = dict()
@@ -366,7 +417,7 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
             return_dict[name] = actor_out[name]
     
         return return_dict
-    
+        
     # create keras optimizer
     def create_optimizer(self,name:str,optimizer:str,lr:float):
         """
@@ -415,6 +466,7 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
         
     # Gaussian exploration policy
     def create_gaussian_exploration_policy(self):
+        # TODO: sync with tf_std
         # verity the style of log_std
         if self.rl_io_info.explore_info == 'self':
             # log_std provided by actor
@@ -598,18 +650,38 @@ class BaseRLAlgo(BaseAlgo,abc.ABC):
         
         model(*input_data)
     
-    def sync_model(self):
+    def sync(self):
         """
-        sync model.
+        sync.
         Used in multi thread.
 
         """
-        
         if self.level == 0:
             for key, model in self.model_dict.items():
                 model.save_weights(self.cache_path + '/' + key + '.h5')
         else:
             for key, model in self.model_dict.items():
                 model.load_weights(self.cache_path + '/' + key + '.h5')
+        
+        if self.log_std is not None:
+            self.sync_log_std()
+                
+    def close(self):
+        """
+        close.
+        """
+        
+        self.data_pool.close()
+        
+    def sync_log_std(self):
+        """
+        sync log std.
+        """
+
+        if self.level == 0:
+            self.log_std.set_value(self.tf_log_std.numpy()) # write log std to shared memory
+        else:
+            self.tf_log_std = tf.Variable(self.log_std.buffer, trainable=True) # read log std from shared memory
+        
         
     

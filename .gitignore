@@ -5,3 +5,5 @@ AquaML/data/__pycache__/DataUnit.cpython-38.pyc
 AquaML/data/__pycache__/DataPool.cpython-38.pyc
 *.pyc
 .vscode/settings.json
+*.iml
+*.xml

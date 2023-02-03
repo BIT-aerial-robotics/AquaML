@@ -205,7 +205,7 @@ class RLIOInfo:
 # test
 if __name__ == "__main__":
     
-    test = RLIOInfo({'obs':(2,)}, np.float32, {'action':(2,), 'log_std':(2,)}, ('reward',), 10)
+    test = RLIOInfo({'obs':(2,)}, np.float32, {'action':(2,),}, ('reward',), 10)
     print(test.data_info.shape_dict)
     print(test.data_info.type_dict)
     print(test.actor_out_info)

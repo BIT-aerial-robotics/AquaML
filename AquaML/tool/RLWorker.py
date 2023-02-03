@@ -31,7 +31,6 @@ class RLWorker:
         if self.reset_flag:
             self.obs = self.env.reset()
             self.reset_flag = False
-            self.step_count = 0
             self.rl_algo.actor.reset()
         
         action_dict = self.rl_algo.get_action_train(self.obs)

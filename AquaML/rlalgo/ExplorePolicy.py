@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import abc
 
+
 class ExplorePolicyBase(abc.ABC):
     """Explore policy base class.
     
@@ -19,20 +20,22 @@ class ExplorePolicyBase(abc.ABC):
 
     def __init__(self, shape):
         self.shape = shape
-        self.input_info = None # tuple
-    
+        self.input_info = None  # tuple
+
     @abc.abstractmethod
     def noise_and_prob(self):
         """
         This function must use tf.function to accelerate.
         All the exploration noise use reparameter tricks.
         """
+
     @abc.abstractmethod
     def scale_out(self, *args, **kwargs):
         """
         Scale the action to the range of environment.
         """
-    def __call__(self, inputs_dict:dict):
+
+    def __call__(self, inputs_dict: dict):
         """inputs_dict is a dict. The key is the name of input. The value is the input.
         inputs_dict must contain all the output of actor model.
         such as:
@@ -45,12 +48,12 @@ class ExplorePolicyBase(abc.ABC):
         prob (tf.Tensor): probability of action.
         """
         # get inputs from inputs_dict
-        
+
         inputs = []
-        
+
         for key in self.input_info:
             inputs.append(inputs_dict[key])
-        
+
         return self.scale_out(*inputs)
 
 
@@ -60,17 +63,17 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         mu = tf.zeros(shape, dtype=tf.float32)
         sigma = tf.ones(shape, dtype=tf.float32)
         self.dist = tfp.distributions.Normal(loc=mu, scale=sigma)
-    
+
     @tf.function
     def noise_and_prob(self):
         noise = self.dist.sample()
         prob = self.dist.prob(noise)
-        
+
         return noise, prob
-    
+
     def scale_out(self, mu, log_std):
         sigma = tf.exp(log_std)
         noise, prob = self.noise_and_prob()
         action = mu + sigma * noise
-        
+
         return action, prob

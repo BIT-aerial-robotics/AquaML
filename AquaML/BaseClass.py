@@ -5,22 +5,23 @@ import tensorflow as tf
 import abc
 import os
 
+
 # TODO: implement the base class when implementing the other classes
 class BaseAlgo(ABC):
     @property
     def algo_name(self):
         return self.name
 
+
 class BaseStarter(ABC):
-    
+
     def __init__(self):
-        
+
         self._work_folder = None
         self._log_folder = None
         self._cache_folder = None
-        
-        
-    def initial_dir(self, work_folder:str):
+
+    def initial_dir(self, work_folder: str):
         """
         Initial the directory for working.
 
@@ -31,19 +32,19 @@ class BaseStarter(ABC):
             _type_: None
         """
         # create a folder for working
-        self._work_folder = work_folder 
+        self._work_folder = work_folder
         self.mkdir(self.work_folder)
-        
+
         # create a folder for storing the log
         self._log_folder = self.work_folder + '/log'
         self.mkdir(self.log_folder)
-        
+
         # create cache folder
         self._cache_folder = self.work_folder + '/cache'
         self.mkdir(self.cache_folder)
-    
+
     @staticmethod
-    def mkdir(path:str):
+    def mkdir(path: str):
         """
         create a directory in current path.
 
@@ -61,21 +62,20 @@ class BaseStarter(ABC):
             return path
         else:
             None
-            
-            
+
     @property
     def work_folder(self):
         return self._work_folder
-    
+
     @property
     def log_folder(self):
         return self._log_folder
-    
+
     @property
     def cache_folder(self):
         return self._cache_folder
-        
-            
+
+
 # Base class for reinforcement learning algorithm
 
 # TODO: 重新规定环境的接口
@@ -86,12 +86,14 @@ class RLBaseEnv(abc.ABC):
     All the environment should inherit this class.
     
     reward_info should be a specified.
-    
+
+    obs_info should be a specified.
     """
-    
+
     def __init__(self):
-        self._reward_info = None
-    
+        self._reward_info = ('total_reward',)  # reward info is a tuple
+        self._obs_info = None  # DataInfo
+
     @abc.abstractmethod
     def reset(self):
         """
@@ -100,7 +102,7 @@ class RLBaseEnv(abc.ABC):
         return: 
         observation (dict): observation of environment.
         """
-    
+
     @abc.abstractmethod
     def step(self, action):
         """
@@ -114,11 +116,17 @@ class RLBaseEnv(abc.ABC):
         done (bool): done flag of environment.
         info (dict or None): info of environment.
         """
-        
+
     @property
     def reward_info(self):
         return self._reward_info
-class RLBaseModel(abc.ABC,tf.keras.Model):
+
+    @property
+    def obs_info(self):
+        return self._obs_info
+
+
+class RLBaseModel(abc.ABC, tf.keras.Model):
     """All the neral network models should inherit this class.
     
     The default optimizer is Adam. If you want to change it, you can set _optimizer.
@@ -130,26 +138,26 @@ class RLBaseModel(abc.ABC,tf.keras.Model):
     
     You should specify the input name by set self._input_name.
     """
-    
+
     def __init__(self):
         super(RLBaseModel, self).__init__()
         self.rnn_flag = False
         self._optimizer = 'Adam'
         self._learning_rate = 0.001
-        
+
         self._input_name = None
-        
+
         # if the model is an actor, please specify the output info
         # eg: {'action':(2,), 'log_std':(2,)}
         self._output_info = None
-    
+
     @abc.abstractmethod
     def reset(self):
         """
         Reset the model.
         Such as reset the rnn state.
         """
-    
+
     @abc.abstractmethod
     def call(self, *args, **kwargs):
         """
@@ -160,22 +168,23 @@ class RLBaseModel(abc.ABC,tf.keras.Model):
         When the model is actor, the return is tuple like (action, (h, c)).
         When the model is critic, the return is q_value or value.
         """
-        
+
     @property
     def optimizer(self):
         return self._optimizer
-    
+
     @property
     def learning_rate(self):
         return self._learning_rate
-    
+
     @property
     def input_name(self):
         return self._input_name
-    
+
     @property
     def output_info(self):
         return self._output_info
+
 
 if __name__ == '__main__':
     BaseStarter.mkdir('test')

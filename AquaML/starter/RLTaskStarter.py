@@ -7,7 +7,6 @@ import time
 # TODO: 检查任务级别
 class RLTaskStarter(BaseStarter):
     def __init__(self, env,
-                 obs_info: DataInfo,
                  model_class_dict: dict,
                  algo,
                  algo_hyperparameter,
@@ -20,7 +19,6 @@ class RLTaskStarter(BaseStarter):
 
         Args:
             env : environment. (must be a inherited class of AquaML.BaseClass.RLBaseEnv)
-            obs_info (DataInfo): full observation of environment.
             model_class_dict (dict): model class dict. {'actor':actor_class, 'critic':critic_class}. 
                                     They must be inherited class of AquaML.BaseClass.RLBaseModel.
             algo_hyperparameter : This is a structure. See AquaML.rl.algo.Parameters.
@@ -35,6 +33,8 @@ class RLTaskStarter(BaseStarter):
         actor = model_class_dict['actor']()
         actor_out_info = actor.output_info  # dict
         del actor  # delete actor
+
+        obs_info = env.obs_info
 
         # parallel information
         # if using mpi
@@ -93,6 +93,8 @@ class RLTaskStarter(BaseStarter):
 
         # create algorithm
         self.algo = algo(**algo_args)
+
+        # TODO: 文件夹创建
 
         # initial algorithm
         self.algo.init()

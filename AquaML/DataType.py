@@ -1,11 +1,13 @@
 import numpy as np
 
+
 # TODO: 添加display()函数方便以后debug
 class DataInfo:
     """
     Information of dateset or buffer.
     """
-    def __init__(self, names:tuple, shapes:tuple, dtypes, dataset=None):
+
+    def __init__(self, names: tuple, shapes: tuple, dtypes, dataset=None):
         """Data info struct.
 
         Args:
@@ -13,7 +15,7 @@ class DataInfo:
             shapes (tuple): shapes 
             dtypes (tuple, optional): dtypes.
         """
-        
+
         # TODO: 当前buffer size
         self.shape_dict = dict(zip(names, shapes))
 
@@ -29,8 +31,8 @@ class DataInfo:
             self.dataset_dict = dict(zip(names, dataset))
         else:
             self.dataset_dict = None
-    
-    def add_info(self, name:str, shape, dtype):
+
+    def add_info(self, name: str, shape, dtype):
         """add info.
 
         Args:
@@ -40,12 +42,13 @@ class DataInfo:
         """
         self.shape_dict[name] = shape
         self.type_dict[name] = dtype
-        
+
         # add element to names
         names = list(self.names)
         names.append(name)
         self.names = tuple(names)
-        
+
+
 # TODO:有些成员转换成私有和保护类型
 # TODO: need to check before run
 class RLIOInfo:
@@ -53,7 +56,8 @@ class RLIOInfo:
     """
     Information of reinforcement learning model input and output.
     """
-    def __init__(self, obs_info:dict,obs_type_info, actor_out_info:dict, reward_info:tuple, buffer_size:int):
+
+    def __init__(self, obs_info: dict, obs_type_info, actor_out_info: dict, reward_info: tuple, buffer_size: int):
         """Reinforcement learning model input-output(IO) information.
         
 
@@ -86,11 +90,10 @@ class RLIOInfo:
                     shapes.append(val)
             else:
                 shapes.append(shape)
-            
+
             shapes = tuple(shapes)
 
             return shapes
-
 
         # convert obs_info, actor_out_info into data_info
         # create data_info
@@ -105,17 +108,17 @@ class RLIOInfo:
                 data_type_info_dict[key] = obs_type_info[key]
             else:
                 data_type_info_dict[key] = obs_type_info
-        
+
         # add next_obs_info to data_info
-        for key in obs_info.keys(): 
-            data_info_dict['next_'+key] = shape
-            data_type_info_dict['next_'+key] = data_type_info_dict[key]
+        for key in obs_info.keys():
+            data_info_dict['next_' + key] = shape
+            data_type_info_dict['next_' + key] = data_type_info_dict[key]
 
         # check 'action' whether in actor_out_info
         # if not, rasing error
         if 'action' not in actor_out_info:
             raise ValueError("actor_out_info must have 'action'")
-        
+
         # add mask_info to data_info
         data_info_dict['mask'] = (buffer_size, 1)
         data_type_info_dict['mask'] = np.int32
@@ -124,7 +127,7 @@ class RLIOInfo:
         for key, shape in actor_out_info.items():
             data_info_dict[key] = insert_buffer_size(shape)
             data_type_info_dict[key] = np.float32
-        
+
         # NOTE: actor_out contains exploration policy output
         # if 'prob' in actor_out_info, add it to data_info
         if 'prob' not in actor_out_info:
@@ -142,20 +145,21 @@ class RLIOInfo:
         if 'total_reward' not in reward_info:
             data_info_dict['total_reward'] = (buffer_size, 1)
             data_type_info_dict['total_reward'] = np.float32
-        
+
         # create data_info
-        self.data_info = DataInfo(tuple(data_info_dict.keys()), tuple(data_info_dict.values()), tuple(data_type_info_dict.values()))
+        self.data_info = DataInfo(tuple(data_info_dict.keys()), tuple(data_info_dict.values()),
+                                  tuple(data_type_info_dict.values()))
 
         # move this information to model class
         # self.actor_input_info = actor_input_info # tuple
         # self.critic_input_info = critic_input_info # tuple
-        self.reward_info = reward_info # tuple
+        self.reward_info = reward_info  # tuple
 
         # store action info
-        self.actor_out_info = actor_out_info # dict
-        self.actor_out_name = tuple(actor_out_info.keys()) # tuple
-        self.actor_model_out_name = tuple(actor_out_info) # tuple
-        
+        self.actor_out_info = actor_out_info  # dict
+        self.actor_out_name = tuple(actor_out_info.keys())  # tuple
+        self.actor_model_out_name = tuple(actor_out_info)  # tuple
+
         # if 'prob' not in actor_out_info, add it
         if 'prob' not in self.actor_out_info:
             self.actor_out_info['prob'] = actor_out_info['action']
@@ -166,11 +170,11 @@ class RLIOInfo:
             self.explore_info = 'auxiliary'
         else:
             self.explore_info = 'self'
-        
+
         # buffer size
         self.__buffer_size = buffer_size
-    
-    def add_info(self, name:str, shape, dtype):
+
+    def add_info(self, name: str, shape, dtype):
         """Add information to data_info.
 
         Args:
@@ -179,11 +183,11 @@ class RLIOInfo:
             dtype (type): type of information.
         """
         self.data_info.add_info(name, shape, dtype)
-        
+
     @property
     def buffer_size(self):
         return self.__buffer_size
-    
+
     def get_data_info(self, name):
         """Get data information.
 
@@ -194,18 +198,18 @@ class RLIOInfo:
             tuple: shape of data. (1, feature1, feature2, ...)
             type: type of data.
         """
-        
+
         shape = self.data_info.shape_dict[name]
         dtype = self.data_info.type_dict[name]
-        
-        shape = (1,*shape[1:])
-        
+
+        shape = (1, *shape[1:])
+
         return shape, dtype
+
 
 # test
 if __name__ == "__main__":
-    
-    test = RLIOInfo({'obs':(2,)}, np.float32, {'action':(2,),}, ('reward',), 10)
+    test = RLIOInfo({'obs': (2,)}, np.float32, {'action': (2,), }, ('reward',), 10)
     print(test.data_info.shape_dict)
     print(test.data_info.type_dict)
     print(test.actor_out_info)

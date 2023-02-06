@@ -58,6 +58,7 @@ class SAC2(BaseRLAlgo):
             level=level,
             thread_ID=thread_id,
             total_threads=total_threads,
+            mini_buffer_size=parameters.mini_buffer_size,
         )
 
         # TODO: initialize the network in the future
@@ -127,13 +128,13 @@ class SAC2(BaseRLAlgo):
             self.resample_action = self._resample_action1_
 
             # target entropy
-        self.target_entropy = tf.constant(-self.rl_io_info.data_info.shape_dict['action'], dtype=tf.float32)
+        self.target_entropy = -tf.constant(self.rl_io_info.actor_out_info['action'], dtype=tf.float32)
 
-        self.parameters = parameters
+        self.hyper_parameters = parameters
 
         self._sync_model_dict = {'actor': self.actor, }
 
-    @tf.function
+    # @tf.function
     def train_q_fun(self, qf_obs: tuple,
                     next_qf_obs: tuple,
                     actor_obs: tuple,
@@ -157,8 +158,8 @@ class SAC2(BaseRLAlgo):
         Returns:
             info: dict, information of training
         """
-        next_log_pi, next_action = self.resample_action(*next_actor_obs)
-        log_pi, action = self.resample_action(*actor_obs)
+        next_log_pi, next_action = self.resample_action(next_actor_obs)
+        log_pi, action = self.resample_action(actor_obs)
 
         # compute min Q_target(s',a')
         next_q_target1 = self.target_qf1(*next_qf_obs, next_action)
@@ -195,7 +196,7 @@ class SAC2(BaseRLAlgo):
 
         return return_dict
 
-    @tf.function
+    # @tf.function
     def train_alpha(self, actor_obs: tuple):
         """
         train the alpha
@@ -206,7 +207,7 @@ class SAC2(BaseRLAlgo):
         Returns:
             info: optional, information of training
         """
-        log_pi, action = self.resample_action(*actor_obs)
+        log_pi, action = self.resample_action(actor_obs)
 
         with tf.GradientTape() as tape:
             alpha_loss = -tf.reduce_mean(self.tf_alpha * (log_pi + self.target_entropy))
@@ -220,7 +221,7 @@ class SAC2(BaseRLAlgo):
 
         return return_dict
 
-    @tf.function
+    # @tf.function
     def train_actor(self, q_obs: tuple, actor_obs: tuple):
 
         """
@@ -236,7 +237,7 @@ class SAC2(BaseRLAlgo):
         # compute log_pi
 
         with tf.GradientTape() as tape:
-            log_pi, action = self.resample_action(*actor_obs)
+            log_pi, action = self.resample_action(actor_obs)
 
             # compute min Q(s,a)
             q1 = self.qf1(*q_obs, action)
@@ -245,16 +246,16 @@ class SAC2(BaseRLAlgo):
 
             actor_loss = tf.reduce_mean(self.tf_alpha * log_pi - min_q)
 
-        grad = tape.gradient(actor_loss, self.get_trainable_actor())
-        self.actor_optimizer.apply_gradients(zip(grad, self.get_trainable_actor()))
+        grad = tape.gradient(actor_loss, self.get_trainable_actor)
+        self.actor_optimizer.apply_gradients(zip(grad, self.get_trainable_actor))
         return_dict = {'actor_loss': actor_loss,
                        'actor_grad': grad,
-                       'actor_var': self.get_trainable_actor()
+                       'actor_var': self.get_trainable_actor
                        }
 
         return return_dict
 
-    @tf.function
+    # @tf.function
     def _resample_action1_(self, actor_obs: tuple):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
@@ -272,7 +273,7 @@ class SAC2(BaseRLAlgo):
 
         action = self.actor(*actor_obs)[0]
 
-        noise, prob = self.explore_policy.noise_and_prob()
+        noise, prob = self.explore_policy.noise_and_prob(self.hyper_parameters.batch_size)
 
         sigma = tf.exp(self.tf_log_std)
         action = action + noise * sigma
@@ -280,7 +281,7 @@ class SAC2(BaseRLAlgo):
 
         return action, log_pi
 
-    @tf.function
+    # @tf.function
     def _resample_action2_(self, actor_obs: tuple):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
@@ -310,7 +311,7 @@ class SAC2(BaseRLAlgo):
 
     def _optimize_(self):
 
-        data_dict = self.random_sample(self.parameters.batch_size)
+        data_dict = self.random_sample(self.hyper_parameters.batch_size)
 
         qf_obs = self.get_corresponding_data(data_dict=data_dict, names=self.qf1.input_name[:-1])
         next_qf_obs = self.get_corresponding_data(data_dict=data_dict, names=self.qf1.input_name[:-1], prefix='next_')
@@ -320,7 +321,7 @@ class SAC2(BaseRLAlgo):
         mask = tf.cast(data_dict['mask'], dtype=tf.float32)
         reward = tf.cast(data_dict['total_reward'], dtype=tf.float32)
 
-        tf_gamma = tf.constant(self.parameters.gamma, dtype=tf.float32)
+        tf_gamma = tf.constant(self.hyper_parameters.gamma, dtype=tf.float32)
 
         q_optimize_info = self.train_q_fun(
             qf_obs=qf_obs,

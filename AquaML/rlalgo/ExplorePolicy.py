@@ -20,10 +20,10 @@ class ExplorePolicyBase(abc.ABC):
 
     def __init__(self, shape):
         self.shape = shape
-        self.input_info = None  # tuple
+        self.input_name = None  # tuple
 
     @abc.abstractmethod
-    def noise_and_prob(self):
+    def noise_and_prob(self, batch_size=1):
         """
         This function must use tf.function to accelerate.
         All the exploration noise use reparameter tricks.
@@ -51,7 +51,7 @@ class ExplorePolicyBase(abc.ABC):
 
         inputs = []
 
-        for key in self.input_info:
+        for key in self.input_name:
             inputs.append(inputs_dict[key])
 
         return self.scale_out(*inputs)
@@ -63,10 +63,11 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         mu = tf.zeros(shape, dtype=tf.float32)
         sigma = tf.ones(shape, dtype=tf.float32)
         self.dist = tfp.distributions.Normal(loc=mu, scale=sigma)
+        self.input_name = ('action', 'log_std')
 
     @tf.function
-    def noise_and_prob(self):
-        noise = self.dist.sample()
+    def noise_and_prob(self, batch_size=1):
+        noise = self.dist.sample(batch_size)
         prob = self.dist.prob(noise)
 
         return noise, prob

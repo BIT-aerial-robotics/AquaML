@@ -111,7 +111,7 @@ class RLIOInfo:
 
         # add next_obs_info to data_info
         for key in obs_info.keys():
-            data_info_dict['next_' + key] = shape
+            data_info_dict['next_' + key] = data_info_dict[key]
             data_type_info_dict['next_' + key] = data_type_info_dict[key]
 
         # check 'action' whether in actor_out_info
@@ -122,6 +122,10 @@ class RLIOInfo:
         # add mask_info to data_info
         data_info_dict['mask'] = (buffer_size, 1)
         data_type_info_dict['mask'] = np.int32
+
+        # add interval mask info to data_info
+        # data_info_dict['interval_mask'] = (buffer_size, 1)
+        # data_type_info_dict['interval_mask'] = np.int32
 
         # add actor_out_info to data_info
         for key, shape in actor_out_info.items():
@@ -166,10 +170,12 @@ class RLIOInfo:
             self.actor_out_name = tuple(self.actor_out_info.keys())
 
         # verify exploration info
-        if 'log_std' in self.actor_out_info.keys():
+        if 'log_std' not in self.actor_out_info.keys():
             self.explore_info = 'auxiliary'
         else:
             self.explore_info = 'self'
+
+        self.store_data_name = tuple(data_info_dict.keys())
 
         # buffer size
         self.__buffer_size = buffer_size

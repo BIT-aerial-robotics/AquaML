@@ -17,6 +17,7 @@ class GymEnvWrapper(RLBaseEnv):
             dtypes=np.float32
         )
         # self._obs_info = {'obs': (3,)}
+        # self.episode_length = 200
 
     def reset(self):
         observation = self.env.reset()
@@ -32,7 +33,7 @@ class GymEnvWrapper(RLBaseEnv):
         observation, reward, done, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
-        obs = {'obs': observation, 'pos': observation[:, :2]}
+        obs = {'obs': observation, }
         # obs = {'obs': observation}
         reward = {'total_reward': reward}
 

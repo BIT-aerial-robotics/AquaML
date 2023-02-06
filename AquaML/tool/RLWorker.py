@@ -13,6 +13,8 @@ class RLWorker:
         # get information from rl_algo
         self.env = rl_algo.env
 
+        self.update_interval = rl_algo.update_interval
+
         self.obs = None
         self.step_count = 0
 
@@ -42,18 +44,20 @@ class RLWorker:
         self.rl_algo.store_data(obs=self.obs, action=action_dict,
                                 reward=reward, next_obs=obs_, mask=mask)
 
-    def roll(self):
+    def roll(self, update_interval):
         """roll the environment and get data.
         when step_count == update_interval, need to update the model
         """
 
-        for _ in range(self.rl_algo.each_thread_update_interval):
+        for _ in range(update_interval):
             self.step()
 
-    def pre_sample(self, size: int):
-        """pre-sample data from data pool.
-        args:
-        size: the number of data to sample
-        """
-        for _ in range(size):
-            self.step()
+    # def pre_sample(self, size: int):
+    #     """pre-sample data from data pool.
+    #     args:
+    #     size: the number of data to sample
+    #     """
+    #     if self.rl_algo.hyper_parameters.min_buffer_size>0:
+    #         for _ in range(size):
+    #             self.step()
+

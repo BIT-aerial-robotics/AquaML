@@ -21,6 +21,8 @@ class BaseStarter(ABC):
         self._log_folder = None
         self._cache_folder = None
 
+        self.level = None
+
     def initial_dir(self, work_folder: str):
         """
         Initial the directory for working.
@@ -32,16 +34,21 @@ class BaseStarter(ABC):
             _type_: None
         """
         # create a folder for working
-        self._work_folder = work_folder
-        self.mkdir(self.work_folder)
+        if self.level == 0:
+            self._work_folder = work_folder
+            self.mkdir(self.work_folder)
 
-        # create a folder for storing the log
-        self._log_folder = self.work_folder + '/log'
-        self.mkdir(self.log_folder)
+            # create a folder for storing the log
+            self._log_folder = self.work_folder + '/log'
+            self.mkdir(self.log_folder)
 
-        # create cache folder
-        self._cache_folder = self.work_folder + '/cache'
-        self.mkdir(self.cache_folder)
+            # create cache folder
+            self._cache_folder = self.work_folder + '/cache'
+            self.mkdir(self.cache_folder)
+        else:
+            self._work_folder = work_folder
+            self._log_folder = self.work_folder + '/log'
+            self._cache_folder = self.work_folder + '/cache'
 
     @staticmethod
     def mkdir(path: str):

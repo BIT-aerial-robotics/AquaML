@@ -44,13 +44,13 @@ class Actor_net(tf.keras.Model):
 Point out learning rate. In ``AuqaML``, each model can have its own learning rate
 
 ```python
-	self._learning_rate = 2e-4
+	self.learning_rate = 2e-4
 ```
 
 Our framework can fusion muti type data, please specify the input data name
 
 ```python
-	self._input_name = ('obs',)
+	self.input_name = ('obs',)
 ```
 
 Actor net is special than others, its out may be different. Thus you should specify .
@@ -60,6 +60,8 @@ Actor net is special than others, its out may be different. Thus you should spec
 ```
 
 Then specify the optimizer of your neural network. 
+
+``_name`` contains name of data, _info also contains shape. 
 
 ```python
         self.optimizer = 'Adam'

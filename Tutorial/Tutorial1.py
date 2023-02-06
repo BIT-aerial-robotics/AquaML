@@ -49,6 +49,8 @@ class Actor_net(tf.keras.Model):
 
     def call(self, obs):
 
+        # print(obs)
+
         x = self.dense1(obs)
         x = self.dense2(x)
         x = self.dense3(x)

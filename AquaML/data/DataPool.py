@@ -107,6 +107,8 @@ class DataPool:
                 if self._computer_type == 'PC':
                     self.create_share_memory()
             else:
+                import time
+                time.sleep(6)
                 self.read_shared_memory(info_dic)
 
     def get_unit(self, name: str):
@@ -160,19 +162,20 @@ class DataPool:
         for name, data in data_dict.items():
             self.data_pool[name].store(data, index)
 
-    def get_data_by_indices(self, indices):
+    def get_data_by_indices(self, indices, names:tuple):
         """get data by indices.
 
         Args:
             indices (list): indice.
+            names (tuple): second level name. Algo search param via this name.
 
         Returns:
             dict: data.
         """
         data_dict = dict()
 
-        for name, data_unit in self.data_pool.items():
-            data_dict[name] = data_unit.get_data_by_indices(indices)
+        for name in names:
+            data_dict[name] = self.data_pool[name].get_data_by_indices(indices)
 
         return data_dict
 

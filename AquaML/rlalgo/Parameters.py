@@ -21,6 +21,7 @@ class BaseParameter(abc.ABC):
         self.buffer_size = buffer_size
         self.batch_size = batch_size
         self.update_interval = update_interval
+        self.min_buffer_size = 0
 
 
 class SAC_parameter(BaseParameter):

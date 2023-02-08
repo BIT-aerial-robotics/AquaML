@@ -1,4 +1,3 @@
-
 class RLWorker:
     """ RLWorker is used to interact with environment and get data.
     
@@ -7,6 +6,7 @@ class RLWorker:
     """
 
     def __init__(self, rl_algo):
+        self.summary_reward_dict = None
         self.rl_algo = rl_algo
         self.reset_flag = True
 
@@ -14,6 +14,12 @@ class RLWorker:
         self.env = rl_algo.env
 
         self.update_interval = rl_algo.update_interval
+
+        self.initial_summary_reward()
+
+        self.record_summary_times = 0
+
+        self.summary_store_bias = self.rl_algo.thread_ID * self.rl_algo.each_thread_summary_episodes
 
         self.obs = None
         self.step_count = 0
@@ -26,10 +32,13 @@ class RLWorker:
             self.obs = self.env.reset()
             self.reset_flag = False
             self.rl_algo.actor.reset()
+            self.initial_summary_reward()
 
         action_dict = self.rl_algo.get_action_train(self.obs)
 
         obs_, reward, done, info = self.env.step(action_dict['action'])  # obs, reward are dict
+
+        self.record_summary_reward(reward)
 
         self.step_count += 1
 
@@ -37,10 +46,17 @@ class RLWorker:
         if done:
             self.reset_flag = True
             mask = 0
+
+            # store reward in summary_* data pool
+            index = self.record_summary_times % self.rl_algo.each_thread_summary_episodes + self.summary_store_bias
+            self.rl_algo.data_pool.store(self.summary_reward_dict, index=index)
+            self.record_summary_times += 1
+
         else:
             mask = 1
 
         # store the data
+        reward['total_reward'] = (reward['total_reward'] +8)/8
         self.rl_algo.store_data(obs=self.obs, action=action_dict,
                                 reward=reward, next_obs=obs_, mask=mask)
 
@@ -52,12 +68,14 @@ class RLWorker:
         for _ in range(update_interval):
             self.step()
 
-    # def pre_sample(self, size: int):
-    #     """pre-sample data from data pool.
-    #     args:
-    #     size: the number of data to sample
-    #     """
-    #     if self.rl_algo.hyper_parameters.min_buffer_size>0:
-    #         for _ in range(size):
-    #             self.step()
+    def summary_reward(self):
+        pass
 
+    def initial_summary_reward(self):
+        self.summary_reward_dict = {}
+        for key in self.env.reward_info:
+            self.summary_reward_dict['summary_'+key] = 0
+
+    def record_summary_reward(self, reward_dict):
+        for key in reward_dict:
+            self.summary_reward_dict['summary_'+key] += reward_dict[key]

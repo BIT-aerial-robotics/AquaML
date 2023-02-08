@@ -162,7 +162,7 @@ class DataPool:
         for name, data in data_dict.items():
             self.data_pool[name].store(data, index)
 
-    def get_data_by_indices(self, indices, names:tuple):
+    def get_data_by_indices(self, indices, names: tuple):
         """get data by indices.
 
         Args:

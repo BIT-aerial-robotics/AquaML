@@ -15,7 +15,7 @@ class SAC2(BaseRLAlgo):
                  qf1,
                  qf2,
                  computer_type: str = 'PC',
-                 name: str = 'SAC2',
+                 name: str = 'SAC',
                  level: int = 0,
                  thread_id: int = -1,
                  total_threads: int = 1):
@@ -59,6 +59,8 @@ class SAC2(BaseRLAlgo):
             thread_ID=thread_id,
             total_threads=total_threads,
             mini_buffer_size=parameters.mini_buffer_size,
+            display_interval=parameters.display_interval,
+            calculate_episodes=parameters.calculate_episodes,
         )
 
         # TODO: initialize the network in the future
@@ -82,7 +84,7 @@ class SAC2(BaseRLAlgo):
 
             # create tf.Variable for temperature parameter
 
-            self.tf_alpha = tf.Variable(parameters.alpha, dtype=tf.float32, trainable=True)
+            self.tf_log_alpha = tf.Variable(tf.math.log(0.01), dtype=tf.float32, trainable=True)
 
             # copy the weights
             self.copy_weights(self.qf1, self.target_qf1)
@@ -99,7 +101,7 @@ class SAC2(BaseRLAlgo):
             self.target_qf1 = None
             self.target_qf2 = None
 
-            self.tf_alpha = None
+            self.tf_log_alpha = None
 
         # create the optimizer
         if self.level == 0:
@@ -134,14 +136,18 @@ class SAC2(BaseRLAlgo):
 
         self._sync_model_dict = {'actor': self.actor, }
 
-    # @tf.function
+    @tf.function
     def train_q_fun(self, qf_obs: tuple,
                     next_qf_obs: tuple,
                     actor_obs: tuple,
                     next_actor_obs: tuple,
                     reward: tf.Tensor,
                     mask: tf.Tensor,
-                    gamma: float):
+                    gamma,
+                    # alpha,
+                    # epoch: int,
+                    # recoder,
+                    ):
         """
         
         train the q function
@@ -154,6 +160,8 @@ class SAC2(BaseRLAlgo):
             reward (tf.Tensor): reward
             mask (tf.Tensor): mask
             gamma (float): hyperparameter, gamma.
+            epoch (int): epoch
+            recoder: recoder
 
         Returns:
             info: dict, information of training
@@ -167,7 +175,7 @@ class SAC2(BaseRLAlgo):
         min_q_target = tf.minimum(next_q_target1, next_q_target2)
 
         # compute y(r,s',d)
-        y = reward + mask * gamma * (min_q_target - self.tf_alpha * next_log_pi)
+        y = reward + mask * gamma * (min_q_target - tf.exp(self.tf_log_alpha) * next_log_pi)
 
         with tf.GradientTape() as tape1:
             # compute Q(s,a)
@@ -193,16 +201,21 @@ class SAC2(BaseRLAlgo):
                        'q1_var': self.qf1.trainable_variables,
                        'q2_var': self.qf2.trainable_variables,
                        }
-
+        # recoder.record(return_dict, epoch, 'q_fun')
         return return_dict
 
-    # @tf.function
-    def train_alpha(self, actor_obs: tuple):
+    @tf.function
+    def train_alpha(self, actor_obs: tuple,
+                    # epoch: int,
+                    # recoder
+                    ):
         """
         train the alpha
 
         Args:
             actor_obs (tuple): input of actor
+            epoch (int): epoch
+            recoder (Recoder): recoder
 
         Returns:
             info: optional, information of training
@@ -210,19 +223,24 @@ class SAC2(BaseRLAlgo):
         log_pi, action = self.resample_action(actor_obs)
 
         with tf.GradientTape() as tape:
-            alpha_loss = -tf.reduce_mean(self.tf_alpha * (log_pi + self.target_entropy))
+            alpha_loss = -tf.reduce_mean(tf.exp(self.tf_log_alpha) * (log_pi + self.target_entropy))
 
-        alpha_grad = tape.gradient(alpha_loss, [self.tf_alpha])
-        self.alpha_optimizer.apply_gradients(zip(alpha_grad, [self.tf_alpha]))
+        alpha_grad = tape.gradient(alpha_loss, [self.tf_log_alpha])
+        self.alpha_optimizer.apply_gradients(zip(alpha_grad, [self.tf_log_alpha]))
 
         return_dict = {'alpha_loss': alpha_loss,
                        'alpha_grad': alpha_grad,
-                       'alpha_var': [self.tf_alpha]}
+                       'alpha_var': [self.tf_log_alpha]}
+
+        # recoder.record(return_dict, epoch, 'alpha')
 
         return return_dict
 
-    # @tf.function
-    def train_actor(self, q_obs: tuple, actor_obs: tuple):
+    @tf.function
+    def train_actor(self, q_obs: tuple, actor_obs: tuple,
+                    # epoch: int,
+                    # recoder
+                    ):
 
         """
         train actor
@@ -230,6 +248,8 @@ class SAC2(BaseRLAlgo):
         Args:
         q_obs: input of q function.
         actor_obs: input of actor.
+        epoch: epoch.
+        recoder: recoder.
 
         Returns:
             info: dict, information of actor.
@@ -244,7 +264,7 @@ class SAC2(BaseRLAlgo):
             q2 = self.qf2(*q_obs, action)
             min_q = tf.minimum(q1, q2)
 
-            actor_loss = tf.reduce_mean(self.tf_alpha * log_pi - min_q)
+            actor_loss = tf.reduce_mean(self.tf_log_alpha * log_pi - min_q)
 
         grad = tape.gradient(actor_loss, self.get_trainable_actor)
         self.actor_optimizer.apply_gradients(zip(grad, self.get_trainable_actor))
@@ -252,10 +272,10 @@ class SAC2(BaseRLAlgo):
                        'actor_grad': grad,
                        'actor_var': self.get_trainable_actor
                        }
-
+        # recoder.record(return_dict, epoch, 'actor')
         return return_dict
 
-    # @tf.function
+    @tf.function
     def _resample_action1_(self, actor_obs: tuple):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
@@ -281,7 +301,7 @@ class SAC2(BaseRLAlgo):
 
         return action, log_pi
 
-    # @tf.function
+    @tf.function
     def _resample_action2_(self, actor_obs: tuple):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
@@ -299,7 +319,7 @@ class SAC2(BaseRLAlgo):
 
         mu, log_std = self.actor(*actor_obs)
 
-        noise, prob = self.explore_policy.noise_and_prob()
+        noise, prob = self.explore_policy.noise_and_prob(self.hyper_parameters.batch_size)
 
         sigma = tf.exp(log_std)
 
@@ -321,7 +341,7 @@ class SAC2(BaseRLAlgo):
         mask = tf.cast(data_dict['mask'], dtype=tf.float32)
         reward = tf.cast(data_dict['total_reward'], dtype=tf.float32)
 
-        tf_gamma = tf.constant(self.hyper_parameters.gamma, dtype=tf.float32)
+        tf_gamma = tf.cast(self.hyper_parameters.gamma, dtype=tf.float32)
 
         q_optimize_info = self.train_q_fun(
             qf_obs=qf_obs,
@@ -330,14 +350,28 @@ class SAC2(BaseRLAlgo):
             next_actor_obs=next_actor_obs,
             reward=reward,
             mask=mask,
-            gamma=tf_gamma
+            gamma=tf_gamma,
+            # epoch=self.optimize_epoch,
+            # recoder=self.recoder
         )
 
         policy_optimize_info = self.train_actor(
             q_obs=qf_obs,
-            actor_obs=actor_obs
+            actor_obs=actor_obs,
+            # epoch=self.optimize_epoch,
+            # recoder=self.recoder
         )
 
         alpha_optimize_info = self.train_alpha(
-            actor_obs=actor_obs
+            actor_obs=actor_obs,
+            # epoch=self.optimize_epoch,
+            # recoder=self.recoder
         )
+
+        # soft update
+        self.soft_update_weights(self.qf1, self.target_qf1, self.hyper_parameters.tau)
+        self.soft_update_weights(self.qf2, self.target_qf2, self.hyper_parameters.tau)
+
+        return_dict = {**q_optimize_info, **policy_optimize_info, **alpha_optimize_info}
+
+        return return_dict

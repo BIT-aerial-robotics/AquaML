@@ -1,24 +1,25 @@
 import tensorflow as tf
 import datetime
 
+
 class Recoder:
-    def __init__(self, log_folder:str,):
-        
+    def __init__(self, log_folder: str, ):
+
         # folder for storing the log
         self.log_folder = log_folder
-        
+
         # file system like:
         # log_folder\
         #  20210101-000000\
         #    main
-        
+
         # file name
-        self.logs_folder_1 =  self.log_folder + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        
-        self.main_writer = tf.summary.create_file_writer(self.file_name+'/main')
-        
+        self.logs_folder_1 = self.log_folder + '/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        self.main_writer = tf.summary.create_file_writer(self.logs_folder_1)
+
     # record histogram
-    def record_histogram(self, name:str, data:tf.Tensor, step:int, prefix:str=''):
+    def record_histogram(self, name: str, data: tf.Tensor, step: int, prefix: str = ''):
         """
         
         Record histogram to tensorboard.
@@ -37,9 +38,9 @@ class Recoder:
         """
         name = prefix + '/' + name
         with self.main_writer.as_default():
-            tf.summary.histogram(name, data, step=step) 
-    
-    def record_scalar(self, name:str, data:tf.Tensor, step:int, prefix:str=''):
+            tf.summary.histogram(name, data, step=step)
+
+    def record_scalar(self, name: str, data: tf.Tensor, step: int, prefix: str = ''):
         """
         
         Record scalar to tensorboard.
@@ -54,14 +55,14 @@ class Recoder:
             step (int): operation step
             prefix (str, optional): prefix of the name. Defaults to ''.
         """
-        
+
         name = prefix + name
-        
+
         with self.main_writer.as_default():
-            tf.summary.scalar(name, data, step=step) 
-    
-    def record(self, record_dict:dict, step:int, prefix:str=''):
-        
+            tf.summary.scalar(name, data, step=step)
+
+    def record(self, record_dict: dict, step: int, prefix: str = ''):
+
         '''
         Record the data to tensorboard  from a dict.
         
@@ -84,23 +85,33 @@ class Recoder:
         prefix (str, optional): prefix of the name. Defaults to ''.
         
         '''
-        
-        
-        
+
         for name, key in record_dict.items():
             if 'grad' in name:
-                var_s = record_dict[name[:-4]+'var']
+                var_s = record_dict[name[:-4] + 'var']
                 grad_s = key
-                
+
                 for grad, var in zip(grad_s, var_s):
                     # record grad
-                    self.record_histogram(var.name, grad, step, prefix=prefix+'/'+name)
-                    
+                    self.record_histogram(var.name, grad, step, prefix=prefix + '/' + name)
+
                     # record weights
-                    self.record_histogram(var.name, var, step, prefix=prefix+'/'+name[:-4]+'weight')
+                    self.record_histogram(var.name, var, step, prefix=prefix + '/' + name[:-4] + 'weight')
+            elif 'var' in name:
+                continue
             else:
                 # record scalar
-                self.record_scalar(name, key, step, prefix=prefix)
-                    
-            
- 
+                self.record_scalar(name, key, step, prefix=prefix+'/')
+
+    def display_text(self, data_dict: dict):
+        """
+        Display text in terminal.
+
+        args:
+            data_dict (dict): dict of data to be displayed.
+        """
+
+        for key, value in data_dict.items():
+            if 'grad' in key or 'var' in key:
+                continue
+            print("{}:{}".format(key, value))

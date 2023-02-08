@@ -22,6 +22,8 @@ class BaseParameter(abc.ABC):
         self.batch_size = batch_size
         self.update_interval = update_interval
         self.min_buffer_size = 0
+        self.display_interval = 1
+        self.calculate_episodes = 5
 
 
 class SAC_parameter(BaseParameter):
@@ -66,6 +68,8 @@ class SAC2_parameter(BaseParameter):
                  buffer_size: int,
                  mini_buffer_size: int,
                  alpha_learning_rate: float = 3e-4,
+                 calculate_episodes: int = 5,
+                 display_interval: int = 1,
                  update_interval: int = 0):
         """
         Parameters of SAC2 algorithm.
@@ -85,7 +89,7 @@ class SAC2_parameter(BaseParameter):
             update_interval (int, optional): update interval. Defaults to 0.
         """
         super().__init__(epoch_length, n_epochs, buffer_size,
-                         batch_size, update_interval)
+                         batch_size, update_interval,)
 
         self.discount = discount
         self.alpha = alpha
@@ -95,3 +99,7 @@ class SAC2_parameter(BaseParameter):
         self.mini_buffer_size = mini_buffer_size
 
         self.gamma = discount
+
+        self.display_interval = display_interval
+
+        self.calculate_episodes = calculate_episodes

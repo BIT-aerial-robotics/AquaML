@@ -7,17 +7,19 @@ from AquaML.rlalgo.ExplorePolicy import GaussianExplorePolicy
 from AquaML.tool.RLWorker import RLWorker
 from AquaML.BaseClass import BaseAlgo
 import numpy as np
-from copy import deepcopy
+from AquaML.tool.Recoder import Recoder
 
 
 # TODO:model logic has been changed, check the new version
+# TODO: 优化命名方式
 class BaseRLAlgo(BaseAlgo, abc.ABC):
 
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
 
     def __init__(self, env, rl_io_info: RLIOInfo, name: str, update_interval: int = 0, mini_buffer_size: int = 0,
-                 calculate_episodes=1,
+                 calculate_episodes=5,
+                 display_interval=1,
                  computer_type: str = 'PC',
                  level: int = 0, thread_ID: int = -1, total_threads: int = 1, policy_type: str = 'off'):
         """create base for reinforcement learning algorithm.
@@ -65,7 +67,9 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             mini_buffer_size (int, optional): mini buffer size. Defaults to 0.
 
             calculate_episodes (int): How many episode will be used to summary. We recommend to use 1 when using multi thread.
-            
+
+            display_interval (int, optional): display interval. Defaults to 1.
+
             computer_type (str, optional): 'PC' or 'HPC'. Defaults to 'PC'.
             
             level (int, optional): thread level. 0 means main thread, 1 means sub thread. Defaults to 0.
@@ -83,6 +87,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             
         """
 
+        self.recoder = None
         self.explore_policy = None
         self.tf_log_std = None
         self.log_std = None
@@ -96,9 +101,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.mini_buffer_size = mini_buffer_size
         self.total_threads = total_threads
         self.each_thread_summary_episodes = calculate_episodes
+        self.display_interval = display_interval
 
-        # if it is zero, reward information calculate in whole buffer size
-        self.calculate_episodes = 0
+        self.cache_path = name + '/cache'  # cache path
+        self.log_path = name + '/log'
 
         # self.last_step = 0  # last step in main thread
 
@@ -189,8 +195,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # mini buffer size 
         # according to the type of algorithm,
 
-        self.cache_path = name + '/cache'  # cache path
-
         self._sync_model_dict = None  # store sync model, convenient for multi thread
         self._sync_explore_dict = None  # store sync explore policy, convenient for multi thread
 
@@ -205,7 +209,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         reward_info_dict = {}
 
         for name in self.rl_io_info.reward_info:
-            reward_info_dict['summary_' + name] = (self.total_segment, 1)
+            reward_info_dict['summary_' + name] = (self.total_segment * self.each_thread_summary_episodes, 1)
 
         # add summary reward information to data pool
         for name, shape in reward_info_dict.items():
@@ -219,6 +223,13 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             self.data_pool.multi_init(self.rl_io_info.data_info, type='buffer')
         else:  # single thread
             self.data_pool.create_buffer_from_dic(self.rl_io_info.data_info)
+
+        # just do in m main thread
+        if self.level == 0:
+            # initial recoder
+            self.recoder = Recoder(log_folder=self.log_path)
+        else:
+            self.recoder = None
 
         # check some information
         # actor model must be given
@@ -326,7 +337,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         for each_segment_index in every_segment_index:
             # get index of done
-            compute_index = each_segment_index[-self.calculate_episodes:]
+            compute_index = each_segment_index[-self.each_thread_summary_episodes:]
             start_index = compute_index[0]
 
             for end_index in compute_index[1:]:
@@ -345,6 +356,23 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         del reward_dict
 
         return reward_summary
+
+    def sumarry_reward_info(self):
+        """
+        summary reward information.
+        """
+        # calculate reward information
+
+        summary_reward_info = {}
+
+        for name in self.rl_io_info.reward_info:
+            summary_reward_info[name] = np.mean(self.data_pool.get_unit_data('summary_' + name))
+
+        summary_reward_info['std'] = np.std(self.data_pool.get_unit_data('summary_total_reward'))
+        summary_reward_info['max_reward'] = np.max(self.data_pool.get_unit_data('summary_total_reward'))
+        summary_reward_info['min_reward'] = np.min(self.data_pool.get_unit_data('summary_total_reward'))
+
+        return summary_reward_info
 
     # store data to buffer
     def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
@@ -561,6 +589,23 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # all the information update here
         self.optimize_epoch += 1
 
+        if self.optimize_epoch % self.display_interval == 0:
+
+            # display information
+
+            epoch = int(self.optimize_epoch // self.display_interval)
+            reward_info = self.sumarry_reward_info()
+            print("###############epoch: {}###############".format(epoch))
+            self.recoder.display_text(
+                reward_info
+            )
+            self.recoder.display_text(
+                optimize_info
+            )
+
+            self.recoder.record(reward_info, epoch, prefix='reward')
+            # self.recoder.record(optimize_info, self.optimize_epoch, prefix=self.name)
+
     # random sample
     def random_sample(self, batch_size: int):
         """
@@ -581,8 +626,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         sample_index = np.random.choice(range(buffer_size), batch_size, replace=False)
 
-        index_bias = (sample_index * 1.0 / self.each_thread_size) * self.each_thread_size
+        # index_bias = (sample_index * 1.0 / self.each_thread_size) * self.each_thread_size
+        index_bias = sample_index / self.each_thread_size
         index_bias = index_bias.astype(np.int32)
+        index_bias = index_bias * self.each_thread_size
 
         sample_index = sample_index + index_bias
         sample_index = sample_index.astype(np.int32)

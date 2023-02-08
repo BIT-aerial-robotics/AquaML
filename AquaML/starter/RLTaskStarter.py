@@ -94,11 +94,8 @@ class RLTaskStarter(BaseStarter):
         # create algorithm
         self.algo = algo(**algo_args)
 
-        # TODO: 文件夹创建
-
         # create folder
         self.initial_dir(self.algo.name)
-
         # initial algorithm
         self.algo.init()
 
@@ -112,7 +109,7 @@ class RLTaskStarter(BaseStarter):
             self.roll_out_length = self.mini_buffer_size
 
         # store key objects
-        self.max_epochs = algo_hyperparameter.n_epochs
+        self.max_epochs = algo_hyperparameter.n_epochs * algo_hyperparameter.display_interval
         self.mpi_comm = mpi_comm
 
         # config run function
@@ -125,9 +122,11 @@ class RLTaskStarter(BaseStarter):
     # single thread
     def _run_(self):
         for i in range(self.max_epochs):
+            # self.algo.sync()
             self.algo.worker.roll(self.roll_out_length)
             self.roll_out_length = self.update_interval
             self.algo.optimize()
+            # self.algo.sync()
 
         self.algo.close()
 

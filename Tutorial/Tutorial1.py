@@ -18,8 +18,9 @@ class Actor_net(tf.keras.Model):
         super(Actor_net, self).__init__()
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(64, activation='tanh')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.dense3 = tf.keras.layers.Dense(1, activation='tanh')
+        self.dense4 = tf.keras.layers.Dense(1)
 
         # point out leaning rate
         # each model can have different learning rate
@@ -35,7 +36,7 @@ class Actor_net(tf.keras.Model):
         # actor network's output must be specified
         # it is a dict, key is the name of output, value is the shape of output
         # must contain 'action'
-        self.output_info = {'action': (1,)}
+        self.output_info = {'action': (1,),}
 
         # Also, the model can control exploration policy by outputting a log_std etc.
         # self._output_name = {'action': (1,), 'log_std': (1,)}
@@ -47,18 +48,20 @@ class Actor_net(tf.keras.Model):
         # If the model contains RNN, you should reset the state of RNN
         pass
 
+    @tf.function
     def call(self, obs):
-
         # print(obs)
 
         x = self.dense1(obs)
         x = self.dense2(x)
         x = self.dense3(x)
 
+        # log_std = self.dense4(x)
+
         # the output of actor network must be a tuple
         # and the order of output must be the same as the order of output name
 
-        return (x,)
+        return (x, )
 
 
 # create Q network
@@ -72,7 +75,7 @@ class Q_net(tf.keras.Model):
 
         # point out leaning rate
         # each model can have different learning rate
-        self.learning_rate = 2e-4
+        self.learning_rate = 2e-3
 
         # point out optimizer
         # each model can have different optimizer
@@ -88,6 +91,7 @@ class Q_net(tf.keras.Model):
         # If the model contains RNN, you should reset the state of RNN
         pass
 
+    @tf.function
     def call(self, obs, action):
         x = tf.concat([obs, action], axis=-1)
         x = self.dense1(x)
@@ -111,14 +115,17 @@ env = GymEnvWrapper('Pendulum-v1')
 
 sac_parameter = SAC2_parameter(
     epoch_length=200,
-    n_epochs=10,
-    batch_size=32,
+    n_epochs=1000,
+    batch_size=256,
     discount=0.99,
     alpha=0.2,
     tau=0.005,
-    buffer_size=100000,
+    buffer_size=20*200,
     mini_buffer_size=1000,
-    update_interval=50,
+    update_interval=1,
+    display_interval=1000,
+    calculate_episodes=5,
+    alpha_learning_rate=3e-4,
 )
 
 model_class_dict = {

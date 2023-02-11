@@ -98,6 +98,8 @@ For actor, the return must be a tuple.
 
 When using RNN, ``reset`` can reset the hidden.
 
+Our frame work support adaptive ``log_std`` . So the output of the ``Actor_net`` also contains ``log_std``.
+
 #### 2. Q value network
 
 Creating Q value network is similar to creating actor. However, the ``call`` 's return of Q is tf tensor not tuple. And

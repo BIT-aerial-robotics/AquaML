@@ -42,6 +42,7 @@ class DataPool:
             info_dic (DataInfo): store data information.
         """
         for key, shape in info_dic.shape_dict.items():
+            # print(key, shape)
             self.data_pool[key] = DataUnit(self.name + '_' + key, shape=shape, dtype=info_dic.type_dict[key],
                                            computer_type=self._computer_type, level=self.level)
 

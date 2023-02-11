@@ -90,7 +90,7 @@ class SAC2(BaseRLAlgo):
             self.copy_weights(self.qf1, self.target_qf1)
             self.copy_weights(self.qf2, self.target_qf2)
         else:
-            self.actor = actor
+            self.actor = actor()
 
             # initialize the network
             self.initialize_model_weights(self.actor)
@@ -209,12 +209,12 @@ class SAC2(BaseRLAlgo):
                        'q1_var': self.qf1.trainable_variables,
                        'q2_var': self.qf2.trainable_variables,
                        'soft_q_target': target_q,
-                       'q1': q1,
-                       'q2': q2,
-                       'next_action': tf.reduce_mean(next_action),
-                       'next_log_pi': tf.reduce_mean(next_log_pi),
-                       'action': tf.reduce_mean(action),
-                       'alpha': tf.exp(self.tf_log_alpha),
+                       # 'q1': q1,
+                       # 'q2': q2,
+                       # 'next_action': tf.reduce_mean(next_action),
+                       # 'next_log_pi': tf.reduce_mean(next_log_pi),
+                       # 'action': tf.reduce_mean(action),
+                       # 'alpha': tf.exp(self.tf_log_alpha),
                        }
         # if self.optimize_epoch % 10 == 0:
         #     self.recoder.record(return_dict, self.optimize_epoch, 'q_fun')
@@ -252,7 +252,7 @@ class SAC2(BaseRLAlgo):
 
         return return_dict
 
-    # @tf.function
+    @tf.function
     def train_actor(self, q_obs: tuple, actor_obs: tuple,
                     # epoch: int,
                     # recoder
@@ -431,59 +431,50 @@ class SAC2(BaseRLAlgo):
 
     # @property
     def _optimize_(self):
+        for _ in range(self.hyper_parameters.update_times):
+            data_dict = self.random_sample(self.hyper_parameters.batch_size)
 
-        data_dict = self.random_sample(self.hyper_parameters.batch_size)
+            qf_obs = self.get_corresponding_data(data_dict=data_dict, names=self.qf1.input_name[:-1])
+            next_qf_obs = self.get_corresponding_data(data_dict=data_dict, names=self.qf1.input_name[:-1],
+                                                      prefix='next_')
+            actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name)
+            next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name,
+                                                         prefix='next_')
 
-        qf_obs = self.get_corresponding_data(data_dict=data_dict, names=self.qf1.input_name[:-1])
-        next_qf_obs = self.get_corresponding_data(data_dict=data_dict, names=self.qf1.input_name[:-1], prefix='next_')
-        actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name)
-        next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, prefix='next_')
+            mask = tf.cast(data_dict['mask'], dtype=tf.float32)
+            reward = tf.cast(data_dict['total_reward'], dtype=tf.float32)
+            action = tf.cast(data_dict['action'], dtype=tf.float32)
 
-        mask = tf.cast(data_dict['mask'], dtype=tf.float32)
-        reward = tf.cast(data_dict['total_reward'], dtype=tf.float32)
-        action = tf.cast(data_dict['action'], dtype=tf.float32)
+            tf_gamma = tf.cast(self.hyper_parameters.gamma, dtype=tf.float32)
 
-        tf_gamma = tf.cast(self.hyper_parameters.gamma, dtype=tf.float32)
+            q_optimize_info = self.train_q_fun(
+                qf_obs=qf_obs,
+                next_qf_obs=next_qf_obs,
+                next_actor_obs=next_actor_obs,
+                reward=reward,
+                mask=mask,
+                gamma=tf_gamma,
+                action=action,
+                # epoch=self.optimize_epoch,
+                # recoder=self.recoder
+            )
 
-        q_optimize_info = self.train_q_fun(
-            qf_obs=qf_obs,
-            next_qf_obs=next_qf_obs,
-            next_actor_obs=next_actor_obs,
-            reward=reward,
-            mask=mask,
-            gamma=tf_gamma,
-            action=action,
-            # epoch=self.optimize_epoch,
-            # recoder=self.recoder
-        )
+            policy_optimize_info = self.train_actor(
+                q_obs=qf_obs,
+                actor_obs=actor_obs,
+                # epoch=self.optimize_epoch,
+                # recoder=self.recoder
+            )
 
-        policy_optimize_info = self.train_actor(
-            q_obs=qf_obs,
-            actor_obs=actor_obs,
-            # epoch=self.optimize_epoch,
-            # recoder=self.recoder
-        )
+            alpha_optimize_info = self.train_alpha(
+                actor_obs=actor_obs,
+                # epoch=self.optimize_epoch,
+                # recoder=self.recoder
+            )
 
-        alpha_optimize_info = self.train_alpha(
-            actor_obs=actor_obs,
-            # epoch=self.optimize_epoch,
-            # recoder=self.recoder
-        )
-
-        # return_dict = self.train_all(
-        #     qf_obs=qf_obs,
-        #     next_qf_obs=next_qf_obs,
-        #     actor_obs=actor_obs,
-        #     next_actor_obs=next_actor_obs,
-        #     reward=reward,
-        #     gamma=tf_gamma,
-        #     mask=mask,
-        #     action=action,
-        # )
-
-        # soft update
-        self.soft_update_weights(self.qf1, self.target_qf1, self.hyper_parameters.tau)
-        self.soft_update_weights(self.qf2, self.target_qf2, self.hyper_parameters.tau)
+            # soft update
+            self.soft_update_weights(self.qf1, self.target_qf1, self.hyper_parameters.tau)
+            self.soft_update_weights(self.qf2, self.target_qf2, self.hyper_parameters.tau)
 
         return_dict = {**q_optimize_info, **policy_optimize_info, **alpha_optimize_info}
 

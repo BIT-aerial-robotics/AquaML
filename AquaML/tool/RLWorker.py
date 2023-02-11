@@ -19,7 +19,7 @@ class RLWorker:
 
         self.record_summary_times = 0
 
-        self.summary_store_bias = self.rl_algo.thread_ID * self.rl_algo.each_thread_summary_episodes
+        self.summary_store_bias = self.rl_algo.sample_id * self.rl_algo.each_thread_summary_episodes
 
         self.obs = None
         self.step_count = 0

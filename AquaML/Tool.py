@@ -4,6 +4,7 @@ import gym
 from AquaML.DataType import DataInfo
 from AquaML.BaseClass import RLBaseEnv
 import tensorflow as tf
+import os
 
 
 class GymEnvWrapper(RLBaseEnv):
@@ -81,3 +82,18 @@ class GymEnvWrapper(RLBaseEnv):
 
     def __repr__(self):
         return self.env_name
+
+
+def allocate_gpu(comm):
+    rank = comm.Get_rank()
+    if rank == 0:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        physical_devices = tf.config.experimental.list_physical_devices('GPU')
+        if len(physical_devices) > 0:
+            for k in range(len(physical_devices)):
+                tf.config.experimental.set_memory_growth(physical_devices[k], True)
+                print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
+        else:
+            print("Not enough GPU hardware devices available")
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"

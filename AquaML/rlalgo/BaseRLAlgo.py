@@ -92,34 +92,33 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.tf_log_std = None
         self.log_std = None
         self.rl_io_info = rl_io_info
-        self._computer_type = computer_type
-        self.level = level
-        self.thread_ID = thread_ID  # if thread_ID == -1, it means single thread
+        # if thread_ID == -1, it means single thread
         self.name = name
         self.env = env
         self.update_interval = update_interval
         self.mini_buffer_size = mini_buffer_size
-        self.total_threads = total_threads
-        self.each_thread_summary_episodes = calculate_episodes
         self.display_interval = display_interval
 
         self.cache_path = name + '/cache'  # cache path
         self.log_path = name + '/log'
 
-        # self.last_step = 0  # last step in main thread
-
-        # check thread level
-        # if thread_ID == -1, it means single thread, then level must be 0
-        # TODO: 这个地方有问题
-        # if self.thread_ID == -1 and self.level != 0:
-        #     raise ValueError('If thread_ID == -1, it means single thread, then level must be 0.')
+        # parameter of multithread
+        self._computer_type = computer_type
+        self.level = level
+        self.thread_ID = thread_ID
+        self.total_threads = total_threads  # main thread is not included
+        if self.total_threads == 1:
+            self.sample_threads = total_threads
+        else:
+            self.sample_threads = total_threads - 1
+        self.each_thread_summary_episodes = calculate_episodes
+        '''
+        If it runs in single thread, self.thread_ID == 0, self.total_threads == 1
+        '''
 
         # create data pool according to thread level
         self.data_pool = DataPool(name=self.name, level=self.level,
                                   computer_type=self._computer_type)  # data_pool is a handle
-
-        # store thread information for communication
-        # self.thread_info = DataPool(name=self.name + '_info', level=self.level, computer_type=self._computer_type)
 
         self.actor = None  # actor model. Need point out which model is the actor.
 
@@ -132,16 +131,16 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # main thread will part in sample data
         # just used when computer_type == 'PC'
         if self._computer_type == 'PC':
-            if self.total_threads > 1:
+            if self.thread_ID > 0:
                 # thread ID start from 0
-                self.each_thread_size = int(self.rl_io_info.buffer_size / total_threads)
-                self.each_thread_start_index = self.thread_ID * self.each_thread_size
+                self.each_thread_size = int(self.rl_io_info.buffer_size / self.sample_threads)
+                self.each_thread_start_index = int((self.thread_ID - 1) * self.each_thread_size)
 
-                self.max_buffer_size = self.each_thread_size * total_threads
+                self.max_buffer_size = self.each_thread_size * self.sample_threads
 
                 # if mini_buffer_size == 0, it means pre-sample data is disabled
-                self.each_mini_buffer_size = int(self.mini_buffer_size / total_threads)
-                self.mini_buffer_size = self.each_mini_buffer_size * total_threads
+                self.each_thread_mini_buffer_size = int(self.mini_buffer_size / self.sample_threads)
+                self.mini_buffer_size = int(self.each_thread_mini_buffer_size * self.sample_threads)
 
                 if self.update_interval == 0:
                     # 这种情形属于将所有buffer填充满以后再更新模型
@@ -152,7 +151,11 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
                     # then we need to calculate how many steps to update model for each thread
                     # 每个线程更新多少次等待更新模型
                     self.each_thread_update_interval = int(
-                        self.update_interval / total_threads)  # update interval for each thread
+                        self.update_interval / self.sample_threads)  # update interval for each thread
+                if self.level > 0:
+                    self.sample_id = self.thread_ID - 1
+                else:
+                    self.sample_id = 0
             else:
                 self.each_thread_size = self.rl_io_info.buffer_size
                 self.each_thread_start_index = 0
@@ -165,6 +168,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
                 self.max_buffer_size = self.each_thread_size
 
                 self.thread_ID = 0
+                self.sample_id = 0  # sample id is used to identify which thread is sampling data
+
                 # self.each_thread_update_interval = self.update_interval # update interval for each thread
 
         else:
@@ -174,7 +179,14 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             self.each_thread_update_interval = None
 
         # create worker
-        self.worker = RLWorker(self)
+        if self.total_threads > 1:
+            if self.level == 0:
+                self.env = None
+                self.worker = None
+            else:
+                self.worker = RLWorker(self)
+        else:
+            self.worker = RLWorker(self)
 
         # hyper parameters
         # the hyper parameters is a dictionary
@@ -185,7 +197,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # optimizer are created in main thread
         self.optimizer_dict = {}  # store optimizer, convenient search
 
-        self.total_segment = total_threads  # total segment, convenient for multi
+        self.total_segment = self.sample_threads  # total segment, convenient for multi
 
         self.sample_epoch = 0  # sample epoch
         self.optimize_epoch = 0  # optimize epoch
@@ -209,17 +221,21 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         reward_info_dict = {}
 
         for name in self.rl_io_info.reward_info:
-            reward_info_dict['summary_' + name] = (self.total_segment * self.each_thread_summary_episodes, 1)
+            reward_info_dict['summary_' + name] = (
+                self.total_segment * self.each_thread_summary_episodes, 1)
 
         # add summary reward information to data pool
         for name, shape in reward_info_dict.items():
-            buffer = DataUnit(name=name, shape=shape, dtype=np.float32, level=self.level,
+            # this must be first level name
+            buffer = DataUnit(name=self.name + '_' + name, shape=shape, dtype=np.float32, level=self.level,
                               computer_type=self._computer_type)
+            self.rl_io_info.add_info(name=name, shape=shape, dtype=np.float32)
             self.data_pool.add_unit(name=name, data_unit=buffer)
 
         # TODO:子线程需要等待时间 check
         # multi thread initial
         if self.total_threads > 1:  # multi thread
+            # print(self.rl_io_info.data_info)
             self.data_pool.multi_init(self.rl_io_info.data_info, type='buffer')
         else:  # single thread
             self.data_pool.create_buffer_from_dic(self.rl_io_info.data_info)
@@ -357,7 +373,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return reward_summary
 
-    def sumarry_reward_info(self):
+    def summary_reward_info(self):
         """
         summary reward information.
         """
@@ -468,7 +484,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # in main thread, create optimizer
         if self.level == 0:
             # create optimizer
-            optimizer = getattr(tf.keras.optimizers, optimizer)(lr=lr)
+            optimizer = getattr(tf.keras.optimizers, optimizer)(learning_rate=lr)
         else:
             # None
             optimizer = None
@@ -596,7 +612,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             # display information
 
             epoch = int(self.optimize_epoch // self.display_interval)
-            reward_info = self.sumarry_reward_info()
+            reward_info = self.summary_reward_info()
             print("###############epoch: {}###############".format(epoch))
             self.recoder.display_text(
                 reward_info
@@ -769,7 +785,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         """
         close.
         """
-
         self.data_pool.close()
 
     def sync_log_std(self):

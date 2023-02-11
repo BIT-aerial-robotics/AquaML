@@ -1,13 +1,13 @@
 from AquaML.BaseClass import BaseStarter
-from AquaML.DataType import DataInfo, RLIOInfo
+from AquaML.DataType import RLIOInfo
 from mpi4py import MPI
 import time
+import atexit
 
 
 # TODO: 检查任务级别
 class RLTaskStarter(BaseStarter):
-    def __init__(self, env,
-                 model_class_dict: dict,
+    def __init__(self, env, model_class_dict: dict,
                  algo,
                  algo_hyperparameter,
                  mpi_comm=None,
@@ -27,6 +27,28 @@ class RLTaskStarter(BaseStarter):
                                  to communicate with each thread.
             name (str, optional): name of the task. Defaults to None. When None, use the algorithm name.
         """
+
+        # parallel information
+        # if using mpi
+        if mpi_comm is not None:
+            # get numbers of threads
+            total_threads = MPI.COMM_WORLD.Get_size()
+            sample_thread = total_threads - 1
+
+            # check  buffer size can be divided by mpi size
+            buffer_size = (algo_hyperparameter.buffer_size / sample_thread) * sample_thread
+            algo_hyperparameter.buffer_size = int(buffer_size)
+            thread_id = MPI.COMM_WORLD.Get_rank()
+            # set thread level
+            if thread_id == 0:
+                level = 0
+            else:
+                level = 1
+        else:
+            total_threads = 1
+            thread_id = 0
+            level = 0
+
         # TODO: check logics
         # get actor info from model_class_dict
         # just create, do not build
@@ -35,27 +57,6 @@ class RLTaskStarter(BaseStarter):
         del actor  # delete actor
 
         obs_info = env.obs_info
-
-        # parallel information
-        # if using mpi
-        if mpi_comm is not None:
-            # get numbers of threads
-            total_threads = MPI.COMM_WORLD.Get_size()
-
-            # check  buffer size can be divided by mpi size
-            buffer_size = (algo_hyperparameter.buffer_size / total_threads) * total_threads
-            algo_hyperparameter.buffer_size = buffer_size
-            thread_id = MPI.COMM_WORLD.Get_rank()
-
-            # set thread level
-            if thread_id == 0:
-                level = 0
-            else:
-                level = 1
-        else:
-            total_threads = 1
-            thread_id = -1
-            level = 0
 
         self.total_threads = total_threads
         self.thread_id = thread_id
@@ -119,6 +120,8 @@ class RLTaskStarter(BaseStarter):
         else:
             self.run = self._run_mpi_
 
+        atexit.register(self.__del__)
+
     # single thread
     def _run_(self):
         for i in range(self.max_epochs):
@@ -140,17 +143,19 @@ class RLTaskStarter(BaseStarter):
 
             if self.thread_id > 0:
                 self.algo.sync()
-            else:
-                pass
-            self.mpi_comm.Barrier()
-
-            self.algo.worker.roll(self.roll_out_length)
-            self.roll_out_length = self.update_interval
+                self.algo.worker.roll(self.roll_out_length)
+                self.roll_out_length = self.update_interval
 
             self.mpi_comm.Barrier()
 
             if self.thread_id == 0:
                 self.algo.optimize()
-            else:
-                pass
             self.mpi_comm.Barrier()
+
+        self.algo.close()
+
+    # @atexit.register
+    def __del__(self):
+        print('delete RLTaskStarter')
+        print(self.algo.rl_io_info.data_info.shape_dict)
+        self.algo.close()

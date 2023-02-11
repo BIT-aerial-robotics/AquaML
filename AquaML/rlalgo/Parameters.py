@@ -60,19 +60,47 @@ class SAC_parameter(BaseParameter):
 
 class SAC2_parameter(BaseParameter):
 
-    def __init__(self, epoch_length: int, n_epochs: int,
+    def __init__(self, episode_length: int, n_epochs: int,
                  batch_size: int,
                  discount: float,
-                 alpha: float,
                  tau: float,
                  buffer_size: int,
                  mini_buffer_size: int,
                  alpha_learning_rate: float = 3e-4,
+                 update_times: int = 1,
                  calculate_episodes: int = 5,
                  display_interval: int = 1,
                  update_interval: int = 0):
         """
         Parameters of SAC2 algorithm.
+
+        Example:
+        --------
+        >>> from AquaML.rlalgo.Parameters import SAC2_parameter
+        >>> sac_parameter = SAC2_parameter(
+        ...     episode_length=200,
+        ...     n_epochs=1000,
+        ...     batch_size=128,
+        ...     discount=0.99,
+        ...     tau=0.005,
+        ...     buffer_size=100000,
+        ...     mini_buffer_size=1000,
+        ...     update_interval=1000,
+        ...     display_interval=1,
+        ...     calculate_episodes=5,
+        ...     update_times=1,
+        ...     alpha_learning_rate=3e-4
+        ... )
+
+        This means that the algorithm will run 1000 epochs, each epoch has 1000 (update_interval) steps.
+        The update information will be displayed every 1 epoch.
+        The algorithm will calculate the average reward of 5 episodes in each thread every 1 epoch.
+        The algorithm will update the network 1 (update_times) times every 1000 steps.
+        The algorithm will pre sample 1000 (mini_buffer_size) samples from the buffer every 1000 steps.
+        The algorithm will use 100000 (buffer_size) samples to store the experience.
+        the algorithm will use 0.99 (discount) as the discount factor.
+        The algorithm will use 0.005 (tau) as the target network update weight.
+         The algorithm will use 3e-4 (alpha_learning_rate) as the alpha learning rate.
         
         Reference:
         ----------
@@ -80,19 +108,23 @@ class SAC2_parameter(BaseParameter):
         arXiv preprint arXiv:1812.05905 (2018).
 
         Args:
-            epoch_length (int): length of epoch.
+            episode_length (int): length of episode.
             n_epochs (int): times of optimizing the network.
             batch_size (int): batch size.
             discount (float): discount factor.
-            alpha (float): temperature parameter.
             tau (float): Soft q function target update weight.
+            buffer_size (int): buffer size.
+            mini_buffer_size (int): mini buffer size. Algo will pre-sample mini buffer from buffer.
+            alpha_learning_rate (float, optional): learning rate of alpha. Defaults to 3e-4.
+            update_times (int): update times for each epoch.
             update_interval (int, optional): update interval. Defaults to 0.
+            calculate_episodes (int, optional): calculate episodes. Defaults to 5.
+            display_interval (int, optional): display interval which depends on epoch. Defaults to 1.
         """
-        super().__init__(epoch_length, n_epochs, buffer_size,
+        super().__init__(episode_length, n_epochs, buffer_size,
                          batch_size, update_interval,)
 
         self.discount = discount
-        self.alpha = alpha
         self.tau = tau
         self.update_interval = update_interval
         self.alpha_learning_rate = alpha_learning_rate
@@ -103,3 +135,5 @@ class SAC2_parameter(BaseParameter):
         self.display_interval = display_interval
 
         self.calculate_episodes = calculate_episodes
+
+        self.update_times = update_times

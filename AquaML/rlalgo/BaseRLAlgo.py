@@ -3,7 +3,7 @@ import tensorflow as tf
 from AquaML.data.DataPool import DataPool
 from AquaML.DataType import RLIOInfo
 from AquaML.data.DataUnit import DataUnit
-from AquaML.rlalgo.ExplorePolicy import GaussianExplorePolicy
+from AquaML.rlalgo.ExplorePolicy import GaussianExplorePolicy, VoidExplorePolicy
 from AquaML.tool.RLWorker import RLWorker
 from AquaML.BaseClass import BaseAlgo
 import numpy as np
@@ -219,7 +219,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         # TODO:子线程需要等待时间 check
         # multi thread initial
-        if self.thread_ID > -1:  # multi thread
+        if self.total_threads > 1:  # multi thread
             self.data_pool.multi_init(self.rl_io_info.data_info, type='buffer')
         else:  # single thread
             self.data_pool.create_buffer_from_dic(self.rl_io_info.data_info)
@@ -396,7 +396,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.data_pool.store(obs, index)
 
         # store next_obs to buffer
-        self.data_pool.store(next_obs, index)
+        self.data_pool.store(next_obs, index, prefix='next_')
 
         # store action to buffer
         self.data_pool.store(action, index)
@@ -494,12 +494,13 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     def create_gaussian_exploration_policy(self):
         # TODO: sync with tf_std
         # verity the style of log_std
-        if self.rl_io_info.explore_info == 'self':
+        if self.rl_io_info.explore_info == 'self-std':
             # log_std provided by actor
             # create explore policy
             # self.__explore_dict = None
-            pass
-        elif self.rl_io_info.explore_info == 'auxiliary':
+            self.explore_policy = GaussianExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
+
+        elif self.rl_io_info.explore_info == 'global-std':
             # log_std provided by auxiliary variable
             # create args by data unit
             self.log_std = DataUnit(name=self.name + '_log_std', dtype=np.float32,
@@ -512,8 +513,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
             self.rl_io_info.add_info(name='log_std', shape=self.log_std.shape, dtype=self.log_std.dtype)
             self.data_pool.add_unit(name='log_std', data_unit=self.log_std)
-
-        self.explore_policy = GaussianExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
+            self.explore_policy = GaussianExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
+        elif self.rl_io_info.explore_info == 'void-std':
+            # log_std is void
+            self.explore_policy = VoidExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
 
         # add initial information
 
@@ -575,7 +578,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         train_vars = self.actor.trainable_variables
 
         for key, value in self._explore_dict.items():
-            train_vars = train_vars + [value]
+            train_vars += [value]
 
         return train_vars
 
@@ -590,7 +593,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.optimize_epoch += 1
 
         if self.optimize_epoch % self.display_interval == 0:
-
             # display information
 
             epoch = int(self.optimize_epoch // self.display_interval)

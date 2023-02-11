@@ -51,6 +51,7 @@ class DataInfo:
 
 # TODO:有些成员转换成私有和保护类型
 # TODO: need to check before run
+# TODO: modify format
 class RLIOInfo:
     # TODO: 移除model info
     """
@@ -134,7 +135,13 @@ class RLIOInfo:
 
         # NOTE: actor_out contains exploration policy output
         # if 'prob' in actor_out_info, add it to data_info
-        if 'prob' not in actor_out_info:
+        prob_flag = False
+        for key in actor_out_info.keys():
+            if 'prob' in key:
+                prob_flag = True
+                break
+
+        if prob_flag is False:
             shape = actor_out_info['action']
             data_info_dict['prob'] = insert_buffer_size(shape)
             data_type_info_dict['prob'] = np.float32
@@ -165,15 +172,19 @@ class RLIOInfo:
         self.actor_model_out_name = tuple(actor_out_info)  # tuple
 
         # if 'prob' not in actor_out_info, add it
-        if 'prob' not in self.actor_out_info:
+        if prob_flag is False:
             self.actor_out_info['prob'] = actor_out_info['action']
             self.actor_out_name = tuple(self.actor_out_info.keys())
 
         # verify exploration info
-        if 'log_std' not in self.actor_out_info.keys():
-            self.explore_info = 'auxiliary'
+        if prob_flag is True:
+            # exploration do by itself
+            self.explore_info = 'void-std'
         else:
-            self.explore_info = 'self'
+            if 'log_std' not in self.actor_out_info.keys():
+                self.explore_info = 'global-std'
+            else:
+                self.explore_info = 'self-std'
 
         self.store_data_name = tuple(data_info_dict.keys())
 

@@ -78,3 +78,16 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         action = mu + sigma * noise
 
         return action, prob
+
+
+class VoidExplorePolicy(ExplorePolicyBase):
+    def __init__(self, shape):
+        super().__init__(shape)
+        self.input_name = ('action',)
+
+    @tf.function
+    def noise_and_prob(self, batch_size=1):
+        return tf.zeros((batch_size, *self.shape)), tf.ones((batch_size, *self.shape))
+
+    def scale_out(self, mu):
+        return mu, tf.ones((1, *self.shape))

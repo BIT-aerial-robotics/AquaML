@@ -6,7 +6,7 @@
 2. Support reinforcement learning training with recurrent neural networks.
 3. Support multi-thread sampling and parameters tuning.
 4. Support high performance computer(HPC)
-5.  Data communication has almost zero lat ency when running on a single machine.
+5. Data communication has almost zero lat ency when running on a single machine.
 
 ## Install
 
@@ -14,13 +14,15 @@
 
 ### Train Pendulum-v0 with soft-actor-critic(SAC)
 
-This tutorial is to show how to use AquaML to control pendulum-v0(https://gym.openai.com/envs/Pendulum-v0/). The environment is a continuous action space environment. The action is a 1-dim vector. The observation is a 3-dim vector.
+This tutorial is to show how to use AquaML to control pendulum-v0(https://gym.openai.com/envs/Pendulum-v0/). The
+environment is a continuous action space environment. The action is a 1-dim vector. The observation is a 3-dim vector.
 
 All the codes are available in Tutorial/tutorial1.py.
 
 #### Create neural network model for reinforcement learning
 
-AquaML just supports 'expert'  TF model style, you can learn more in  https://tensorflow.google.cn/overview. But in AquaML, the reinforcement learning model must inherit from  ``RLBaseModel``.
+AquaML just supports 'expert' TF model style, you can learn more in  https://tensorflow.google.cn/overview. But in
+AquaML, the reinforcement learning model must inherit from  ``RLBaseModel``.
 
 ##### 1. Actor
 
@@ -30,7 +32,7 @@ Before creating please do the following things:
 import tensorflow as tf
 ```
 
- Then we can create the model.
+Then we can create the model.
 
 ```python
 class Actor_net(tf.keras.Model):
@@ -44,24 +46,24 @@ class Actor_net(tf.keras.Model):
 Point out learning rate. In ``AuqaML``, each model can have its own learning rate
 
 ```python
-	self.learning_rate = 2e-4
+    self.learning_rate = 2e-4
 ```
 
 Our framework can fusion muti type data, please specify the input data name
 
 ```python
-	self.input_name = ('obs',)
+    self.input_name = ('obs',)
 ```
 
 Actor net is special than others, its out may be different. Thus you should specify .
 
 ```python
-	self.output_info = {'action': (1,)}
+    self.output_info = {'action': (1,)}
 ```
 
-Then specify the optimizer of your neural network. 
+Then specify the optimizer of your neural network.
 
-``_name`` contains name of data, _info also contains shape. 
+``_name`` contains name of data, _info also contains shape.
 
 ```python
         self.optimizer = 'Adam'
@@ -71,15 +73,14 @@ Then declaim ``call`` function:
 
 ```python
     def call(self, obs):
+    x = self.dense1(obs)
+    x = self.dense2(x)
+    x = self.dense3(x)
 
-        x = self.dense1(obs)
-        x = self.dense2(x)
-        x = self.dense3(x)
+    # the output of actor network must be a tuple
+    # and the order of output must be the same as the order of output name
 
-        # the output of actor network must be a tuple
-        # and the order of output must be the same as the order of output name
-
-        return (x,)
+    return (x,)
 ```
 
 For actor, the return must be a tuple.
@@ -88,18 +89,19 @@ For actor, the return must be a tuple.
 
 ```python
     def reset(self):
-        # This model does not contain RNN, so this function is not necessary,
-        # just pass
+    # This model does not contain RNN, so this function is not necessary,
+    # just pass
 
-        # If the model contains RNN, you should reset the state of RNN
-        pass
+    # If the model contains RNN, you should reset the state of RNN
+    pass
 ```
 
- When using RNN, ``reset`` can reset the hidden.
+When using RNN, ``reset`` can reset the hidden.
 
 #### 2. Q value network
 
-Creating Q value network is similar to creating actor.  However, the ``call`` 's return of Q is tf tensor not tuple. And in Q, the ``output_info`` can not be specified.
+Creating Q value network is similar to creating actor. However, the ``call`` 's return of Q is tf tensor not tuple. And
+in Q, the ``output_info`` can not be specified.
 
 #### 3. Environment
 
@@ -107,6 +109,7 @@ If you use Gym environment, the you can:
 
 ```python
 from AquaML.Tool import GymEnvWrapper  # Gym environment wrapper
+
 env = GymEnvWrapper('Pendulum-v1')
 ```
 
@@ -155,21 +158,17 @@ starter = RLTaskStarter(
 starter.run()
 ```
 
-
-
 #### Create new reinforcement algorithm
 
 #### Create reinforcement learning environment
 
-
-
 ## Change logs
 
-#### v1.1 
+#### v1.1
 
 1. unify ```MPIRuner``` API.
 2. Add ``com`` package, it contains all base class.
-3. ``save_data`` and ``load_data`` are created for supervised learning and expert learning. 
+3. ``save_data`` and ``load_data`` are created for supervised learning and expert learning.
 4. Gradually convert our framework to next generation like HPC-v0.1.
 5. The following algos just use ``DataCollector``(support all type of algo) instead of ``DataManeger``.
 6. Add plot tools for rosbag, paper.
@@ -178,8 +177,6 @@ starter.run()
 
 1. split optimize thread and worker thread.
 2. add soft actor critic.
-
-
 
 ## Requirement
 

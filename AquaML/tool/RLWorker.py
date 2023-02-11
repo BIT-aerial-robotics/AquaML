@@ -56,9 +56,11 @@ class RLWorker:
             mask = 1
 
         # store the data
-        reward['total_reward'] = (reward['total_reward'] +8)/8
+        reward['total_reward'] = (reward['total_reward'] + 8) / 8
         self.rl_algo.store_data(obs=self.obs, action=action_dict,
                                 reward=reward, next_obs=obs_, mask=mask)
+
+        self.obs = obs_
 
     def roll(self, update_interval):
         """roll the environment and get data.

@@ -3,6 +3,7 @@ import numpy as np
 import gym
 from AquaML.DataType import DataInfo
 from AquaML.BaseClass import RLBaseEnv
+import tensorflow as tf
 
 
 class GymEnvWrapper(RLBaseEnv):
@@ -22,6 +23,8 @@ class GymEnvWrapper(RLBaseEnv):
     def reset(self):
         observation = self.env.reset()
         observation = observation.reshape(1, -1)
+
+        # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
 
         # obs = {'obs': observation}
         obs = {'obs': observation}

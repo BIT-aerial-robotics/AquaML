@@ -150,17 +150,18 @@ class DataPool:
         """
         self.data_pool[name] = data_unit
 
-    def store(self, data_dict: dict, index: int):
+    def store(self, data_dict: dict, index: int, prefix: str = ''):
         """store data.
         
         This function stores data in data units. data_dict no need to contain datapool's all data units.
 
         Args:
-            data (dict): data.
+            data_dict (dict): data.
             index (int): index.
+            prefix (str, optional): prefix. Defaults to ''.
         """
         for name, data in data_dict.items():
-            self.data_pool[name].store(data, index)
+            self.data_pool[prefix + name].store(data, index)
 
     def get_data_by_indices(self, indices, names: tuple):
         """get data by indices.

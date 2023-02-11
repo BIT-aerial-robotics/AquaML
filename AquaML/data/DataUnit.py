@@ -3,6 +3,7 @@ from multiprocessing import shared_memory
 import copy
 import warnings
 
+
 class DataUnit:
     """
     The smallest data storage unit. It can be used in HPC (MPI) and 
@@ -11,7 +12,8 @@ class DataUnit:
     It can load from exit numpy array for data set learning.
     """
 
-    def __init__(self, name:str, shape=None, dtype=np.float32, computer_type='PC',dataset:np.ndarray=None, level=None):
+    def __init__(self, name: str, shape=None, dtype=np.float32, computer_type='PC', dataset: np.ndarray = None,
+                 level=None):
         """Create data unit. If shape is not none, this data unit is used in main thread.
         The unit is created depend on your computer type. If you use in high performance
         computer(HPC), shared memmory isn't used.
@@ -37,13 +39,13 @@ class DataUnit:
 
         if shape is not None:
             self.level = 0
-            self._buffer = np.zeros(shape=shape,dtype=self._dtype)
+            self._buffer = np.zeros(shape=shape, dtype=self._dtype)
             self.__nbytes = self._buffer.nbytes
         else:
             self.level = 1
             self._buffer = None
             self.__nbytes = None
-        
+
         if dataset is not None:
             self.copy_from_exist_array(dataset)
 
@@ -52,7 +54,7 @@ class DataUnit:
 
         self.shm_buffer = None
 
-    def copy_from_exist_array(self, dataset:np.ndarray, level:int=0):
+    def copy_from_exist_array(self, dataset: np.ndarray, level: int = 0):
         """Copy data from exist np array.
 
         Args:
@@ -65,7 +67,6 @@ class DataUnit:
         self.__nbytes = self._buffer.nbytes
         self._dtype = self._buffer.dtype
 
-    
     def create_shared_memory(self):
         """Create shared-memory.
         """
@@ -77,8 +78,8 @@ class DataUnit:
             self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is sub thread!")
-    
-    def read_shared_memory(self,shape:tuple):
+
+    def read_shared_memory(self, shape: tuple):
         """Read shared memory.
 
         Args:
@@ -89,17 +90,16 @@ class DataUnit:
         """
         if self._computer_type == 'HPC':
             warnings.warn("HPC can't support shared memory!")
-        
+
         if self.level == 1:
             self.__nbytes = self.compute_nbytes(shape)
             self._shape = shape
             self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
-            self._buffer = np.ndarray(self._shape,dtype=self._dtype,buffer=self.shm_buffer.buf)
+            self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is main thread!")
-        
-    
-    def compute_nbytes(self, shape:tuple)->int:
+
+    def compute_nbytes(self, shape: tuple) -> int:
         """Compute numpy array nbytes.
 
         Args:
@@ -109,22 +109,20 @@ class DataUnit:
             _type_: int
         """
 
-        a = np.arange(1,  dtype=self._dtype)
+        a = np.arange(1, dtype=self._dtype)
 
         single_nbytes = a.nbytes
 
         total_size = 1
 
         for size in shape:
-            total_size = total_size*size
-        
+            total_size = total_size * size
 
-        total_size = total_size*single_nbytes
+        total_size = total_size * single_nbytes
 
         return total_size
 
-    
-    def store(self,data,index:int):
+    def store(self, data, index: int):
         """Store data in buffer.
 
         Args:
@@ -132,7 +130,7 @@ class DataUnit:
             index (int): index of data.
         """
         self._buffer[index] = data
-    
+
     # set value. This is for args
     def set_value(self, value):
         """Set value.
@@ -144,9 +142,9 @@ class DataUnit:
             self._buffer[:] = value[:]
         else:
             raise Exception("Current thread is sub thread!")
-        
+
     # get data slice
-    def get_slice(self, start:int, end:int):
+    def get_slice(self, start: int, end: int):
         """Get slice.
 
         Args:
@@ -168,7 +166,6 @@ class DataUnit:
             _type_: np.ndarray
         """
         return self._buffer[indices]
-
 
     @property
     def buffer(self):
@@ -194,7 +191,7 @@ class DataUnit:
                 import time
                 time.sleep(0.5)
                 self.shm_buffer.close()
-    
+
     @property
     def shape(self):
         """Get shape.
@@ -203,7 +200,7 @@ class DataUnit:
             _type_: tuple
         """
         return self._shape
-    
+
     @property
     def dtype(self):
         """Get dtype.

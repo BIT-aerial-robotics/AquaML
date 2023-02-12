@@ -18,8 +18,23 @@ class GymEnvWrapper(RLBaseEnv):
             shapes=((3,)),
             dtypes=np.float32
         )
+
+        # for rnn policy, we assume the hidden state of rnn is also the observation
+        self.action_state_info = {}  # default is empty dict
         # self._obs_info = {'obs': (3,)}
         # self.episode_length = 200
+
+    def set_action_state_info(self, actor_input_dict: dict):
+        """
+        set action state info.
+
+        Example:
+            >> action_state_dict = {'hidden_0':(256,), 'hidden_1':(256,),'action':(2,)}
+            >> env.set_action_state_info(action_state_dict)
+        """
+        for key, shape in actor_input_dict.items():
+            if 'hidden' in key:
+                self.action_state_info[key] = shape
 
     def reset(self):
         observation = self.env.reset()
@@ -30,18 +45,42 @@ class GymEnvWrapper(RLBaseEnv):
         # obs = {'obs': observation}
         obs = {'obs': observation}
 
+        for key, shape in self.action_state_info.items():
+            obs[key] = np.zeros(shape=shape, dtype=np.float32)
+
         return obs
 
-    def step(self, action):
-        action = action * 2
+    def step(self, action_dict):
+        action = action_dict['action']
+        action *= 2
         observation, reward, done, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
         obs = {'obs': observation, }
+
+        for key in self.action_state_info.keys():
+            obs[key] = action_dict[key]
+
         # obs = {'obs': observation}
         reward = {'total_reward': reward}
 
         return obs, reward, done, info
+
+    # step for recurrent policy
+    # def step_r(self, action_dict):
+    #     action = action_dict['action']
+    #     action *= 2
+    #     observation, reward, done, info = self.env.step(action)
+    #     observation = observation.reshape(1, -1)
+    #
+    #     obs = {'obs': observation, }
+    #     for key, value in action_dict.items():
+    #         if 'hidden' in key:
+    #             obs[key] = value
+    #     # obs = {'obs': observation}
+    #     reward = {'total_reward': reward}
+    #
+    #     return obs, reward, done, info
 
     def render(self):
         return self.env.render()

@@ -36,7 +36,7 @@ class RLWorker:
 
         action_dict = self.rl_algo.get_action_train(self.obs)
 
-        obs_, reward, done, info = self.env.step(action_dict['action'])  # obs, reward are dict
+        obs_, reward, done, info = self.env.step(action_dict)  # obs, reward are dict
 
         self.record_summary_reward(reward)
 

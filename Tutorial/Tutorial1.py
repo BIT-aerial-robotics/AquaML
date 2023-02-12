@@ -234,7 +234,7 @@ starter = RLTaskStarter(
     algo=SAC2,
     algo_hyperparameter=sac_parameter,
     mpi_comm=comm,
-    name='test2'
+    name=None
 )
 
 starter.run()

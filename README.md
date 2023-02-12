@@ -4,6 +4,7 @@
 
 1. Support reinforcement learning, generative learning algorithm.
 2. Support reinforcement learning training with recurrent neural networks.
+2. Support RNN for reinforcement learning and provide two basic forms.
 3. Support multi-thread sampling and parameters tuning.
 4. Support high performance computer(HPC)
 5. Data communication has almost zero lat ency when running on a single machine.
@@ -100,12 +101,12 @@ When using RNN, ``reset`` can reset the hidden.
 
 Our frame work support adaptive ``log_std`` . So the output of the ``Actor_net`` also contains ``log_std``.
 
-#### 2. Q value network
+##### 2. Q value network
 
 Creating Q value network is similar to creating actor. However, the ``call`` 's return of Q is tf tensor not tuple. And
 in Q, the ``output_info`` can not be specified.
 
-#### 3. Environment
+##### 3. Environment
 
 If you use Gym environment, the you can:
 
@@ -115,7 +116,7 @@ from AquaML.Tool import GymEnvWrapper  # Gym environment wrapper
 env = GymEnvWrapper('Pendulum-v1')
 ```
 
-#### 4. Define algorithm parameters
+##### 4. Define algorithm parameters
 
 This tutorial is about SAC, so :
 
@@ -141,7 +142,7 @@ model_class_dict = {
 }
 ```
 
-#### 5. Create task starter
+##### 5. Create task starter
 
 ```python
 from AquaML.starter.RLTaskStarter import RLTaskStarter  # RL task starter
@@ -154,11 +155,73 @@ starter = RLTaskStarter(
 )
 ```
 
-#### 6. Run task
+##### 6. Run task
 
 ```python
 starter.run()
 ```
+
+##### 7. Run by MPI
+
+You can change the following codes to run parallelly.
+
+###### Configure gpu
+
+```python
+import sys
+
+sys.path.append('..')
+
+from AquaML.Tool import allocate_gpu
+from mpi4py import MPI
+
+# get group communicator
+comm = MPI.COMM_WORLD
+allocate_gpu(comm)
+```
+
+Notice: This block must add at the head of python script.
+
+###### Revise hyper parameters
+
+```python
+sac_parameter = SAC2_parameter(
+    episode_length=200,
+    n_epochs=200,
+    batch_size=256,
+    discount=0.99,
+    tau=0.005,
+    buffer_size=100000,
+    mini_buffer_size=5000,
+    update_interval=1000,
+    display_interval=1,
+    calculate_episodes=5,
+    alpha_learning_rate=3e-3,
+    update_times=100,
+)
+```
+
+###### add MPI.comm to rl starter
+
+```python
+starter = RLTaskStarter(
+    env=env,
+    model_class_dict=model_class_dict,
+    algo=SAC2,
+    algo_hyperparameter=sac_parameter,
+    mpi_comm=comm,
+    name='SAC'
+)
+
+```
+
+After those steps, you can run by the following command in terminal:
+
+```bash
+mpirun -n 6 python Tutorial1.py
+```
+
+
 
 #### Create new reinforcement algorithm
 

@@ -54,6 +54,7 @@ class RLTaskStarter(BaseStarter):
         # just create, do not build
         actor = model_class_dict['actor']()
         actor_out_info = actor.output_info  # dict
+        env.set_action_state_info(actor_out_info, actor.input_name)  # set action state info to env
         del actor  # delete actor
 
         obs_info = env.obs_info

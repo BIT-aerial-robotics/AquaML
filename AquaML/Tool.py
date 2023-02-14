@@ -14,8 +14,8 @@ class GymEnvWrapper(RLBaseEnv):
         self.env = gym.make(env_name)
         self.env_name = env_name
         self._obs_info = DataInfo(
-            names=('obs',),
-            shapes=((3,)),
+            names=('obs', 'pos'),
+            shapes=((3,), (2,)),
             dtypes=np.float32
         )
 
@@ -24,17 +24,16 @@ class GymEnvWrapper(RLBaseEnv):
         # self._obs_info = {'obs': (3,)}
         # self.episode_length = 200
 
-    def set_action_state_info(self, actor_input_dict: dict):
+    def set_action_state_info(self, actor_out_info: dict, actor_input_name: tuple):
         """
         set action state info.
+        Judge the input is as well as the output of actor network.
 
-        Example:
-            >> action_state_dict = {'hidden_0':(256,), 'hidden_1':(256,),'action':(2,)}
-            >> env.set_action_state_info(action_state_dict)
         """
-        for key, shape in actor_input_dict.items():
-            if 'hidden' in key:
+        for key, shape in actor_out_info.items():
+            if key in actor_input_name:
                 self.action_state_info[key] = shape
+                self._obs_info.add_info(key, shape, np.float32)
 
     def reset(self):
         observation = self.env.reset()
@@ -43,10 +42,10 @@ class GymEnvWrapper(RLBaseEnv):
         # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
 
         # obs = {'obs': observation}
-        obs = {'obs': observation}
+        obs = {'obs': observation, 'pos': observation[:, :2]}
 
         for key, shape in self.action_state_info.items():
-            obs[key] = np.zeros(shape=shape, dtype=np.float32)
+            obs[key] = np.zeros(shape=shape, dtype=np.float32).reshape(1, -1)
 
         return obs
 
@@ -56,7 +55,7 @@ class GymEnvWrapper(RLBaseEnv):
         observation, reward, done, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
-        obs = {'obs': observation, }
+        obs = {'obs': observation, 'pos': observation[:, :2]}
 
         for key in self.action_state_info.keys():
             obs[key] = action_dict[key]

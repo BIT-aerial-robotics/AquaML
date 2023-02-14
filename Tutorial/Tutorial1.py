@@ -219,7 +219,7 @@ sac_parameter = SAC2_parameter(
     display_interval=1,
     calculate_episodes=5,
     alpha_learning_rate=3e-3,
-    update_times=100,
+    update_times=1,
 )
 
 model_class_dict = {
@@ -233,7 +233,7 @@ starter = RLTaskStarter(
     model_class_dict=model_class_dict,
     algo=SAC2,
     algo_hyperparameter=sac_parameter,
-    mpi_comm=comm,
+    # mpi_comm=comm,
     name=None
 )
 

@@ -38,6 +38,8 @@ class RLWorker:
 
         obs_, reward, done, info = self.env.step(action_dict)  # obs, reward are dict
 
+        # print(action_dict['action'])
+
         self.record_summary_reward(reward)
 
         self.step_count += 1

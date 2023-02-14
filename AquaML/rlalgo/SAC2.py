@@ -334,7 +334,9 @@ class SAC2(BaseRLAlgo):
         log_pi (tf.Tensor): log_pi
         """
 
-        mu, log_std = self.actor(*actor_obs)
+        out = self.actor(*actor_obs)
+
+        mu, log_std = out[0], out[1]
 
         noise, prob = self.explore_policy.noise_and_prob(self.hyper_parameters.batch_size)
 
@@ -475,6 +477,7 @@ class SAC2(BaseRLAlgo):
             # soft update
             self.soft_update_weights(self.qf1, self.target_qf1, self.hyper_parameters.tau)
             self.soft_update_weights(self.qf2, self.target_qf2, self.hyper_parameters.tau)
+            # print('soft update weights')
 
         return_dict = {**q_optimize_info, **policy_optimize_info, **alpha_optimize_info}
 

@@ -440,7 +440,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         # get actor input
         for key in self.actor.input_name:
-            input_data.append(obs[key])
+            input_data.append(tf.cast(obs[key], dtype=tf.float32))
 
         actor_out = self.actor(*input_data)  # out is a tuple
 
@@ -607,6 +607,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         # all the information update here
         self.optimize_epoch += 1
+        # print(self.optimize_epoch)
 
         if self.optimize_epoch % self.display_interval == 0:
             # display information

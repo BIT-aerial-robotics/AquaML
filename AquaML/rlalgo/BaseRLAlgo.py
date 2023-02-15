@@ -207,8 +207,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # mini buffer size 
         # according to the type of algorithm,
 
-        self._sync_model_dict = None  # store sync model, convenient for multi thread
-        self._sync_explore_dict = None  # store sync explore policy, convenient for multi thread
+        self._sync_model_dict = {}  # store sync model, convenient for multi thread
+        self._sync_explore_dict = {}  # store sync explore policy, convenient for multi thread
+
+        self._all_model_dict = {}  # store all model, convenient to record model
 
     # initial algorithm
     def init(self):
@@ -599,31 +601,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         return train_vars
 
     # optimize in the main thread
-    def optimize(self):
-
-        # compute current reward information
-
-        optimize_info = self._optimize_()
-
-        # all the information update here
-        self.optimize_epoch += 1
-        # print(self.optimize_epoch)
-
-        if self.optimize_epoch % self.display_interval == 0:
-            # display information
-
-            epoch = int(self.optimize_epoch // self.display_interval)
-            reward_info = self.summary_reward_info()
-            print("###############epoch: {}###############".format(epoch))
-            self.recoder.display_text(
-                reward_info
-            )
-            self.recoder.display_text(
-                optimize_info
-            )
-
-            self.recoder.record(reward_info, epoch, prefix='reward')
-            # self.recoder.record(optimize_info, self.optimize_epoch, prefix=self.name)
 
     # random sample
     def random_sample(self, batch_size: int):
@@ -697,13 +674,21 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         return return_dict
 
     @property
-    def current_buffer_size(self):
+    def get_current_buffer_size(self):
         """
         compute current step.
         """
         running_step = self.mini_buffer_size + self.optimize_epoch * self.each_thread_update_interval * self.total_segment
         buffer_size = min(self.max_buffer_size, running_step)
         return buffer_size
+
+    @property
+    def get_current_steps(self):
+        """
+        compute current step.
+        """
+        running_step = self.mini_buffer_size + self.optimize_epoch * self.each_thread_update_interval * self.sample_threads
+        return running_step
 
     def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True):
         """
@@ -797,3 +782,36 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             self.log_std.set_value(self.tf_log_std.numpy())  # write log std to shared memory
         else:
             self.tf_log_std = tf.Variable(self.log_std.buffer, trainable=True)  # read log std from shared memory
+
+    def optimize(self):
+
+        # compute current reward information
+
+        optimize_info = self._optimize_()
+
+        # all the information update here
+        self.optimize_epoch += 1
+
+        total_steps = self.get_current_steps
+
+        optimize_info['total_steps'] = total_steps
+
+        if self.optimize_epoch % self.display_interval == 0:
+            # display information
+
+            epoch = int(self.optimize_epoch / self.display_interval)
+            reward_info = self.summary_reward_info()
+            print("###############epoch: {}###############".format(epoch))
+            self.recoder.display_text(
+                reward_info
+            )
+            self.recoder.display_text(
+                optimize_info
+            )
+
+            self.recoder.record(reward_info, total_steps, prefix='reward')
+            self.recoder.record(optimize_info, self.optimize_epoch, prefix=self.name)
+            # record weight
+            for key, model in self._all_model_dict.items():
+                self.recoder.record_weight(model, total_steps, prefix=key)
+

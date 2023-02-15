@@ -89,6 +89,12 @@ class SAC2(BaseRLAlgo):
             # copy the weights
             self.copy_weights(self.qf1, self.target_qf1)
             self.copy_weights(self.qf2, self.target_qf2)
+
+            self._all_model_dict = {'actor': self.actor,
+                                    'qf1': self.qf1,
+                                    'qf2': self.qf2,
+                                    'target_qf1': self.target_qf1,
+                                    'target_qf2': self.target_qf2, }
         else:
             self.actor = actor()
 
@@ -204,10 +210,6 @@ class SAC2(BaseRLAlgo):
         # return dict
         return_dict = {'q1_loss': q1_loss,
                        'q2_loss': q2_loss,
-                       'q1_grad': q1_grad,
-                       'q2_grad': q2_grad,
-                       'q1_var': self.qf1.trainable_variables,
-                       'q2_var': self.qf2.trainable_variables,
                        'soft_q_target': target_q,
                        # 'q1': q1,
                        # 'q2': q2,
@@ -244,9 +246,7 @@ class SAC2(BaseRLAlgo):
         alpha_grad = tape.gradient(alpha_loss, [self.tf_log_alpha])
         self.alpha_optimizer.apply_gradients(zip(alpha_grad, [self.tf_log_alpha]))
 
-        return_dict = {'alpha_loss': alpha_loss,
-                       'alpha_grad': alpha_grad,
-                       'alpha_var': [self.tf_log_alpha]}
+        return_dict = {'alpha_loss': alpha_loss,}
 
         # recoder.record(return_dict, epoch, 'alpha')
 
@@ -285,8 +285,6 @@ class SAC2(BaseRLAlgo):
         grad = tape.gradient(actor_loss, self.actor.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(grad, self.actor.trainable_variables))
         return_dict = {'actor_loss': -actor_loss,
-                       'actor_grad': grad,
-                       'actor_var': self.get_trainable_actor,
                        'min_q': tf.reduce_mean(min_q),
                        }
         # recoder.record(return_dict, epoch, 'actor')
@@ -417,16 +415,8 @@ class SAC2(BaseRLAlgo):
         return_dict = {
             'q1_loss': q1_loss,
             'q2_loss': q2_loss,
-            'q1_grad': q1_grad,
-            'q2_grad': q2_grad,
-            'q1_var': self.qf1.trainable_variables,
-            'q2_var': self.qf2.trainable_variables,
             'alpha_loss': alpha_loss,
-            'alpha_grad': alpha_grad,
-            'alpha_var': [self.tf_log_alpha],
             'actor_loss': actor_loss,
-            'actor_grad': grad,
-            'actor_var': self.get_trainable_actor
         }
         # recoder.record(return_dict, epoch, 'actor')
         return return_dict

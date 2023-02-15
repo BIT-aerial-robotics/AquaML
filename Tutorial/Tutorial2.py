@@ -37,7 +37,7 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer = 'Adam'
 
-    # @tf.function
+    @tf.function
     def call(self, vel, hidden1, hidden2):
         hidden_states = (hidden1, hidden2)
         vel = tf.expand_dims(vel, axis=1)

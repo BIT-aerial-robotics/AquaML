@@ -96,12 +96,23 @@ class Recoder:
                     self.record_histogram(var.name, grad, step, prefix=prefix + '/' + name)
 
                     # record weights
-                    self.record_histogram(var.name, var, step, prefix=prefix + '/' + name[:-4] + 'weight')
+                    # self.record_histogram(var.name, var, step, prefix=prefix + '/' + name[:-4] + 'weight')
             elif 'var' in name:
-                continue
+                var_s = record_dict[name[:-4] + 'var']
+                grad_s = key
+                for grad, var in zip(grad_s, var_s):
+                    # record weights
+                    self.record_histogram(var.name, var, step, prefix=prefix + '/' + name[:-4] + 'weight')
             else:
                 # record scalar
                 self.record_scalar(name, key, step, prefix=prefix+'/')
+
+    def record_weight(self, model, step, prefix=''):
+        """
+        Record the weights of the model.
+        """
+        for var in model.trainable_variables:
+            self.record_histogram(var.name, var, step, prefix=prefix)
 
     def display_text(self, data_dict: dict):
         """

@@ -620,6 +620,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         running_step = self.mini_buffer_size + self.optimize_epoch * self.each_thread_update_interval * self.total_segment
         buffer_size = min(self.max_buffer_size, running_step)
 
+        batch_size = min(batch_size, buffer_size)
+
         sample_index = np.random.choice(range(buffer_size), batch_size, replace=False)
 
         # index_bias = (sample_index * 1.0 / self.each_thread_size) * self.each_thread_size

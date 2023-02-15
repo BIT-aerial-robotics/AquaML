@@ -3,8 +3,6 @@ Tutorial 2: How to use AquaML to train a RL agent with RNN policy
 """
 
 import tensorflow as tf
-
-import tensorflow as tf
 from AquaML.rlalgo.SAC2 import SAC2  # SAC algorithm
 from AquaML.rlalgo.Parameters import SAC2_parameter
 from AquaML.starter.RLTaskStarter import RLTaskStarter  # RL task starter

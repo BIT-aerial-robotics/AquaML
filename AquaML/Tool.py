@@ -52,6 +52,9 @@ class GymEnvWrapper(RLBaseEnv):
 
         return obs, reward, done, info
 
+    def close(self):
+        return self.env.close()
+
     # step for recurrent policy
     # def step_r(self, action_dict):
     #     action = action_dict['action']

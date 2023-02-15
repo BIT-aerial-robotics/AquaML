@@ -125,6 +125,11 @@ class RLBaseEnv(abc.ABC):
         done (bool): done flag of environment.
         info (dict or None): info of environment.
         """
+    @abc.abstractmethod
+    def close(self):
+        """
+        Close the environment.
+        """
 
     @property
     def reward_info(self):
@@ -187,8 +192,6 @@ class RLBaseModel(abc.ABC, tf.keras.Model):
         Reset the model.
         Such as reset the rnn state.
         """
-
-
 
     @abc.abstractmethod
     def call(self, *args, **kwargs):

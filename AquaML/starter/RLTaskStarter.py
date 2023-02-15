@@ -42,6 +42,7 @@ class RLTaskStarter(BaseStarter):
             # set thread level
             if thread_id == 0:
                 level = 0
+                env.close()
             else:
                 level = 1
         else:

@@ -20,20 +20,9 @@ class GymEnvWrapper(RLBaseEnv):
         )
 
         # for rnn policy, we assume the hidden state of rnn is also the observation
-        self.action_state_info = {}  # default is empty dict
+
         # self._obs_info = {'obs': (3,)}
         # self.episode_length = 200
-
-    def set_action_state_info(self, actor_out_info: dict, actor_input_name: tuple):
-        """
-        set action state info.
-        Judge the input is as well as the output of actor network.
-
-        """
-        for key, shape in actor_out_info.items():
-            if key in actor_input_name:
-                self.action_state_info[key] = shape
-                self._obs_info.add_info(key, shape, np.float32)
 
     def reset(self):
         observation = self.env.reset()
@@ -44,8 +33,7 @@ class GymEnvWrapper(RLBaseEnv):
         # obs = {'obs': observation}
         obs = {'obs': observation, 'pos': observation[:, :2]}
 
-        for key, shape in self.action_state_info.items():
-            obs[key] = np.zeros(shape=shape, dtype=np.float32).reshape(1, -1)
+        obs = self.initial_obs(obs)
 
         return obs
 
@@ -57,8 +45,7 @@ class GymEnvWrapper(RLBaseEnv):
 
         obs = {'obs': observation, 'pos': observation[:, :2]}
 
-        for key in self.action_state_info.keys():
-            obs[key] = action_dict[key]
+        obs = self.check_obs(obs, action_dict)
 
         # obs = {'obs': observation}
         reward = {'total_reward': reward}

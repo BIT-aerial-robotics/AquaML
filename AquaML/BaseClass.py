@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import tensorflow as tf
 import abc
 import os
+import numpy as np
 
 
 # TODO: implement the base class when implementing the other classes
@@ -100,6 +101,7 @@ class RLBaseEnv(abc.ABC):
     def __init__(self):
         self._reward_info = ('total_reward',)  # reward info is a tuple
         self._obs_info = None  # DataInfo
+        self.action_state_info = {}  # default is empty dict
 
     @abc.abstractmethod
     def reset(self):
@@ -131,6 +133,27 @@ class RLBaseEnv(abc.ABC):
     @property
     def obs_info(self):
         return self._obs_info
+
+    def initial_obs(self, obs):
+        for key, shape in self.action_state_info.items():
+            obs[key] = np.zeros(shape=shape, dtype=np.float32).reshape(1, -1)
+        return obs
+
+    def check_obs(self, obs, action_dict):
+        for key in self.action_state_info.keys():
+            obs[key] = action_dict[key]
+        return obs
+
+    def set_action_state_info(self, actor_out_info: dict, actor_input_name: tuple):
+        """
+        set action state info.
+        Judge the input is as well as the output of actor network.
+
+        """
+        for key, shape in actor_out_info.items():
+            if key in actor_input_name:
+                self.action_state_info[key] = shape
+                self._obs_info.add_info(key, shape, np.float32)
 
 
 class RLBaseModel(abc.ABC, tf.keras.Model):
@@ -164,6 +187,8 @@ class RLBaseModel(abc.ABC, tf.keras.Model):
         Reset the model.
         Such as reset the rnn state.
         """
+
+
 
     @abc.abstractmethod
     def call(self, *args, **kwargs):

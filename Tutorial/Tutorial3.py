@@ -19,7 +19,7 @@ class Actor_net(tf.keras.Model):
 
         self.learning_rate = 2e-4
 
-        self.output_info = {'action': (1,), 'log_std': (1,)}
+        self.output_info = {'action': (1,), }
 
         self.input_name = ('obs',)
 
@@ -48,7 +48,7 @@ class Critic_net(tf.keras.Model):
 
         self.learning_rate = 2e-4
 
-        self.output_info = {'value': (1,)}
+        self.output_name = {'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -105,8 +105,11 @@ class PendulumWrapper(RLBaseEnv):
 
         return obs, reward, done, info
 
+    def close(self):
+        self.env.close()
 
-env = PendulumWrapper('Pendulum-v0')
+
+env = PendulumWrapper('Pendulum-v1')
 ppo_parameter = PPO_parameter(
     epoch_length=200,
     n_epochs=100,

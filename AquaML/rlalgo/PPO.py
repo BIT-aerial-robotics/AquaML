@@ -106,7 +106,7 @@ class PPO(BaseRLAlgo):
                     ):
 
         with tf.GradientTape() as tape:
-            action, log_prob = self.resample_action(*actor_obs)
+            action, log_prob = self.resample_action(actor_obs)
 
             # importance sampling
             ratio = tf.exp(log_prob - old_log_prob)
@@ -135,13 +135,13 @@ class PPO(BaseRLAlgo):
         data_dict = self.get_all_data
 
         # get critic obs
-        critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_names)
-        next_critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_names,
+        critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_name)
+        next_critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_name,
                                                       prefix='next_')
 
         # get actor obs
-        actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_names)
-        next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_names, prefix='next_')
+        actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name)
+        next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, prefix='next_')
 
         # get total reward
         rewards = data_dict['total_reward']
@@ -155,12 +155,12 @@ class PPO(BaseRLAlgo):
         #######calculate advantage and target########
         # get value
 
-        if 'value' in self.actor.output_names:
+        if 'value' in self.actor.output_info:
             values = data_dict['value']
             next_values = data_dict['next_value']
         else:
-            values = self.critic(critic_obs).numpy()
-            next_values = self.critic(next_critic_obs).numpy()
+            values = self.critic(*critic_obs).numpy()
+            next_values = self.critic(*next_critic_obs).numpy()
 
         # get target and advantage
         advantage, target = self.calculate_GAE(rewards=masks,
@@ -174,20 +174,24 @@ class PPO(BaseRLAlgo):
         # convert to tensor
         advantage = tf.convert_to_tensor(advantage, dtype=tf.float32)
         target = tf.convert_to_tensor(target, dtype=tf.float32)
-        rewards = tf.convert_to_tensor(rewards, dtype=tf.float32)
-        masks = tf.convert_to_tensor(masks, dtype=tf.float32)
+        # rewards = tf.convert_to_tensor(rewards, dtype=tf.float32)
+        # masks = tf.convert_to_tensor(masks, dtype=tf.float32)
         old_prob = tf.convert_to_tensor(old_prob, dtype=tf.float32)
         old_log_prob = tf.math.log(old_prob)
 
         for _ in range(self.hyper_parameters.update_times):
             # train actor
             for _ in range(self.hyper_parameters.update_actor_times):
-                actor_optimize_info = self.train_actor(
-                    actor_obs=actor_obs,
-                    advantage=advantage,
-                    old_log_prob=old_log_prob,
-                    epsilon=tf.cast(self.hyper_parameters.epsilon, dtype=tf.float32),
-                )
+                start_index = 0
+                while True:
+                    end_index = min(start_index + self.hyper_parameters.batch_size, self.hyper_parameters.buffer_size)
+
+                    actor_optimize_info = self.train_actor(
+                        actor_obs=actor_obs,
+                        advantage=advantage,
+                        old_log_prob=old_log_prob,
+                        epsilon=tf.cast(self.hyper_parameters.epsilon, dtype=tf.float32),
+                    )
 
             # train critic
             for _ in range(self.hyper_parameters.update_critic_times):

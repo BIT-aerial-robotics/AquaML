@@ -768,7 +768,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     ############################# resample function ################################
     # resample action method
 
-    @tf.function
+    # @tf.function
     def _resample_action_no_log_std(self, actor_obs: tuple):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.

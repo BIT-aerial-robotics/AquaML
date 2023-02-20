@@ -129,7 +129,7 @@ class SAC2(BaseRLAlgo):
         # create gaussian noise
         self.create_gaussian_exploration_policy()
 
-            # target entropy
+        # target entropy
         self.target_entropy = -tf.constant(self.rl_io_info.actor_out_info['action'], dtype=tf.float32)
 
         self.hyper_parameters = parameters
@@ -238,7 +238,7 @@ class SAC2(BaseRLAlgo):
         alpha_grad = tape.gradient(alpha_loss, [self.tf_log_alpha])
         self.alpha_optimizer.apply_gradients(zip(alpha_grad, [self.tf_log_alpha]))
 
-        return_dict = {'alpha_loss': alpha_loss,}
+        return_dict = {'alpha_loss': alpha_loss, }
 
         # recoder.record(return_dict, epoch, 'alpha')
 
@@ -281,8 +281,6 @@ class SAC2(BaseRLAlgo):
                        }
         # recoder.record(return_dict, epoch, 'actor')
         return return_dict
-
-
 
     @tf.function
     def train_all(self, qf_obs, next_qf_obs, actor_obs, next_actor_obs, action, mask, reward, gamma):

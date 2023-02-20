@@ -130,7 +130,7 @@ class PPO(BaseRLAlgo):
             # entropy loss
             entropy_loss = -tf.reduce_mean(log_prob)
 
-            actor_loss = -actor_surrogate_loss  # + entropy_coefficient * entropy_loss
+            actor_loss = -actor_surrogate_loss + entropy_coefficient * entropy_loss
 
         actor_grad = tape.gradient(actor_loss, self.get_trainable_actor)
         self.actor_optimizer.apply_gradients(zip(actor_grad, self.get_trainable_actor))

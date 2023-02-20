@@ -86,9 +86,9 @@ class GaussianExplorePolicy(ExplorePolicyBase):
 
         return action, prob
 
-    def resample_prob(self, mu, log_std, action):
-        sigma = tf.exp(log_std)
-        dist = tfp.distributions.Normal(loc=mu, scale=sigma)
+    def resample_prob(self, mu, std, action):
+        # sigma = tf.exp(log_std)
+        dist = tfp.distributions.Normal(loc=mu, scale=std)
         log_prob = dist.log_prob(action)
         return log_prob
 

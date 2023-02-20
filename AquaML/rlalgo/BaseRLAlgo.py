@@ -540,23 +540,23 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         Returns:
             np.ndarray: general advantage estimation.
         """
-        # gae = np.zeros_like(rewards)
-        # n_steps_target = np.zeros_like(rewards)
-        # cumulated_advantage = 0.0
-        # length = len(rewards)
-        # index = length - 1
+        gae = np.zeros_like(rewards)
+        n_steps_target = np.zeros_like(rewards)
+        cumulated_advantage = 0.0
+        length = len(rewards)
+        index = length - 1
 
-        td_target = rewards + gamma * next_values * masks
-        td_delta = td_target - values
-        advantage = compute_advantage(self.hyper_parameters.gamma, self.hyper_parameters.lambada, td_delta)
-        # for i in range(length):
-        #     index -= 1
-        #     delta = rewards[index] + gamma * next_values[index] - values[index]
-        #     cumulated_advantage = gamma * lamda * masks[index] * cumulated_advantage + delta
-        #     gae[index] = cumulated_advantage
-        #     n_steps_target[index] = gae[index] + values[index]
+        # td_target = rewards + gamma * next_values * masks
+        # td_delta = td_target - values
+        # advantage = compute_advantage(self.hyper_parameters.gamma, self.hyper_parameters.lambada, td_delta)
+        for i in range(length):
+            index -= 1
+            delta = rewards[index] + gamma * next_values[index] - values[index]
+            cumulated_advantage = gamma * lamda * masks[index] * cumulated_advantage + delta
+            gae[index] = cumulated_advantage
+            n_steps_target[index] = gae[index] + values[index]
 
-        return advantage, td_target
+        return gae, n_steps_target
 
     # calculate discounted reward
     def calculate_discounted_reward(self, rewards, masks, gamma):

@@ -59,7 +59,7 @@ class RLWorker:
 
         # store the data
         # TODO: remove this line
-        reward['total_reward'] = (reward['total_reward'] + 8) / 8
+        # reward['total_reward'] = (reward['total_reward'] + 8) / 8
         self.rl_algo.store_data(obs=self.obs, action=action_dict,
                                 reward=reward, next_obs=obs_, mask=mask)
 

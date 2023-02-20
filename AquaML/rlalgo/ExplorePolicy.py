@@ -57,6 +57,12 @@ class ExplorePolicyBase(abc.ABC):
 
         return self.scale_out(*inputs)
 
+    @abc.abstractmethod
+    def resample_prob(self, mu, log_std, action):
+        """
+        Resample the probability of action.
+        """
+
 
 class GaussianExplorePolicy(ExplorePolicyBase):
     def __init__(self, shape):
@@ -80,6 +86,12 @@ class GaussianExplorePolicy(ExplorePolicyBase):
 
         return action, prob
 
+    def resample_prob(self, mu, log_std, action):
+        sigma = tf.exp(log_std)
+        dist = tfp.distributions.Normal(loc=mu, scale=sigma)
+        log_prob = dist.log_prob(action)
+        return log_prob
+
 
 class VoidExplorePolicy(ExplorePolicyBase):
     def __init__(self, shape):
@@ -92,3 +104,6 @@ class VoidExplorePolicy(ExplorePolicyBase):
 
     def scale_out(self, mu):
         return mu, tf.ones((1, *self.shape))
+
+    def resample_prob(self, mu, log_std, action):
+        return tf.ones((1, *self.shape))

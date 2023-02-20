@@ -181,5 +181,6 @@ class PPO_parameter(BaseParameter):
         self.epsilon = epsilon
         self.update_critic_times = update_critic_times
         self.update_actor_times = update_actor_times
+        self.calculate_episodes = int(self.buffer_size / self.epoch_length)
         # self.learning_rate = learning_rate
         # self.update_interval = update_interval

@@ -46,7 +46,7 @@ class Critic_net(tf.keras.Model):
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
-        self.learning_rate = 2e-4
+        self.learning_rate = 2e-3
 
         self.output_name = {'value': (1,)}
 
@@ -112,12 +112,15 @@ class PendulumWrapper(RLBaseEnv):
 env = PendulumWrapper('Pendulum-v1')
 ppo_parameter = PPO_parameter(
     epoch_length=200,
-    n_epochs=100,
-    total_steps=1000,
-    batch_size=64,
-    update_times=4,
+    n_epochs=2000,
+    total_steps=4000,
+    batch_size=128,
+    update_times=1,
     update_actor_times=1,
     update_critic_times=1,
+    gamma=0.99,
+    epsilon=0.2,
+    lambada=0.95
 )
 
 model_class_dict = {

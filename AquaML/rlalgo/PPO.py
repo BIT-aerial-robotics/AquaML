@@ -13,7 +13,7 @@ class PPO(BaseRLAlgo):
                  actor,
                  critic,
                  computer_type: str = 'PC',
-                 name: str = 'SAC',
+                 name: str = 'PPO',
                  level: int = 0,
                  thread_id: int = -1,
                  total_threads: int = 1, ):
@@ -52,6 +52,9 @@ class PPO(BaseRLAlgo):
         self.hyper_parameters = parameters
 
         if self.level == 0:
+            if self.resample_log_prob is None:
+                raise ValueError(
+                    'resample_log_prob must be set when using PPO. You probably make an actor with output ''log_prob''.')
             self.actor = actor()
             self.critic = critic()
 
@@ -87,7 +90,7 @@ class PPO(BaseRLAlgo):
                      ):
 
         with tf.GradientTape() as tape:
-            v = self.critic(critic_obs)
+            v = self.critic(*critic_obs)
             critic_loss = tf.reduce_mean(tf.square(v - target))
 
         critic_grad = tape.gradient(critic_loss, self.critic.trainable_variables)
@@ -102,30 +105,39 @@ class PPO(BaseRLAlgo):
                     actor_obs: tuple,
                     advantage: tf.Tensor,
                     old_log_prob: tf.Tensor,
+                    action: tf.Tensor,
                     epsilon: float = 0.2,
+                    entropy_coefficient: float = 0.01,
                     ):
 
         with tf.GradientTape() as tape:
-            action, log_prob = self.resample_action(actor_obs)
+            log_prob = self.resample_log_prob(actor_obs, action)
 
             # importance sampling
             ratio = tf.exp(log_prob - old_log_prob)
 
-            surr1 = ratio * advantage
-            surr2 = tf.clip_by_value(ratio, 1 - epsilon, 1 + epsilon) * advantage
-            actor_surr_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
+            actor_surrogate_loss = tf.reduce_mean(
+                tf.minimum(
+                    ratio * advantage,
+                    tf.clip_by_value(ratio, 1 - epsilon, 1 + epsilon) * advantage,
+                )
+            )
+
+            # surr1 = ratio * advantage
+            # surr2 = tf.clip_by_value(ratio, 1 - epsilon, 1 + epsilon) * advantage
+            # actor_surr_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
 
             # entropy loss
             entropy_loss = -tf.reduce_mean(log_prob)
 
-            actor_loss = actor_surr_loss + entropy_loss
+            actor_loss = -actor_surrogate_loss  # + entropy_coefficient * entropy_loss
 
-        actor_grad = tape.gradient(actor_loss, self.actor.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(actor_grad, self.actor.trainable_variables))
+        actor_grad = tape.gradient(actor_loss, self.get_trainable_actor)
+        self.actor_optimizer.apply_gradients(zip(actor_grad, self.get_trainable_actor))
 
         dic = {
             'actor_loss': actor_loss,
-            'actor_surr_loss': actor_surr_loss,
+            'actor_surr_loss': actor_surrogate_loss,
             'entropy_loss': entropy_loss,
         }
 
@@ -141,7 +153,7 @@ class PPO(BaseRLAlgo):
 
         # get actor obs
         actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name)
-        next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, prefix='next_')
+        # next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, prefix='next_')
 
         # get total reward
         rewards = data_dict['total_reward']
@@ -151,6 +163,9 @@ class PPO(BaseRLAlgo):
 
         # get mask
         masks = data_dict['mask']
+
+        # get action
+        actions = data_dict['action']
 
         #######calculate advantage and target########
         # get value
@@ -163,7 +178,7 @@ class PPO(BaseRLAlgo):
             next_values = self.critic(*next_critic_obs).numpy()
 
         # get target and advantage
-        advantage, target = self.calculate_GAE(rewards=masks,
+        advantage, target = self.calculate_GAE(rewards=rewards,
                                                values=values,
                                                next_values=next_values,
                                                masks=masks,
@@ -178,27 +193,65 @@ class PPO(BaseRLAlgo):
         # masks = tf.convert_to_tensor(masks, dtype=tf.float32)
         old_prob = tf.convert_to_tensor(old_prob, dtype=tf.float32)
         old_log_prob = tf.math.log(old_prob)
+        actions = tf.convert_to_tensor(actions, dtype=tf.float32)
+
+        train_actor_input = {
+            'actor_obs': actor_obs,
+            'advantage': advantage,
+            'old_log_prob': old_log_prob,
+            'action': actions,
+        }
+
+        train_critic_input = {
+            'critic_obs': critic_obs,
+            'target': target,
+        }
 
         for _ in range(self.hyper_parameters.update_times):
             # train actor
+            # TODO: wrap this part into a function
             for _ in range(self.hyper_parameters.update_actor_times):
                 start_index = 0
-                while True:
+                end_index = 0
+                actor_optimize_info_list = []
+                while end_index < self.hyper_parameters.buffer_size:
                     end_index = min(start_index + self.hyper_parameters.batch_size, self.hyper_parameters.buffer_size)
 
+                    batch_train_actor_input = self.get_batch_data(train_actor_input, start_index, end_index)
+
+                    start_index = end_index
+
                     actor_optimize_info = self.train_actor(
-                        actor_obs=actor_obs,
-                        advantage=advantage,
-                        old_log_prob=old_log_prob,
+                        actor_obs=batch_train_actor_input['actor_obs'],
+                        advantage=batch_train_actor_input['advantage'],
+                        old_log_prob=batch_train_actor_input['old_log_prob'],
+                        action=batch_train_actor_input['action'],
                         epsilon=tf.cast(self.hyper_parameters.epsilon, dtype=tf.float32),
+                        entropy_coefficient=tf.cast(self.hyper_parameters.entropy_coeff, dtype=tf.float32),
                     )
+                    actor_optimize_info_list.append(actor_optimize_info)
+                actor_optimize_info = self.cal_average_batch_dict(actor_optimize_info_list)
 
             # train critic
             for _ in range(self.hyper_parameters.update_critic_times):
-                critic_optimize_info = self.train_critic(
-                    critic_obs=critic_obs,
-                    target=target,
-                )
+                start_index = 0
+                end_index = 0
+                critic_optimize_info_list = []
+                for _ in range(self.hyper_parameters.update_critic_times):
+                    while end_index < self.hyper_parameters.buffer_size:
+                        end_index = min(start_index + self.hyper_parameters.batch_size,
+                                        self.hyper_parameters.buffer_size)
+
+                        batch_train_critic_input = self.get_batch_data(train_critic_input, start_index, end_index)
+
+                        start_index = end_index
+
+                        critic_optimize_info = self.train_critic(
+                            critic_obs=batch_train_critic_input['critic_obs'],
+                            target=batch_train_critic_input['target'],
+                        )
+                        critic_optimize_info_list.append(critic_optimize_info)
+                    critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)
 
         return_dict = {**actor_optimize_info, **critic_optimize_info}
         return return_dict

@@ -10,6 +10,17 @@ import numpy as np
 from AquaML.tool.Recoder import Recoder
 
 
+def compute_advantage(gamma, lmbda, td_delta):
+    advantage_list = []
+    advantage = 0.0
+
+    for delta in td_delta[::-1]:
+        advantage = gamma * lmbda * advantage + delta
+        advantage_list.append(advantage)
+    advantage_list.reverse()
+    return advantage_list
+
+
 # TODO:model logic has been changed, check the new version
 # TODO: 优化命名方式
 class BaseRLAlgo(BaseAlgo, abc.ABC):
@@ -194,10 +205,13 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             # TODO: 优化此处命名
             if self.rl_io_info.explore_info == 'self-std':
                 self.resample_action = self._resample_action_log_std
+                self.resample_log_prob = self._resample_log_prob_with_std
             elif self.rl_io_info.explore_info == 'global-std':
                 self.resample_action = self._resample_action_no_log_std
+                self.resample_log_prob = self._resample_log_prob_no_std
             elif self.rl_io_info.explore_info == 'void-std':
                 self.resample_action = self._resample_action_log_prob
+                self.resample_log_prob = None
 
         # hyper parameters
         # the hyper parameters is a dictionary
@@ -480,6 +494,30 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return reward_summary
 
+    def cal_average_batch_dict(self, data_list: list):
+        """
+            calculate average batch dict.
+
+            Args:
+                data_list (list): store data dict list.
+
+            Returns:
+                _type_: dict. average batch dict.
+            """
+        average_batch_dict = {}
+        for key in data_list[0]:
+            average_batch_dict[key] = []
+
+        for data_dict in data_list:
+            for key, value in data_dict.items():
+                average_batch_dict[key].append(value)
+
+        # average
+        for key, value in average_batch_dict.items():
+            average_batch_dict[key] = np.mean(value)
+
+        return average_batch_dict
+
     # TODO: calculate by multi thread
     ############################# calculate reward information #############################
     # calculate general advantage estimation
@@ -502,20 +540,23 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         Returns:
             np.ndarray: general advantage estimation.
         """
-        gae = np.zeros_like(rewards)
-        n_steps_target = np.zeros_like(rewards)
-        cumulated_advantage = 0.0
-        length = len(rewards)
-        index = length - 1
+        # gae = np.zeros_like(rewards)
+        # n_steps_target = np.zeros_like(rewards)
+        # cumulated_advantage = 0.0
+        # length = len(rewards)
+        # index = length - 1
 
-        for i in range(length):
-            index = index - 1
-            delta = rewards[index] + gamma * next_values[index] - values[index]
-            cumulated_advantage = gamma * lamda * masks[index] * cumulated_advantage + delta
-            gae[index] = cumulated_advantage
-            n_steps_target[index] = gae[index] + values[index]
+        td_target = rewards + gamma * next_values * masks
+        td_delta = td_target - values
+        advantage = compute_advantage(self.hyper_parameters.gamma, self.hyper_parameters.lambada, td_delta)
+        # for i in range(length):
+        #     index -= 1
+        #     delta = rewards[index] + gamma * next_values[index] - values[index]
+        #     cumulated_advantage = gamma * lamda * masks[index] * cumulated_advantage + delta
+        #     gae[index] = cumulated_advantage
+        #     n_steps_target[index] = gae[index] + values[index]
 
-        return gae, n_steps_target
+        return advantage, td_target
 
     # calculate discounted reward
     def calculate_discounted_reward(self, rewards, masks, gamma):
@@ -653,6 +694,38 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return return_dict
 
+    def get_batch_data(self, data_dict: dict, start_index, end_index):
+        """
+        Get batch data from data dict.
+
+        The data type stored in data_dict must be tuple or tensor or array.
+
+        Example:
+            >>> data_dict = {'obs':(np.array([1,2,3,4,5,6,7,8,9,10]),)}
+            >>> start_index = 0
+            >>> end_index = 5
+            >>> self.get_batch_data(data_dict, start_index, end_index)
+            {'obs': (array([1, 2, 3, 4, 5]),)}
+
+        Args:
+            data_dict (dict): data dict.
+            start_index (int): start index.
+            end_index (int): end index.
+        Returns:
+            batch data. dict.
+        """
+        batch_data = dict()
+        for key, values in data_dict.items():
+            if isinstance(values, tuple) or isinstance(values, list):
+                buffer = []
+                for value in values:
+                    buffer.append(value[start_index:end_index])
+                batch_data[key] = tuple(buffer)
+            else:
+                batch_data[key] = values[start_index:end_index]
+
+        return batch_data
+
     # get trainable actor
     @property
     def get_trainable_actor(self):
@@ -764,11 +837,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         running_step = self.mini_buffer_size + self.optimize_epoch * self.each_thread_update_interval * self.sample_threads
         return running_step
 
-
     ############################# resample function ################################
     # resample action method
 
-    # @tf.function
+    @tf.function
     def _resample_action_no_log_std(self, actor_obs: tuple):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
@@ -844,6 +916,43 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return action, log_prob
 
+    def _resample_log_prob_no_std(self, obs, action):
+
+        """
+        Re get log_prob of action.
+        The output of actor model is (mu,).
+        It is different from resample_action.
+
+        Args:
+            obs (tuple): observation.
+            action (tf.Tensor): action.
+        """
+
+        out = self.actor(*obs)
+        mu = out[0]
+        std = tf.exp(self.tf_log_std)
+        log_prob = self.explore_policy.resample_prob(mu, std, action)
+
+        return log_prob
+
+    # def _resample_log_prob_with_std(self, obs, action):
+
+    def _resample_log_prob_with_std(self, obs, action):
+        """
+        Re get log_prob of action.
+        The output of actor model is (mu, log_std,).
+        It is different from resample_action.
+
+        """
+
+        out = self.actor(*obs)
+        mu = out[0]
+        log_std = out[1]
+        std = tf.exp(log_std)
+        log_prob = self.explore_policy.resample_prob(mu, std, action)
+
+        return log_prob
+
     def concat_dict(self, dict_tuple: tuple):
         """
         concat dict.
@@ -911,8 +1020,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             self.log_std.set_value(self.tf_log_std.numpy())  # write log std to shared memory
         else:
             self.tf_log_std = tf.Variable(self.log_std.buffer, trainable=True)  # read log std from shared memory
-
-
 
     # optimize model
     @abc.abstractmethod

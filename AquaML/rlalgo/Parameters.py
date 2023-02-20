@@ -3,7 +3,8 @@ import abc
 
 class BaseParameter(abc.ABC):
 
-    def __init__(self, epoch_length: int, n_epochs: int, buffer_size: int, batch_size: int, update_interval: int = 0):
+    def __init__(self, epoch_length: int, n_epochs: int, buffer_size: int, batch_size: int, update_interval: int = 0,
+                 update_times=1):
         """
         Parameters of environment.
         
@@ -14,6 +15,7 @@ class BaseParameter(abc.ABC):
             n_epochs (int): Times of optimizing the network.
             batch_size (int): batch size.
             update_interval (int): update interval.
+            update_times (int): times for optimizing the network.
         """
 
         self.epoch_length = epoch_length
@@ -24,6 +26,7 @@ class BaseParameter(abc.ABC):
         self.min_buffer_size = 0
         self.display_interval = 1
         self.calculate_episodes = 5
+        self.update_times = update_times
 
 
 class SAC_parameter(BaseParameter):
@@ -122,7 +125,7 @@ class SAC2_parameter(BaseParameter):
             display_interval (int, optional): display interval which depends on epoch. Defaults to 1.
         """
         super().__init__(episode_length, n_epochs, buffer_size,
-                         batch_size, update_interval,)
+                         batch_size, update_interval, )
 
         self.discount = discount
         self.tau = tau
@@ -137,3 +140,46 @@ class SAC2_parameter(BaseParameter):
         self.calculate_episodes = calculate_episodes
 
         self.update_times = update_times
+
+
+class PPO_parameter(BaseParameter):
+
+    def __init__(self,
+                 epoch_length: int,
+                 n_epochs: int,
+                 total_steps: int,
+                 batch_size: int,
+                 update_times: int = 4,
+                 update_critic_times: int = 1,
+                 update_actor_times: int = 1,
+                 entropy_coeff: float = 0.01,
+                 epsilon: float = 0.2,
+                 gamma: float = 0.99,
+                 lambada: float = 0.95,
+                 ):
+        """
+        Parameters of PPO algorithm.
+
+        Reference:
+        ----------
+        [1] Schulman, John, et al. "Proximal policy optimization algorithms."
+        arXiv preprint arXiv:1707.06347 (2017).
+
+        Args:
+            epoch_length (int): length of epoch.
+            total_steps (int): total steps for one epoch.
+            n_epochs (int): times of optimizing the network.
+            batch_size (int): batch size.
+
+
+        """
+        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times)
+
+        self.gamma = gamma
+        self.lambada = lambada
+        self.entropy_coeff = entropy_coeff
+        self.epsilon = epsilon
+        self.update_critic_times = update_critic_times
+        self.update_actor_times = update_actor_times
+        # self.learning_rate = learning_rate
+        # self.update_interval = update_interval

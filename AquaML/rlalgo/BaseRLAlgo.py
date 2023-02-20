@@ -188,6 +188,17 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         else:
             self.worker = RLWorker(self)
 
+        # initial main thread
+        if self.level == 0:
+            # resample action
+            # TODO: 优化此处命名
+            if self.rl_io_info.explore_info == 'self-std':
+                self.resample_action = self._resample_action_log_std
+            elif self.rl_io_info.explore_info == 'global-std':
+                self.resample_action = self._resample_action_no_log_std
+            elif self.rl_io_info.explore_info == 'void-std':
+                self.resample_action = self._resample_action_log_prob
+
         # hyper parameters
         # the hyper parameters is a dictionary
         # you should point out the hyper parameters in your algorithm
@@ -213,6 +224,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self._all_model_dict = {}  # store all model, convenient to record model
 
     # initial algorithm
+    ############################# key component #############################
     def init(self):
         """initial algorithm.
         
@@ -254,6 +266,38 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         if self.actor is None:
             raise ValueError('Actor model must be given.')
 
+    def optimize(self):
+
+        # compute current reward information
+
+        optimize_info = self._optimize_()
+
+        # all the information update here
+        self.optimize_epoch += 1
+
+        total_steps = self.get_current_steps
+
+        optimize_info['total_steps'] = total_steps
+
+        if self.optimize_epoch % self.display_interval == 0:
+            # display information
+
+            epoch = int(self.optimize_epoch / self.display_interval)
+            reward_info = self.summary_reward_info()
+            print("###############epoch: {}###############".format(epoch))
+            self.recoder.display_text(
+                reward_info
+            )
+            self.recoder.display_text(
+                optimize_info
+            )
+
+            self.recoder.record(reward_info, total_steps, prefix='reward')
+            self.recoder.record(optimize_info, self.optimize_epoch, prefix=self.name)
+            # record weight
+            for key, model in self._all_model_dict.items():
+                self.recoder.record_weight(model, total_steps, prefix=key)
+
     def check(self):
         """
         check some information.
@@ -264,7 +308,180 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         if self._sync_model_dict is None:
             raise ValueError('Sync model must be given.')
 
+    ############################# key function #############################
+    def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
+        """
+        store data to buffer.
+
+        Args:
+            obs (dict): observation. eg. {'obs':np.array([1,2,3])}
+            action (dict): action. eg. {'action':np.array([1,2,3])}
+            reward (dict): reward. eg. {'reward':np.array([1,2,3])}
+            next_obs (dict): next observation. eg. {'next_obs':np.array([1,2,3])}
+            mask (int): done. eg. 1 or 0
+        """
+        # store data to buffer
+        # support multi thread
+
+        idx = (self.worker.step_count - 1) % self.each_thread_size
+        index = self.each_thread_start_index + idx  # index in each thread
+
+        # store obs to buffer
+        self.data_pool.store(obs, index)
+
+        # store next_obs to buffer
+        self.data_pool.store(next_obs, index, prefix='next_')
+
+        # store action to buffer
+        self.data_pool.store(action, index)
+
+        # store reward to buffer
+        self.data_pool.store(reward, index)
+
+        # store mask to buffer
+        self.data_pool.data_pool['mask'].store(mask, index)
+
+    @staticmethod
+    def copy_weights(model1, model2):
+        """
+        copy weight from model1 to model2.
+        """
+        new_weights = []
+        target_weights = model1.weights
+
+        for i, weight in enumerate(model2.weights):
+            new_weights.append(target_weights[i].numpy())
+
+        model2.set_weights(new_weights)
+
+    @staticmethod
+    def soft_update_weights(model1, model2, tau):
+        """
+        soft update weight from model1 to model2.
+
+
+        args:
+        model1: source model
+        model2: target model
+        """
+        new_weights = []
+        source_weights = model1.weights
+
+        for i, weight in enumerate(model2.weights):
+            new_weights.append((1 - tau) * weight.numpy() + tau * source_weights[i].numpy())
+
+        model2.set_weights(new_weights)
+
+    def summary_reward_info(self):
+        """
+        summary reward information.
+        """
+        # calculate reward information
+
+        summary_reward_info = {}
+
+        for name in self.rl_io_info.reward_info:
+            summary_reward_info[name] = np.mean(self.data_pool.get_unit_data('summary_' + name))
+
+        summary_reward_info['std'] = np.std(self.data_pool.get_unit_data('summary_total_reward'))
+        summary_reward_info['max_reward'] = np.max(self.data_pool.get_unit_data('summary_total_reward'))
+        summary_reward_info['min_reward'] = np.min(self.data_pool.get_unit_data('summary_total_reward'))
+
+        return summary_reward_info
+
+        # calculate episode reward information
+
+        # random sample
+
+    def random_sample(self, batch_size: int):
+        """
+            random sample data from buffer.
+
+            Args:
+                batch_size (int): batch size.
+
+            Returns:
+                _type_: dict. data dict.
+            """
+        # if using multi thread, then sample data from each segment
+        # sample data from each segment
+
+        # compute current segment size
+        running_step = self.mini_buffer_size + self.optimize_epoch * self.each_thread_update_interval * self.total_segment
+        buffer_size = min(self.max_buffer_size, running_step)
+
+        batch_size = min(batch_size, buffer_size)
+
+        sample_index = np.random.choice(range(buffer_size), batch_size, replace=False)
+
+        # index_bias = (sample_index * 1.0 / self.each_thread_size) * self.each_thread_size
+        index_bias = sample_index / self.each_thread_size
+        index_bias = index_bias.astype(np.int32)
+        index_bias = index_bias * self.each_thread_size
+
+        sample_index = sample_index + index_bias
+        sample_index = sample_index.astype(np.int32)
+
+        # get data
+
+        data_dict = self.data_pool.get_data_by_indices(sample_index, self.rl_io_info.store_data_name)
+
+        return data_dict
+
+    def cal_episode_info(self):
+        """
+            calculate episode reward information.
+
+            Returns:
+                _type_: dict. summary reward information.
+            """
+
+        # data_dict = self.get_current_update_data(('reward', 'mask'))
+        # calculate current reward information
+
+        # get done flag
+        index_done = np.where(self.data_pool.get_unit_data('mask') == 0)[0] + 1
+        index_done_ = index_done / self.each_thread_size
+        index_done_ = index_done_.astype(np.int32)
+
+        # config segment
+        segment_index = np.arange((0, self.total_segment))
+        every_segment_index = []
+
+        # split index_done
+        for segment_id in segment_index:
+            segment_index_done = np.where(index_done_ == segment_id)[0]
+            every_segment_index.append(index_done[segment_index_done])
+
+        reward_dict = {}
+        for key in self.rl_io_info.reward_info:
+            reward_dict[key] = []
+
+        for each_segment_index in every_segment_index:
+            # get index of done
+            compute_index = each_segment_index[-self.each_thread_summary_episodes:]
+            start_index = compute_index[0]
+
+            for end_index in compute_index[1:]:
+                for key in self.rl_io_info.reward_info:
+                    reward_dict[key].append(np.sum(self.data_pool.get_unit_data(key)[start_index:end_index]))
+                start_index = end_index
+
+        # summary reward information
+        reward_summary = {'std': np.std(reward_dict['total_reward']),
+                          'max_reward': np.max(reward_dict['total_reward']),
+                          'min_reward': np.min(reward_dict['total_reward'])}
+
+        for key in self.rl_io_info.reward_info:
+            reward_summary[key] = np.mean(reward_dict[key])
+
+        # delete list
+        del reward_dict
+
+        return reward_summary
+
     # TODO: calculate by multi thread
+    ############################# calculate reward information #############################
     # calculate general advantage estimation
     def calculate_GAE(self, rewards, values, next_values, masks, gamma, lamda):
         """
@@ -323,161 +540,22 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return discounted_reward
 
-    # calculate episode reward information
-    def cal_episode_info(self):
-        """
-        calculate episode reward information.
-
-        Returns:
-            _type_: dict. summary reward information.
-        """
-
-        # data_dict = self.get_current_update_data(('reward', 'mask'))
-        # calculate current reward information
-
-        # get done flag
-        index_done = np.where(self.data_pool.get_unit_data('mask') == 0)[0] + 1
-        index_done_ = index_done / self.each_thread_size
-        index_done_ = index_done_.astype(np.int32)
-
-        # config segment
-        segment_index = np.arange((0, self.total_segment))
-        every_segment_index = []
-
-        # split index_done
-        for segment_id in segment_index:
-            segment_index_done = np.where(index_done_ == segment_id)[0]
-            every_segment_index.append(index_done[segment_index_done])
-
-        reward_dict = {}
-        for key in self.rl_io_info.reward_info:
-            reward_dict[key] = []
-
-        for each_segment_index in every_segment_index:
-            # get index of done
-            compute_index = each_segment_index[-self.each_thread_summary_episodes:]
-            start_index = compute_index[0]
-
-            for end_index in compute_index[1:]:
-                for key in self.rl_io_info.reward_info:
-                    reward_dict[key].append(np.sum(self.data_pool.get_unit_data(key)[start_index:end_index]))
-                start_index = end_index
-
-        # summary reward information
-        reward_summary = {'std': np.std(reward_dict['total_reward']), 'max_reward': np.max(reward_dict['total_reward']),
-                          'min_reward': np.min(reward_dict['total_reward'])}
-
-        for key in self.rl_io_info.reward_info:
-            reward_summary[key] = np.mean(reward_dict[key])
-
-        # delete list
-        del reward_dict
-
-        return reward_summary
-
-    def summary_reward_info(self):
-        """
-        summary reward information.
-        """
-        # calculate reward information
-
-        summary_reward_info = {}
-
-        for name in self.rl_io_info.reward_info:
-            summary_reward_info[name] = np.mean(self.data_pool.get_unit_data('summary_' + name))
-
-        summary_reward_info['std'] = np.std(self.data_pool.get_unit_data('summary_total_reward'))
-        summary_reward_info['max_reward'] = np.max(self.data_pool.get_unit_data('summary_total_reward'))
-        summary_reward_info['min_reward'] = np.min(self.data_pool.get_unit_data('summary_total_reward'))
-
-        return summary_reward_info
-
-    # store data to buffer
-    def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
-        """
-        store data to buffer.
-
-        Args:
-            obs (dict): observation. eg. {'obs':np.array([1,2,3])}
-            action (dict): action. eg. {'action':np.array([1,2,3])}
-            reward (dict): reward. eg. {'reward':np.array([1,2,3])}
-            next_obs (dict): next observation. eg. {'next_obs':np.array([1,2,3])}
-            mask (int): done. eg. 1 or 0
-        """
-        # store data to buffer
-        # support multi thread
-
-        idx = (self.worker.step_count - 1) % self.each_thread_size
-        index = self.each_thread_start_index + idx  # index in each thread
-
-        # store obs to buffer
-        self.data_pool.store(obs, index)
-
-        # store next_obs to buffer
-        self.data_pool.store(next_obs, index, prefix='next_')
-
-        # store action to buffer
-        self.data_pool.store(action, index)
-
-        # store reward to buffer
-        self.data_pool.store(reward, index)
-
-        # store mask to buffer
-        self.data_pool.data_pool['mask'].store(mask, index)
-
-    def get_action_train(self, obs: dict):
-        """
-        
-        sample action in the training process.
-
-        Args:
-            obs (dict): observation from environment. eg. {'obs':data}. 
-                        The data must be tensor. And its shape is (batch, feature).
-
-        Returns:
-            _type_: _description_
-        """
-
-        input_data = []
-
-        # get actor input
-        for key in self.actor.input_name:
-            input_data.append(tf.cast(obs[key], dtype=tf.float32))
-
-        actor_out = self.actor(*input_data)  # out is a tuple
-
-        policy_out = dict(zip(self.actor.output_info, actor_out))
-
-        for name, value in self._explore_dict.items():
-            policy_out[name] = value
-
-        action, prob = self.explore_policy(policy_out)
-
-        policy_out['action'] = action
-        policy_out['prob'] = prob
-
-        # create return dict according to rl_io_info.actor_out_name
-        return_dict = dict()
-        for name in self.rl_io_info.actor_out_name:
-            return_dict[name] = policy_out[name]
-
-        return return_dict
-
+    ############################# create function #############################
     # create keras optimizer
     def create_optimizer(self, name: str, optimizer: str, lr: float):
         """
         create keras optimizer for each model.
-        
+
         Reference:
             https://keras.io/optimizers/
 
         Args:
             name (str): name of this optimizer, you can call by this name.
             if name is 'actor', then you can call self.actor_optimizer
-            
-            optimizer (str): type of optimizer. eg. 'Adam'. For more information, 
+
+            optimizer (str): type of optimizer. eg. 'Adam'. For more information,
             please refer to keras.optimizers.
-            
+
             lr (float): learning rate.
         """
 
@@ -499,7 +577,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     def create_none_optimizer(self, name: str):
         """
         create none optimizer for each model.
-        
+
         Args:
             name (str): name of this optimizer, you can call by this name.
         """
@@ -536,52 +614,44 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             # log_std is void
             self.explore_policy = VoidExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
 
-        # add initial information
-
-    # optimize model
-    @abc.abstractmethod
-    def _optimize_(self, *args, **kwargs):
+    ############################# get function ################################
+    def get_action_train(self, obs: dict):
         """
-        optimize model.
-        It is a abstract method.
-        
-        Recommend when you implement this method, input of this method should be hyperparameters. 
-        The hyperparameters can be tuned in the training process.
-        
+
+        sample action in the training process.
+
+        Args:
+            obs (dict): observation from environment. eg. {'obs':data}.
+                        The data must be tensor. And its shape is (batch, feature).
+
         Returns:
-            _type_: dict. Optimizer information. eg. {'loss':data, 'total_reward':data}
+            _type_: _description_
         """
 
-    @staticmethod
-    def copy_weights(model1, model2):
-        """
-        copy weight from model1 to model2.
-        """
-        new_weights = []
-        target_weights = model1.weights
+        input_data = []
 
-        for i, weight in enumerate(model2.weights):
-            new_weights.append(target_weights[i].numpy())
+        # get actor input
+        for key in self.actor.input_name:
+            input_data.append(tf.cast(obs[key], dtype=tf.float32))
 
-        model2.set_weights(new_weights)
+        actor_out = self.actor(*input_data)  # out is a tuple
 
-    @staticmethod
-    def soft_update_weights(model1, model2, tau):
-        """
-        soft update weight from model1 to model2.
-        
-        
-        args:
-        model1: source model
-        model2: target model
-        """
-        new_weights = []
-        source_weights = model1.weights
+        policy_out = dict(zip(self.actor.output_info, actor_out))
 
-        for i, weight in enumerate(model2.weights):
-            new_weights.append((1 - tau) * weight.numpy() + tau * source_weights[i].numpy())
+        for name, value in self._explore_dict.items():
+            policy_out[name] = value
 
-        model2.set_weights(new_weights)
+        action, prob = self.explore_policy(policy_out)
+
+        policy_out['action'] = action
+        policy_out['prob'] = prob
+
+        # create return dict according to rl_io_info.actor_out_name
+        return_dict = dict()
+        for name in self.rl_io_info.actor_out_name:
+            return_dict[name] = policy_out[name]
+
+        return return_dict
 
     # get trainable actor
     @property
@@ -602,41 +672,30 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
     # optimize in the main thread
 
-    # random sample
-    def random_sample(self, batch_size: int):
+    def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True):
         """
-        random sample data from buffer.
-        
+
+        Get corresponding data from data dict.
+
         Args:
-            batch_size (int): batch size.
-            
+            data_dict (dict): data dict.
+            names (tuple): name of data.
+            prefix (str): prefix of data name.
+            tf_tensor (bool): if return tf tensor.
         Returns:
-            _type_: dict. data dict.
+            corresponding data. list or tuple.
         """
-        # if using multi thread, then sample data from each segment
-        # sample data from each segment
 
-        # compute current segment size
-        running_step = self.mini_buffer_size + self.optimize_epoch * self.each_thread_update_interval * self.total_segment
-        buffer_size = min(self.max_buffer_size, running_step)
+        data = []
 
-        batch_size = min(batch_size, buffer_size)
+        for name in names:
+            name = prefix + name
+            buffer = data_dict[name]
+            if tf_tensor:
+                buffer = tf.cast(buffer, dtype=tf.float32)
+            data.append(buffer)
 
-        sample_index = np.random.choice(range(buffer_size), batch_size, replace=False)
-
-        # index_bias = (sample_index * 1.0 / self.each_thread_size) * self.each_thread_size
-        index_bias = sample_index / self.each_thread_size
-        index_bias = index_bias.astype(np.int32)
-        index_bias = index_bias * self.each_thread_size
-
-        sample_index = sample_index + index_bias
-        sample_index = sample_index.astype(np.int32)
-
-        # get data
-
-        data_dict = self.data_pool.get_data_by_indices(sample_index, self.rl_io_info.store_data_name)
-
-        return data_dict
+        return data
 
     # acquire current update buffer
     def get_current_update_data(self, names: tuple):
@@ -676,6 +735,19 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         return return_dict
 
     @property
+    def get_all_data(self):
+        """
+        get all data in buffer.
+        """
+
+        return_dict = {}
+
+        for key, unit in self.data_pool.data_pool.items():
+            return_dict[key] = unit.buffer
+
+        return return_dict
+
+    @property
     def get_current_buffer_size(self):
         """
         compute current step.
@@ -692,30 +764,85 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         running_step = self.mini_buffer_size + self.optimize_epoch * self.each_thread_update_interval * self.sample_threads
         return running_step
 
-    def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True):
+
+    ############################# resample function ################################
+    # resample action method
+
+    @tf.function
+    def _resample_action_no_log_std(self, actor_obs: tuple):
         """
-        
-        Get corresponding data from data dict.
+        Explore policy in SAC2 is Gaussian  exploration policy.
+
+        _resample_action_no_log_std is used when actor model's out has no log_std.
+
+        The output of actor model is (mu,).
 
         Args:
-            data_dict (dict): data dict.
-            names (tuple): name of data.
-            prefix (str): prefix of data name.
-            tf_tensor (bool): if return tf tensor.
+            actor_obs (tuple): actor model's input
         Returns:
-            corresponding data. list or tuple.
+        action (tf.Tensor): action
+        log_pi (tf.Tensor): log_pi
         """
 
-        data = []
+        mu = self.actor(*actor_obs)[0]
 
-        for name in names:
-            name = prefix + name
-            buffer = data_dict[name]
-            if tf_tensor:
-                buffer = tf.cast(buffer, dtype=tf.float32)
-            data.append(buffer)
+        noise, prob = self.explore_policy.noise_and_prob(self.hyper_parameters.batch_size)
 
-        return data
+        sigma = tf.exp(self.tf_log_std)
+        action = mu + noise * sigma
+        log_pi = tf.math.log(prob)
+
+        return action, log_pi
+
+    @tf.function
+    def _resample_action_log_std(self, actor_obs: tuple):
+        """
+        Explore policy in SAC2 is Gaussian  exploration policy.
+
+        _resample_action_log_std is used when actor model's out has log_std.
+
+        The output of actor model is (mu, log_std).
+
+        Args:
+            actor_obs (tuple): actor model's input
+        Returns:
+        action (tf.Tensor): action
+        log_pi (tf.Tensor): log_pi
+        """
+
+        out = self.actor(*actor_obs)
+
+        mu, log_std = out[0], out[1]
+
+        noise, prob = self.explore_policy.noise_and_prob(self.hyper_parameters.batch_size)
+
+        sigma = tf.exp(log_std)
+
+        action = mu + noise * sigma
+
+        log_prob = tf.math.log(prob)
+
+        return action, log_prob
+
+    # @tf.function
+    def _resample_action_log_prob(self, actor_obs: tuple):
+        """
+        Explore policy in SAC2 is Gaussian  exploration policy.
+
+        _resample_action_log_prob is used when actor model's out has log_prob.
+
+        The output of actor model is (mu, log_std).
+
+        Args:
+            actor_obs (tuple): actor model's input
+        Returns:
+        action (tf.Tensor): action
+        log_pi (tf.Tensor): log_pi
+        """
+
+        action, log_prob = self.actor(*actor_obs)
+
+        return action, log_prob
 
     def concat_dict(self, dict_tuple: tuple):
         """
@@ -785,35 +912,18 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         else:
             self.tf_log_std = tf.Variable(self.log_std.buffer, trainable=True)  # read log std from shared memory
 
-    def optimize(self):
 
-        # compute current reward information
 
-        optimize_info = self._optimize_()
+    # optimize model
+    @abc.abstractmethod
+    def _optimize_(self, *args, **kwargs):
+        """
+        optimize model.
+        It is a abstract method.
 
-        # all the information update here
-        self.optimize_epoch += 1
+        Recommend when you implement this method, input of this method should be hyperparameters.
+        The hyperparameters can be tuned in the training process.
 
-        total_steps = self.get_current_steps
-
-        optimize_info['total_steps'] = total_steps
-
-        if self.optimize_epoch % self.display_interval == 0:
-            # display information
-
-            epoch = int(self.optimize_epoch / self.display_interval)
-            reward_info = self.summary_reward_info()
-            print("###############epoch: {}###############".format(epoch))
-            self.recoder.display_text(
-                reward_info
-            )
-            self.recoder.display_text(
-                optimize_info
-            )
-
-            self.recoder.record(reward_info, total_steps, prefix='reward')
-            self.recoder.record(optimize_info, self.optimize_epoch, prefix=self.name)
-            # record weight
-            for key, model in self._all_model_dict.items():
-                self.recoder.record_weight(model, total_steps, prefix=key)
-
+        Returns:
+            _type_: dict. Optimizer information. eg. {'loss':data, 'total_reward':data}
+        """

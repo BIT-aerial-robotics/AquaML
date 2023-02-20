@@ -141,6 +141,47 @@ class Actor_net(tf.keras.Model):
 Creating Q value network is similar to creating actor. However, the ``call`` 's return of Q is tf tensor not tuple. And
 in Q, the ``output_info`` can not be specified.
 
+```python
+class Q_net(tf.keras.Model):
+    def __init__(self):
+        super(Q_net, self).__init__()
+
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
+
+        # point out leaning rate
+        # each model can have different learning rate
+        self.learning_rate = 2e-3
+
+        # point out optimizer
+        # each model can have different optimizer
+        self.optimizer = 'Adam'
+
+        # point out input data name, this name must be contained in obs_info
+        self.input_name = ('obs', 'action')
+
+    def reset(self):
+        # This model does not contain RNN, so this function is not necessary,
+        # just pass
+
+        # If the model contains RNN, you should reset the state of RNN
+        pass
+
+    @tf.function
+    def call(self, obs, action):
+        x = tf.concat([obs, action], axis=-1)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        x = self.dense3(x)
+
+        return x
+```
+
+
+
 ##### 3. Environment
 
 ###### Gym environment

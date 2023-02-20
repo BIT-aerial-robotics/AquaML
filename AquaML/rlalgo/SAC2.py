@@ -129,14 +129,6 @@ class SAC2(BaseRLAlgo):
         # create gaussian noise
         self.create_gaussian_exploration_policy()
 
-        # resample action
-        if self.rl_io_info.explore_info == 'self-std':
-            self.resample_action = self._resample_action2_
-        elif self.rl_io_info.explore_info == 'global-std':
-            self.resample_action = self._resample_action1_
-        elif self.rl_io_info.explore_info == 'void-std':
-            self.resample_action = self._resample_action3_
-
             # target entropy
         self.target_entropy = -tf.constant(self.rl_io_info.actor_out_info['action'], dtype=tf.float32)
 
@@ -290,81 +282,7 @@ class SAC2(BaseRLAlgo):
         # recoder.record(return_dict, epoch, 'actor')
         return return_dict
 
-    @tf.function
-    def _resample_action1_(self, actor_obs: tuple):
-        """
-        Explore policy in SAC2 is Gaussian  exploration policy.
-        
-        _resample_action1_ is used when actor model's out has no log_std.
-        
-        The output of actor model is (mu,).
 
-        Args:
-            actor_obs (tuple): actor model's input
-        Returns:
-        action (tf.Tensor): action
-        log_pi (tf.Tensor): log_pi
-        """
-
-        action = self.actor(*actor_obs)[0]
-
-        noise, prob = self.explore_policy.noise_and_prob(self.hyper_parameters.batch_size)
-
-        sigma = tf.exp(self.tf_log_std)
-        action = action + noise * sigma
-        log_pi = tf.math.log(prob)
-
-        return action, log_pi
-
-    @tf.function
-    def _resample_action2_(self, actor_obs: tuple):
-        """
-        Explore policy in SAC2 is Gaussian  exploration policy.
-        
-        _resample_action2_ is used when actor model's out has log_std.
-        
-        The output of actor model is (mu, log_std).
-
-        Args:
-            actor_obs (tuple): actor model's input
-        Returns:
-        action (tf.Tensor): action
-        log_pi (tf.Tensor): log_pi
-        """
-
-        out = self.actor(*actor_obs)
-
-        mu, log_std = out[0], out[1]
-
-        noise, prob = self.explore_policy.noise_and_prob(self.hyper_parameters.batch_size)
-
-        sigma = tf.exp(log_std)
-
-        action = mu + noise * sigma
-
-        log_prob = tf.math.log(prob)
-
-        return action, log_prob
-
-    # @tf.function
-    def _resample_action3_(self, actor_obs: tuple):
-        """
-        Explore policy in SAC2 is Gaussian  exploration policy.
-
-        _resample_action3_ is used when actor model's out has log_prob.
-
-        The output of actor model is (mu, log_std).
-
-        Args:
-            actor_obs (tuple): actor model's input
-        Returns:
-        action (tf.Tensor): action
-        log_pi (tf.Tensor): log_pi
-        """
-
-        action, log_prob = self.actor(*actor_obs)
-
-        return action, log_prob
 
     @tf.function
     def train_all(self, qf_obs, next_qf_obs, actor_obs, next_actor_obs, action, mask, reward, gamma):

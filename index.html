@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="description" content="None" /><link rel="canonical" href="https://aquaml.github.io/" />
+      <link rel="shortcut icon" href="img/favicon.ico" />
+    <title>AquaML</title>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+        <link href="assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Home";
+        var mkdocs_page_input_path = "index.md";
+        var mkdocs_page_url = "/";
+      </script>
+    
+    <script src="js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="." class="icon icon-home"> AquaML
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="./search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href=".">Home</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#features">Features</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#install">Install</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tutorials">Tutorials</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#train-pendulum-v0-with-soft-actor-criticsac">Train Pendulum-v0 with soft-actor-critic(SAC)</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#create-neural-network-model-for-reinforcement-learning">Create neural network model for reinforcement learning</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#create-new-reinforcement-algorithm">Create new reinforcement algorithm</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#create-reinforcement-learning-environment">Create reinforcement learning environment</a>
+    </li>
+        </ul>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#change-logs">Change logs</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#v11">v1.1</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#v20">v2.0</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#requirement">Requirement</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="DataPool/">data:DataPool</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="DataUnit/">data:DataUnit</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="BaseRLAlgo/">rlalgo:BaseRLAlgo</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="ExplorePolicy/">rlalgo:ExplorePolicy</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href=".">AquaML</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="." class="icon icon-home" alt="Docs"></a> &raquo;</li><li>Home</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="aquaml">AquaML</h1>
+<h2 id="features">Features</h2>
+<ol>
+<li>Support reinforcement learning, generative learning algorithm.</li>
+<li>Support reinforcement learning training with recurrent neural networks.</li>
+<li>Support RNN for reinforcement learning and provide two basic forms.</li>
+<li>Support multi-thread sampling and parameters tuning.</li>
+<li>Support high performance computer(HPC)</li>
+<li>Data communication has almost zero lat ency when running on a single machine.</li>
+</ol>
+<h2 id="install">Install</h2>
+<h2 id="tutorials">Tutorials</h2>
+<h3 id="train-pendulum-v0-with-soft-actor-criticsac">Train Pendulum-v0 with soft-actor-critic(SAC)</h3>
+<p>This tutorial is to show how to use AquaML to control pendulum-v0(https://gym.openai.com/envs/Pendulum-v0/). The
+environment is a continuous action space environment. The action is a 1-dim vector. The observation is a 3-dim vector.</p>
+<p>All the codes are available in Tutorial/tutorial1.py.</p>
+<h4 id="create-neural-network-model-for-reinforcement-learning">Create neural network model for reinforcement learning</h4>
+<p>AquaML just supports 'expert' TF model style, you can learn more in  https://tensorflow.google.cn/overview. But in
+AquaML, the reinforcement learning model must inherit from  <code>RLBaseModel</code>.</p>
+<h5 id="1-actor">1. Actor</h5>
+<p>Before creating please do the following things:</p>
+<pre><code class="language-python">import tensorflow as tf
+</code></pre>
+<p>Then we can create the model.</p>
+<pre><code class="language-python">class Actor_net(tf.keras.Model):
+    def __init__(self):
+        super(Actor_net, self).__init__()
+
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='tanh')
+</code></pre>
+<p>Point out learning rate. In <code>AuqaML</code>, each model can have its own learning rate</p>
+<pre><code class="language-python">    self.learning_rate = 2e-4
+</code></pre>
+<p>Our framework can fusion muti type data, please specify the input data name</p>
+<pre><code class="language-python">    self.input_name = ('obs',)
+</code></pre>
+<p>Actor net is special than others, its out may be different. Thus you should specify .</p>
+<pre><code class="language-python">    self.output_info = {'action': (1,)}
+</code></pre>
+<p>Then specify the optimizer of your neural network.</p>
+<p><code>_name</code> contains name of data, _info also contains shape.</p>
+<pre><code class="language-python">        self.optimizer = 'Adam'
+</code></pre>
+<p>Then declaim <code>call</code> function:</p>
+<pre><code class="language-python">    def call(self, obs):
+    x = self.dense1(obs)
+    x = self.dense2(x)
+    x = self.dense3(x)
+
+    # the output of actor network must be a tuple
+    # and the order of output must be the same as the order of output name
+
+    return (x,)
+</code></pre>
+<p>For actor, the return must be a tuple.</p>
+<p><code>reset</code> function is also needed in <code>AquaML</code>. </p>
+<pre><code class="language-python">    def reset(self):
+        pass
+</code></pre>
+<p>Our frame work support adaptive <code>log_std</code> . So the output of the <code>Actor_net</code> also contains <code>log_std</code>.</p>
+<p>For POMDP version:</p>
+<pre><code class="language-python">class Actor_net(tf.keras.Model):
+
+    def __init__(self):
+        super(Actor_net, self).__init__()
+
+        self.lstm = tf.keras.layers.LSTM(32, input_shape=(2,), return_sequences=False, return_state=True)
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
+        self.log_std = tf.keras.layers.Dense(1)
+
+        self.learning_rate = 2e-4
+
+        self.output_info = {'action': (1,), 'log_std': (1,), 'hidden1': (32,), 'hidden2': (32,)}
+
+        self.input_name = ('pos', 'hidden1', 'hidden2')
+
+        self.optimizer = 'Adam'
+
+    # @tf.function
+    def call(self, vel, hidden1, hidden2):
+        hidden_states = (hidden1, hidden2)
+        vel = tf.expand_dims(vel, axis=1)
+        whole_seq, last_seq, hidden_state = self.lstm(vel, hidden_states)
+        x = self.dense1(whole_seq)
+        x = self.dense2(x)
+        action = self.action_layer(x)
+        log_std = self.log_std(x)
+
+        return (action, log_std, last_seq, hidden_state)
+
+    def reset(self):
+        pass
+
+</code></pre>
+<h5 id="2-q-value-network">2. Q value network</h5>
+<p>Creating Q value network is similar to creating actor. However, the <code>call</code> 's return of Q is tf tensor not tuple. And
+in Q, the <code>output_info</code> can not be specified.</p>
+<pre><code class="language-python">class Q_net(tf.keras.Model):
+    def __init__(self):
+        super(Q_net, self).__init__()
+
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
+
+        # point out leaning rate
+        # each model can have different learning rate
+        self.learning_rate = 2e-3
+
+        # point out optimizer
+        # each model can have different optimizer
+        self.optimizer = 'Adam'
+
+        # point out input data name, this name must be contained in obs_info
+        self.input_name = ('obs', 'action')
+
+    def reset(self):
+        # This model does not contain RNN, so this function is not necessary,
+        # just pass
+
+        # If the model contains RNN, you should reset the state of RNN
+        pass
+
+    @tf.function
+    def call(self, obs, action):
+        x = tf.concat([obs, action], axis=-1)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        x = self.dense3(x)
+
+        return x
+</code></pre>
+<h5 id="3-environment">3. Environment</h5>
+<h6 id="gym-environment">Gym environment</h6>
+<p>If you use Gym environment, the you can wrap the environment by the following steps:</p>
+<h6 id="1-inherit-from-aquamlbaseclassrlbaseenv">1. Inherit from <code>AquaML.BaseClass.RLBaseEnv</code></h6>
+<pre><code class="language-python">from AquaML.BaseClass import RLBaseEnv
+</code></pre>
+<h6 id="2-specify-information-of-environment">2. Specify information of environment</h6>
+<pre><code class="language-python">import gym
+from AquaML.DataType import DataInfo
+
+class PendulumWrapper(RLBaseEnv):
+        def __init__(self, env_name: str):
+        super().__init__()
+        # TODO: update in the future
+        self.env = gym.make(env_name)
+        self.env_name = env_name
+
+        # our frame work support POMDP env
+        self._obs_info = DataInfo(
+            names=('obs',),
+            shapes=((3,)),
+            dtypes=np.float32
+        )
+</code></pre>
+<p>If you want change the environment into POMDP, then you can:</p>
+<pre><code class="language-python">       # If you want specify different observation you can
+        self._obs_info = DataInfo(
+            names=('obs','pos'),
+            shapes=((3,),(2,)),
+            dtypes=np.float32
+        )
+</code></pre>
+<h6 id="3-implement-reset">3. Implement <code>reset</code></h6>
+<pre><code class="language-python">    def reset(self):
+        observation = self.env.reset()
+        observation = observation.reshape(1, -1)
+
+        # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
+
+        obs = {'obs': observation}
+
+        obs = self.initial_obs(obs)
+
+        return obs
+</code></pre>
+<p>For POMDP version:</p>
+<pre><code class="language-python">    def reset(self):
+        observation = self.env.reset()
+        observation = observation.reshape(1, -1)
+
+        # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
+
+        # obs = {'obs': observation}
+        obs = {'obs': observation, 'pos': observation[:, :2]}
+
+        obs = self.initial_obs(obs)
+
+        return obs
+</code></pre>
+<h6 id="4-implement-step">4. Implement <code>step</code></h6>
+<pre><code class="language-python">    def step(self, action_dict):
+        action = action_dict['action']
+        action *= 2
+        observation, reward, done, info = self.env.step(action)
+        observation = observation.reshape(1, -1)
+
+        obs = {'obs': observation}
+
+        obs = self.check_obs(obs, action_dict)
+
+
+        reward = {'total_reward': reward}
+
+        return obs, reward, done, info
+</code></pre>
+<p>For POMDP version:</p>
+<pre><code class="language-python">    def step(self, action_dict):
+        action = action_dict['action']
+        action *= 2
+        observation, reward, done, info = self.env.step(action)
+        observation = observation.reshape(1, -1)
+
+        obs = {'obs': observation, 'pos': observation[:, :2]}
+
+        obs = self.check_obs(obs, action_dict)
+
+        # obs = {'obs': observation}
+        reward = {'total_reward': reward}
+
+        return obs, reward, done, info
+</code></pre>
+<h5 id="4-define-algorithm-parameters">4. Define algorithm parameters</h5>
+<p>This tutorial is about SAC, so :</p>
+<pre><code class="language-python">from AquaML.rlalgo.Parameters import SAC2_parameter
+
+sac_parameter = SAC2_parameter(
+    epoch_length=200,
+    n_epochs=10,
+    batch_size=32,
+    discount=0.99,
+    alpha=0.2,
+    tau=0.005,
+    buffer_size=100000,
+    mini_buffer_size=1000,
+    update_interval=50,
+)
+
+model_class_dict = {
+    'actor': Actor_net,
+    'qf1': Q_net,
+    'qf2': Q_net,
+}
+</code></pre>
+<h5 id="5-create-task-starter">5. Create task starter</h5>
+<pre><code class="language-python">from AquaML.starter.RLTaskStarter import RLTaskStarter  # RL task starter
+
+starter = RLTaskStarter(
+    env=env,
+    model_class_dict=model_class_dict,
+    algo=SAC2,
+    algo_hyperparameter=sac_parameter,
+)
+</code></pre>
+<h5 id="6-run-task">6. Run task</h5>
+<pre><code class="language-python">starter.run()
+</code></pre>
+<h5 id="7-run-by-mpi">7. Run by MPI</h5>
+<p>You can change the following codes to run parallelly.</p>
+<h6 id="configure-gpu">Configure gpu</h6>
+<pre><code class="language-python">import sys
+
+sys.path.append('..')
+
+from AquaML.Tool import allocate_gpu
+from mpi4py import MPI
+
+# get group communicator
+comm = MPI.COMM_WORLD
+allocate_gpu(comm)
+</code></pre>
+<p>Notice: This block must add at the head of python script.</p>
+<h6 id="revise-hyper-parameters">Revise hyper parameters</h6>
+<pre><code class="language-python">sac_parameter = SAC2_parameter(
+    episode_length=200,
+    n_epochs=200,
+    batch_size=256,
+    discount=0.99,
+    tau=0.005,
+    buffer_size=100000,
+    mini_buffer_size=5000,
+    update_interval=1000,
+    display_interval=1,
+    calculate_episodes=5,
+    alpha_learning_rate=3e-3,
+    update_times=100,
+)
+</code></pre>
+<h6 id="add-mpicomm-to-rl-starter">add MPI.comm to rl starter</h6>
+<pre><code class="language-python">starter = RLTaskStarter(
+    env=env,
+    model_class_dict=model_class_dict,
+    algo=SAC2,
+    algo_hyperparameter=sac_parameter,
+    mpi_comm=comm,
+    name='SAC'
+)
+
+</code></pre>
+<p>After those steps, you can run by the following command in terminal:</p>
+<pre><code class="language-bash">mpirun -n 6 python Tutorial1.py
+</code></pre>
+<h4 id="create-new-reinforcement-algorithm">Create new reinforcement algorithm</h4>
+<h4 id="create-reinforcement-learning-environment">Create reinforcement learning environment</h4>
+<h2 id="change-logs">Change logs</h2>
+<h4 id="v11">v1.1</h4>
+<ol>
+<li>unify <code>MPIRuner</code> API.</li>
+<li>Add <code>com</code> package, it contains all base class.</li>
+<li><code>save_data</code> and <code>load_data</code> are created for supervised learning and expert learning.</li>
+<li>Gradually convert our framework to next generation like HPC-v0.1.</li>
+<li>The following algos just use <code>DataCollector</code>(support all type of algo) instead of <code>DataManeger</code>.</li>
+<li>Add plot tools for rosbag, paper.</li>
+</ol>
+<h4 id="v20">v2.0</h4>
+<ol>
+<li>split optimize thread and worker thread.</li>
+<li>add soft actor critic.</li>
+</ol>
+<h2 id="requirement">Requirement</h2>
+<p>seaborn&lt;=0.9</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="DataPool/" class="btn btn-neutral float-right" title="data:DataPool">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+      <span><a href="DataPool/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '.';</script>
+    <script src="js/theme_extra.js" defer></script>
+    <script src="js/theme.js" defer></script>
+      <script src="search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
+
+<!--
+MkDocs version : 1.3.0
+Build Date UTC : 2023-02-21 17:37:56.971602+00:00
+-->

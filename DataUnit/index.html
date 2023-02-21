@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://aquaml.github.io/DataUnit/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>data:DataUnit - AquaML</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "data:DataUnit";
+        var mkdocs_page_input_path = "DataUnit.md";
+        var mkdocs_page_url = "/DataUnit/";
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> AquaML
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DataPool/">data:DataPool</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="./">data:DataUnit</a>
+    <ul class="current">
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../BaseRLAlgo/">rlalgo:BaseRLAlgo</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../ExplorePolicy/">rlalgo:ExplorePolicy</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">AquaML</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li><li>data:DataUnit</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <div class="doc doc-object doc-class">
+
+
+<a id="AquaML.data.DataUnit.DataUnit"></a>
+  <div class="doc doc-contents first">
+
+  
+      <p>The smallest data storage unit. It can be used in HPC (MPI) and 
+shared memory system.</p>
+<p>It can load from exit numpy array for data set learning.</p>
+
+
+        <details class="quote">
+          <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+          <pre class="highlight"><code class="language-python">class DataUnit:
+    """
+    The smallest data storage unit. It can be used in HPC (MPI) and 
+    shared memory system.
+
+    It can load from exit numpy array for data set learning.
+    """
+
+    def __init__(self, name: str, shape=None, dtype=np.float32, computer_type='PC', dataset: np.ndarray = None,
+                 level=None):
+        """Create data unit. If shape is not none, this data unit is used in main thread.
+        The unit is created depend on your computer type. If you use in high performance
+        computer(HPC), shared memmory isn't used.
+
+        Args:
+            name (str): _description_
+            shape (tuple, None): shape of data unit.If shape is none, the unit is in sub thread. 
+            (buffersize, dims)
+             Defaults to None.
+            dtype (nd.type): type of this data unit. Defaults to np.float32.
+            computer_type(str):When computer type is 'PC', mutlti thread is based on shared memory.Defaults to 'PC'.
+            dataset(np.ndarry, None): create unit from dataset. Defaults to None
+            level(int, None): Clarify level.
+
+        """
+
+        self.name = name
+
+        self._shape = shape
+        self._dtype = dtype
+
+        self._computer_type = computer_type
+
+        if shape is not None:
+            self.level = 0
+            self._buffer = np.zeros(shape=shape, dtype=self._dtype)
+            self.__nbytes = self._buffer.nbytes
+        else:
+            self.level = 1
+            self._buffer = None
+            self.__nbytes = None
+
+        if dataset is not None:
+            self.copy_from_exist_array(dataset)
+
+        if level is not None:
+            self.level = level
+
+        self.shm_buffer = None
+
+    def copy_from_exist_array(self, dataset: np.ndarray, level: int = 0):
+        """Copy data from exist np array.
+
+        Args:
+            dataset (np.ndarray): Dataset.
+            level (int): Thread level. Defaults to 0.
+        """
+        self._buffer = copy.deepcopy(dataset)
+        del dataset
+        self.level = level
+        self.__nbytes = self._buffer.nbytes
+        self._dtype = self._buffer.dtype
+
+    def create_shared_memory(self):
+        """Create shared-memory.
+        """
+        if self._computer_type == 'HPC':
+            warnings.warn("HPC can't support shared memory!")
+
+        if self.level == 0:
+            self.shm_buffer = shared_memory.SharedMemory(create=True, size=self.__nbytes, name=self.name)
+            self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
+        else:
+            raise Exception("Current thread is sub thread!")
+
+    def read_shared_memory(self, shape: tuple):
+        """Read shared memory.
+
+        Args:
+            shape (tuple): Buffer shape.
+
+        Raises:
+            Exception: can't be used in main thread!
+        """
+        if self._computer_type == 'HPC':
+            warnings.warn("HPC can't support shared memory!")
+
+        if self.level == 1:
+            self.__nbytes = self.compute_nbytes(shape)
+            self._shape = shape
+            self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
+            self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
+        else:
+            raise Exception("Current thread is main thread!")
+
+    def compute_nbytes(self, shape: tuple) -&gt; int:
+        """Compute numpy array nbytes.
+
+        Args:
+            shape (tuple): _description_
+
+        Returns:
+            _type_: int
+        """
+
+        a = np.arange(1, dtype=self._dtype)
+
+        single_nbytes = a.nbytes
+
+        total_size = 1
+
+        for size in shape:
+            total_size = total_size * size
+
+        total_size = total_size * single_nbytes
+
+        return total_size
+
+    def store(self, data, index: int):
+        """Store data in buffer.
+
+        Args:
+            data (any): feature in the training.
+            index (int): index of data.
+        """
+        self._buffer[index] = data
+
+    # set value. This is for args
+    def set_value(self, value):
+        """Set value.
+
+        Args:
+            value (any): value.
+        """
+        if self.level == 0:
+            self._buffer[:] = value[:]
+        else:
+            raise Exception("Current thread is sub thread!")
+
+    # get data slice
+    def get_slice(self, start: int, end: int):
+        """Get slice.
+
+        Args:
+            start (int): start index.
+            end (int): end index.
+
+        Returns:
+            _type_: np.ndarray
+        """
+        return self._buffer[start:end]
+
+    def get_data_by_indices(self, indices):
+        """Get data by indenes.
+
+        Args:
+            indices : indices.
+
+        Returns:
+            _type_: np.ndarray
+        """
+        return self._buffer[indices]
+
+    @property
+    def buffer(self):
+        """Get buffer.
+
+        Returns:
+            _type_: np.ndarray
+        """
+        return self._buffer
+
+    def close(self):
+        # TODO: 元数据里面不要加入等待指令
+        """
+        delete data.
+        """
+        del self._buffer
+
+        if self.shm_buffer is not None:
+            if self.level == 1:
+                self.shm_buffer.close()
+                self.shm_buffer.unlink()
+            else:
+                import time
+                time.sleep(0.5)
+                self.shm_buffer.close()
+
+    @property
+    def shape(self):
+        """Get shape.
+
+        Returns:
+            _type_: tuple
+        """
+        return self._shape
+
+    @property
+    def dtype(self):
+        """Get dtype.
+
+        Returns:
+            _type_: np.type
+        """
+        return self._dtype</code></pre>
+        </details>
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.buffer" class="doc doc-heading">
+<code class="highlight language-python">buffer</code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Get buffer.</p>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+<th>Name</th>        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+<td><code>_type_</code></td>          <td>
+          </td>
+          <td><p>np.ndarray</p></td>
+        </tr>
+    </tbody>
+  </table>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.dtype" class="doc doc-heading">
+<code class="highlight language-python">dtype</code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Get dtype.</p>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+<th>Name</th>        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+<td><code>_type_</code></td>          <td>
+          </td>
+          <td><p>np.type</p></td>
+        </tr>
+    </tbody>
+  </table>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.shape" class="doc doc-heading">
+<code class="highlight language-python">shape</code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Get shape.</p>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+<th>Name</th>        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+<td><code>_type_</code></td>          <td>
+          </td>
+          <td><p>tuple</p></td>
+        </tr>
+    </tbody>
+  </table>
+  </div>
+
+</div>
+
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.__init__" class="doc doc-heading">
+<code class="highlight language-python">__init__(name, shape=None, dtype=np.float32, computer_type='PC', dataset=None, level=None)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Create data unit. If shape is not none, this data unit is used in main thread.
+The unit is created depend on your computer type. If you use in high performance
+computer(HPC), shared memmory isn't used.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>name</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td><p><em>description</em></p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>shape</code></td>
+          <td>
+                <code>tuple, None</code>
+          </td>
+          <td><p>shape of data unit.If shape is none, the unit is in sub thread. </p></td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>dtype</code></td>
+          <td>
+                <code>nd.<span title="nd.type">type</span></code>
+          </td>
+          <td><p>type of this data unit. Defaults to np.float32.</p></td>
+          <td>
+                <code>np.float32</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>computer_type(str)</code></td>
+          <td>
+          </td>
+          <td><p>When computer type is 'PC', mutlti thread is based on shared memory.Defaults to 'PC'.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>dataset(np.ndarry,</code></td>
+          <td>
+                <code>None</code>
+          </td>
+          <td><p>create unit from dataset. Defaults to None</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>level(int,</code></td>
+          <td>
+                <code>None</code>
+          </td>
+          <td><p>Clarify level.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def __init__(self, name: str, shape=None, dtype=np.float32, computer_type='PC', dataset: np.ndarray = None,
+             level=None):
+    """Create data unit. If shape is not none, this data unit is used in main thread.
+    The unit is created depend on your computer type. If you use in high performance
+    computer(HPC), shared memmory isn't used.
+
+    Args:
+        name (str): _description_
+        shape (tuple, None): shape of data unit.If shape is none, the unit is in sub thread. 
+        (buffersize, dims)
+         Defaults to None.
+        dtype (nd.type): type of this data unit. Defaults to np.float32.
+        computer_type(str):When computer type is 'PC', mutlti thread is based on shared memory.Defaults to 'PC'.
+        dataset(np.ndarry, None): create unit from dataset. Defaults to None
+        level(int, None): Clarify level.
+
+    """
+
+    self.name = name
+
+    self._shape = shape
+    self._dtype = dtype
+
+    self._computer_type = computer_type
+
+    if shape is not None:
+        self.level = 0
+        self._buffer = np.zeros(shape=shape, dtype=self._dtype)
+        self.__nbytes = self._buffer.nbytes
+    else:
+        self.level = 1
+        self._buffer = None
+        self.__nbytes = None
+
+    if dataset is not None:
+        self.copy_from_exist_array(dataset)
+
+    if level is not None:
+        self.level = level
+
+    self.shm_buffer = None</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.close" class="doc doc-heading">
+<code class="highlight language-python">close()</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>delete data.</p>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def close(self):
+    # TODO: 元数据里面不要加入等待指令
+    """
+    delete data.
+    """
+    del self._buffer
+
+    if self.shm_buffer is not None:
+        if self.level == 1:
+            self.shm_buffer.close()
+            self.shm_buffer.unlink()
+        else:
+            import time
+            time.sleep(0.5)
+            self.shm_buffer.close()</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.compute_nbytes" class="doc doc-heading">
+<code class="highlight language-python">compute_nbytes(shape)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Compute numpy array nbytes.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>shape</code></td>
+          <td>
+                <code>tuple</code>
+          </td>
+          <td><p><em>description</em></p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+<th>Name</th>        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+<td><code>_type_</code></td>          <td>
+                <code>int</code>
+          </td>
+          <td><p>int</p></td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def compute_nbytes(self, shape: tuple) -&gt; int:
+    """Compute numpy array nbytes.
+
+    Args:
+        shape (tuple): _description_
+
+    Returns:
+        _type_: int
+    """
+
+    a = np.arange(1, dtype=self._dtype)
+
+    single_nbytes = a.nbytes
+
+    total_size = 1
+
+    for size in shape:
+        total_size = total_size * size
+
+    total_size = total_size * single_nbytes
+
+    return total_size</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.copy_from_exist_array" class="doc doc-heading">
+<code class="highlight language-python">copy_from_exist_array(dataset, level=0)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Copy data from exist np array.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>dataset</code></td>
+          <td>
+                <code><span title="numpy">np</span>.<span title="numpy.ndarray">ndarray</span></code>
+          </td>
+          <td><p>Dataset.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>level</code></td>
+          <td>
+                <code>int</code>
+          </td>
+          <td><p>Thread level. Defaults to 0.</p></td>
+          <td>
+                <code>0</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def copy_from_exist_array(self, dataset: np.ndarray, level: int = 0):
+    """Copy data from exist np array.
+
+    Args:
+        dataset (np.ndarray): Dataset.
+        level (int): Thread level. Defaults to 0.
+    """
+    self._buffer = copy.deepcopy(dataset)
+    del dataset
+    self.level = level
+    self.__nbytes = self._buffer.nbytes
+    self._dtype = self._buffer.dtype</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.create_shared_memory" class="doc doc-heading">
+<code class="highlight language-python">create_shared_memory()</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Create shared-memory.</p>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def create_shared_memory(self):
+    """Create shared-memory.
+    """
+    if self._computer_type == 'HPC':
+        warnings.warn("HPC can't support shared memory!")
+
+    if self.level == 0:
+        self.shm_buffer = shared_memory.SharedMemory(create=True, size=self.__nbytes, name=self.name)
+        self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
+    else:
+        raise Exception("Current thread is sub thread!")</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.get_data_by_indices" class="doc doc-heading">
+<code class="highlight language-python">get_data_by_indices(indices)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Get data by indenes.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>indices</code></td>
+          <td>
+          </td>
+          <td><p>indices.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+<th>Name</th>        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+<td><code>_type_</code></td>          <td>
+          </td>
+          <td><p>np.ndarray</p></td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def get_data_by_indices(self, indices):
+    """Get data by indenes.
+
+    Args:
+        indices : indices.
+
+    Returns:
+        _type_: np.ndarray
+    """
+    return self._buffer[indices]</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.get_slice" class="doc doc-heading">
+<code class="highlight language-python">get_slice(start, end)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Get slice.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start</code></td>
+          <td>
+                <code>int</code>
+          </td>
+          <td><p>start index.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end</code></td>
+          <td>
+                <code>int</code>
+          </td>
+          <td><p>end index.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+<th>Name</th>        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+<td><code>_type_</code></td>          <td>
+          </td>
+          <td><p>np.ndarray</p></td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def get_slice(self, start: int, end: int):
+    """Get slice.
+
+    Args:
+        start (int): start index.
+        end (int): end index.
+
+    Returns:
+        _type_: np.ndarray
+    """
+    return self._buffer[start:end]</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.read_shared_memory" class="doc doc-heading">
+<code class="highlight language-python">read_shared_memory(shape)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Read shared memory.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>shape</code></td>
+          <td>
+                <code>tuple</code>
+          </td>
+          <td><p>Buffer shape.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Raises:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code>Exception</code>
+          </td>
+          <td><p>can't be used in main thread!</p></td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def read_shared_memory(self, shape: tuple):
+    """Read shared memory.
+
+    Args:
+        shape (tuple): Buffer shape.
+
+    Raises:
+        Exception: can't be used in main thread!
+    """
+    if self._computer_type == 'HPC':
+        warnings.warn("HPC can't support shared memory!")
+
+    if self.level == 1:
+        self.__nbytes = self.compute_nbytes(shape)
+        self._shape = shape
+        self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
+        self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
+    else:
+        raise Exception("Current thread is main thread!")</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.set_value" class="doc doc-heading">
+<code class="highlight language-python">set_value(value)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Set value.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>value</code></td>
+          <td>
+                <code>any</code>
+          </td>
+          <td><p>value.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def set_value(self, value):
+    """Set value.
+
+    Args:
+        value (any): value.
+    """
+    if self.level == 0:
+        self._buffer[:] = value[:]
+    else:
+        raise Exception("Current thread is sub thread!")</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.data.DataUnit.DataUnit.store" class="doc doc-heading">
+<code class="highlight language-python">store(data, index)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Store data in buffer.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>data</code></td>
+          <td>
+                <code>any</code>
+          </td>
+          <td><p>feature in the training.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>index</code></td>
+          <td>
+                <code>int</code>
+          </td>
+          <td><p>index of data.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/data/DataUnit.py</code></summary>
+        <pre class="highlight"><code class="language-python">def store(self, data, index: int):
+    """Store data in buffer.
+
+    Args:
+        data (any): feature in the training.
+        index (int): index of data.
+    """
+    self._buffer[index] = data</code></pre>
+      </details>
+  </div>
+
+</div>
+
+
+
+  </div>
+
+  </div>
+
+</div><p>options:
+      show_source: false</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../DataPool/" class="btn btn-neutral float-left" title="data:DataPool"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../BaseRLAlgo/" class="btn btn-neutral float-right" title="rlalgo:BaseRLAlgo">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../DataPool/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../BaseRLAlgo/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

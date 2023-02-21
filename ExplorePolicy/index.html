@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://aquaml.github.io/ExplorePolicy/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>rlalgo:ExplorePolicy - AquaML</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "rlalgo:ExplorePolicy";
+        var mkdocs_page_input_path = "ExplorePolicy.md";
+        var mkdocs_page_url = "/ExplorePolicy/";
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> AquaML
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DataPool/">data:DataPool</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../DataUnit/">data:DataUnit</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../BaseRLAlgo/">rlalgo:BaseRLAlgo</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="./">rlalgo:ExplorePolicy</a>
+    <ul class="current">
+    </ul>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">AquaML</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li><li>rlalgo:ExplorePolicy</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <div class="doc doc-object doc-module">
+
+
+<a id="AquaML.rlalgo.ExplorePolicy"></a>
+  <div class="doc doc-contents first">
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h1 id="AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase" class="doc doc-heading">
+        <code>ExplorePolicyBase</code>
+
+
+</h1>
+
+
+  <div class="doc doc-contents ">
+      <p class="doc doc-class-bases">
+        Bases: <code>abc.<span title="abc.ABC">ABC</span></code></p>
+
+  
+      <p>Explore policy base class.</p>
+<p>Example of using this class:
+explore_policy = GaussianExplorePolicy(shape)
+action, prob = explore_policy(mu, log_std)</p>
+<p>New explore policy should inherit this class.
+Another things you should do:
+1. declare the input_info. It is a tuple. It is used to get the input of explore policy.
+Notice: the order of input_info is the same as the order of input of scale_out function.</p>
+
+
+        <details class="quote">
+          <summary>Source code in <code>AquaML/rlalgo/ExplorePolicy.py</code></summary>
+          <pre class="highlight"><code class="language-python">class ExplorePolicyBase(abc.ABC):
+    """Explore policy base class.
+
+    Example of using this class:
+    explore_policy = GaussianExplorePolicy(shape)
+    action, prob = explore_policy(mu, log_std)
+
+    New explore policy should inherit this class.
+    Another things you should do:
+    1. declare the input_info. It is a tuple. It is used to get the input of explore policy.
+    Notice: the order of input_info is the same as the order of input of scale_out function.
+
+
+    """
+
+    def __init__(self, shape):
+        self.shape = shape
+        self.input_name = None  # tuple
+
+    @abc.abstractmethod
+    def noise_and_prob(self, batch_size=1):
+        """
+        This function must use tf.function to accelerate.
+        All the exploration noise use reparameter tricks.
+        """
+
+    @abc.abstractmethod
+    def scale_out(self, *args, **kwargs):
+        """
+        Scale the action to the range of environment.
+        """
+
+    def __call__(self, inputs_dict: dict):
+        """inputs_dict is a dict. The key is the name of input. The value is the input.
+        inputs_dict must contain all the output of actor model.
+        such as:
+        inputs_dict = {'mu':mu, 'log_std':log_std}
+
+        args:
+        inputs_dict (dict): dict of inputs. The key is the name of input. The value is the input.
+        return:
+        action (tf.Tensor): action of environment.
+        prob (tf.Tensor): probability of action.
+        """
+        # get inputs from inputs_dict
+
+        inputs = []
+
+        for key in self.input_name:
+            inputs.append(inputs_dict[key])
+
+        return self.scale_out(*inputs)
+
+    @abc.abstractmethod
+    def resample_prob(self, mu, log_std, action):
+        """
+        Resample the probability of action.
+        """</code></pre>
+        </details>
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase.__call__" class="doc doc-heading">
+<code class="highlight language-python">__call__(inputs_dict)</code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>inputs_dict is a dict. The key is the name of input. The value is the input.
+inputs_dict must contain all the output of actor model.
+such as:
+inputs_dict = {'mu':mu, 'log_std':log_std}</p>
+      <p>inputs_dict (dict): dict of inputs. The key is the name of input. The value is the input.
+return:
+action (tf.Tensor): action of environment.
+prob (tf.Tensor): probability of action.</p>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/rlalgo/ExplorePolicy.py</code></summary>
+        <pre class="highlight"><code class="language-python">def __call__(self, inputs_dict: dict):
+    """inputs_dict is a dict. The key is the name of input. The value is the input.
+    inputs_dict must contain all the output of actor model.
+    such as:
+    inputs_dict = {'mu':mu, 'log_std':log_std}
+
+    args:
+    inputs_dict (dict): dict of inputs. The key is the name of input. The value is the input.
+    return:
+    action (tf.Tensor): action of environment.
+    prob (tf.Tensor): probability of action.
+    """
+    # get inputs from inputs_dict
+
+    inputs = []
+
+    for key in self.input_name:
+        inputs.append(inputs_dict[key])
+
+    return self.scale_out(*inputs)</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase.noise_and_prob" class="doc doc-heading">
+<code class="highlight language-python">noise_and_prob(batch_size=1)</code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>This function must use tf.function to accelerate.
+All the exploration noise use reparameter tricks.</p>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/rlalgo/ExplorePolicy.py</code></summary>
+        <pre class="highlight"><code class="language-python">@abc.abstractmethod
+def noise_and_prob(self, batch_size=1):
+    """
+    This function must use tf.function to accelerate.
+    All the exploration noise use reparameter tricks.
+    """</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase.resample_prob" class="doc doc-heading">
+<code class="highlight language-python">resample_prob(mu, log_std, action)</code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Resample the probability of action.</p>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/rlalgo/ExplorePolicy.py</code></summary>
+        <pre class="highlight"><code class="language-python">@abc.abstractmethod
+def resample_prob(self, mu, log_std, action):
+    """
+    Resample the probability of action.
+    """</code></pre>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase.scale_out" class="doc doc-heading">
+<code class="highlight language-python">scale_out(*args, **kwargs)</code>
+  
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Scale the action to the range of environment.</p>
+
+      <details class="quote">
+        <summary>Source code in <code>AquaML/rlalgo/ExplorePolicy.py</code></summary>
+        <pre class="highlight"><code class="language-python">@abc.abstractmethod
+def scale_out(self, *args, **kwargs):
+    """
+    Scale the action to the range of environment.
+    """</code></pre>
+      </details>
+  </div>
+
+</div>
+
+
+
+  </div>
+
+  </div>
+
+</div>
+
+
+
+
+  </div>
+
+  </div>
+
+</div><p>options:
+      show_source: false</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+<a id="AquaML.rlalgo.ExplorePolicy.GaussianExplorePolicy"></a>
+  <div class="doc doc-contents first">
+      <p class="doc doc-class-bases">
+        Bases: <code><a class="autorefs autorefs-internal" title="AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase" href="#AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase">ExplorePolicyBase</a></code></p>
+
+
+
+        <details class="quote">
+          <summary>Source code in <code>AquaML/rlalgo/ExplorePolicy.py</code></summary>
+          <pre class="highlight"><code class="language-python">class GaussianExplorePolicy(ExplorePolicyBase):
+    def __init__(self, shape):
+        super().__init__(shape)
+        mu = tf.zeros(shape, dtype=tf.float32)
+        sigma = tf.ones(shape, dtype=tf.float32)
+        self.dist = tfp.distributions.Normal(loc=mu, scale=sigma)
+        self.input_name = ('action', 'log_std')
+
+    @tf.function
+    def noise_and_prob(self, batch_size=1):
+        noise = self.dist.sample(batch_size)
+        prob = self.dist.prob(noise)
+
+        return noise, prob
+
+    def scale_out(self, mu, log_std):
+        sigma = tf.exp(log_std)
+        noise, prob = self.noise_and_prob()
+        action = mu + sigma * noise
+
+        return action, prob
+
+    def resample_prob(self, mu, std, action):
+        # sigma = tf.exp(log_std)
+        dist = tfp.distributions.Normal(loc=mu, scale=std)
+        log_prob = dist.log_prob(action)
+        return log_prob</code></pre>
+        </details>
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+  </div>
+
+</div><p>options:
+      show_source: false</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+<a id="AquaML.rlalgo.ExplorePolicy.VoidExplorePolicy"></a>
+  <div class="doc doc-contents first">
+      <p class="doc doc-class-bases">
+        Bases: <code><a class="autorefs autorefs-internal" title="AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase" href="#AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase">ExplorePolicyBase</a></code></p>
+
+
+
+        <details class="quote">
+          <summary>Source code in <code>AquaML/rlalgo/ExplorePolicy.py</code></summary>
+          <pre class="highlight"><code class="language-python">class VoidExplorePolicy(ExplorePolicyBase):
+    def __init__(self, shape):
+        super().__init__(shape)
+        self.input_name = ('action',)
+
+    @tf.function
+    def noise_and_prob(self, batch_size=1):
+        return tf.zeros((batch_size, *self.shape)), tf.ones((batch_size, *self.shape))
+
+    def scale_out(self, mu):
+        return mu, tf.ones((1, *self.shape))
+
+    def resample_prob(self, mu, log_std, action):
+        return tf.ones((1, *self.shape))</code></pre>
+        </details>
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+  </div>
+
+</div><p>options:
+      show_source: false</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../BaseRLAlgo/" class="btn btn-neutral float-left" title="rlalgo:BaseRLAlgo"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../BaseRLAlgo/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

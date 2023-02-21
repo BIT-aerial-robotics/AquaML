@@ -24,6 +24,7 @@ class RLWorker:
         self.obs = None
         self.step_count = 0
 
+    # TODO: 加入最大步数限制
     def step(self):
 
         # reset the environment and actor model

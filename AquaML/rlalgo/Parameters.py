@@ -167,9 +167,10 @@ class PPO_parameter(BaseParameter):
 
         Args:
             epoch_length (int): length of epoch.
-            total_steps (int): total steps for one epoch.
+            total_steps (int): total steps for one epoch. Also, can be seen as the buffer size.
             n_epochs (int): times of optimizing the network.
             batch_size (int): batch size.
+            epsilon (float): epsilon for clipping. Also, can be seen as the clip range.
 
 
         """
@@ -184,3 +185,41 @@ class PPO_parameter(BaseParameter):
         self.calculate_episodes = int(self.buffer_size / self.epoch_length)
         # self.learning_rate = learning_rate
         # self.update_interval = update_interval
+
+
+class FusionPPO_parameter(BaseParameter):
+
+    def __init__(self,
+                 epoch_length: int,
+                 n_epochs: int,
+                 total_steps: int,
+                 batch_size: int,
+                 update_times: int = 4,
+                 update_critic_times: int = 1,
+                 update_actor_times: int = 1,
+                 entropy_coeff: float = 0.01,
+                 epsilon: float = 0.2,
+                 gamma: float = 0.99,
+                 lambada: float = 0.95,
+                 ):
+        """
+        Parameters of Fusion PPO algorithm.
+
+        Args:
+            epoch_length (int): length of epoch.
+            total_steps (int): total steps for one epoch. Also, can be seen as the buffer size.
+            n_epochs (int): times of optimizing the network.
+            batch_size (int): batch size.
+            epsilon (float): epsilon for clipping. Also, can be seen as the clip range.
+            gamma (float): discount factor.
+            lambada (float): lambada for GAE.
+            entropy_coeff (float): entropy coefficient.
+        """
+        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times)
+
+        self.gamma = gamma
+        self.lambada = lambada
+        self.entropy_coeff = entropy_coeff
+        self.epsilon = epsilon
+        self.update_critic_times = update_critic_times
+        self.update_actor_times = update_actor_times

@@ -134,7 +134,7 @@ class Actor_net(tf.keras.Model):
 
 ```
 
-
+``Notice``: We recommend the activation of output layer is tanh
 
 ##### 2. Q value network
 
@@ -383,6 +383,8 @@ sac_parameter = SAC2_parameter(
     update_times=100,
 )
 ```
+
+``Notice``: The ``buffer_size`` denotes to data pool size. It will be auto changed by starter according to threads you use. We recommend you set the ``buffer_size`` integer multiple of threads.  
 
 ###### add MPI.comm to rl starter
 

@@ -514,7 +514,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         # average
         for key, value in average_batch_dict.items():
-            average_batch_dict[key] = np.mean(value)
+            if 'gard' in key:
+                pass
+            else:
+                average_batch_dict[key] = np.mean(value)
 
         return average_batch_dict
 

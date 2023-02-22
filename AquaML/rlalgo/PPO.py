@@ -84,6 +84,7 @@ class PPO(BaseRLAlgo):
         # create exploration policy
         self.create_gaussian_exploration_policy()
 
+    @tf.function
     def train_critic(self,
                      critic_obs: tuple,
                      target: tf.Tensor,
@@ -101,6 +102,7 @@ class PPO(BaseRLAlgo):
         }
         return dic
 
+    @tf.function
     def train_actor(self,
                     actor_obs: tuple,
                     advantage: tf.Tensor,
@@ -111,7 +113,9 @@ class PPO(BaseRLAlgo):
                     ):
 
         with tf.GradientTape() as tape:
-            log_prob = self.resample_log_prob(actor_obs, action)
+            out = self.resample_log_prob(actor_obs, action)
+
+            log_prob = out[0]
 
             # importance sampling
             ratio = tf.exp(log_prob - old_log_prob)

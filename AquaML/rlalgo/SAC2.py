@@ -166,8 +166,9 @@ class SAC2(BaseRLAlgo):
         Returns:
             info: dict, information of training
         """
-        next_action, next_log_pi = self.resample_action(next_actor_obs)
-        # log_pi, action = self.resample_action(actor_obs)
+
+        out = self.resample_action(next_actor_obs)
+        next_action, next_log_pi = out[0], out[1]
 
         # compute min Q_target(s',a')
         next_q_target1 = self.target_qf1(*next_qf_obs, next_action)
@@ -232,7 +233,8 @@ class SAC2(BaseRLAlgo):
         """
 
         with tf.GradientTape() as tape:
-            action, log_pi = self.resample_action(actor_obs)
+            out = self.resample_action(actor_obs)
+            action, log_pi = out[0], out[1]
             alpha_loss = -tf.reduce_mean(tf.exp(self.tf_log_alpha) * (log_pi + self.target_entropy))
 
         alpha_grad = tape.gradient(alpha_loss, [self.tf_log_alpha])
@@ -265,7 +267,9 @@ class SAC2(BaseRLAlgo):
         # compute log_pi
 
         with tf.GradientTape() as tape:
-            action, log_pi = self.resample_action(actor_obs)
+            out = self.resample_action(actor_obs)
+
+            action, log_pi = out[0], out[1]
 
             # compute min Q(s,a)
             q1 = self.qf1(*q_obs, action)
@@ -284,7 +288,9 @@ class SAC2(BaseRLAlgo):
 
     @tf.function
     def train_all(self, qf_obs, next_qf_obs, actor_obs, next_actor_obs, action, mask, reward, gamma):
-        next_log_pi, next_new_action = self.resample_action(next_actor_obs)
+        out = self.resample_action(next_actor_obs)
+
+        next_log_pi, next_new_action = out[0], out[1]
 
         # compute min Q_target(s',a')
         next_q_target1 = self.target_qf1(*next_qf_obs, next_new_action)
@@ -312,7 +318,9 @@ class SAC2(BaseRLAlgo):
 
         with tf.GradientTape() as a_tape:
             # compute min Q(s,a)
-            log_pi, new_action = self.resample_action(actor_obs)
+            out = self.resample_action(actor_obs)
+            log_pi, new_action = out[0], out[1]
+
             q1 = self.qf1(*qf_obs, new_action)
             q2 = self.qf2(*qf_obs, new_action)
             min_q = tf.minimum(q1, q2)

@@ -1,3 +1,6 @@
+import sys
+
+sys.path.append('..')
 import tensorflow as tf
 from AquaML.rlalgo.PPO import PPO  # SAC algorithm
 from AquaML.rlalgo.Parameters import PPO_parameter
@@ -16,21 +19,24 @@ class Actor_net(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
+        self.log_std = tf.keras.layers.Dense(1)
 
         self.learning_rate = 2e-4
 
-        self.output_info = {'action': (1,), }
+        self.output_info = {'action': (1,), 'log_std': (1,)}
 
         self.input_name = ('obs',)
 
         self.optimizer = 'Adam'
 
+    @tf.function
     def call(self, obs):
         x = self.dense1(obs)
         x = self.dense2(x)
         action = self.action_layer(x)
+        log_std = self.log_std(x)
 
-        return (action,)
+        return (action, log_std)
 
     def reset(self):
         pass
@@ -114,7 +120,7 @@ ppo_parameter = PPO_parameter(
     epoch_length=200,
     n_epochs=2000,
     total_steps=4000,
-    batch_size=64,
+    batch_size=32,
     update_times=4,
     update_actor_times=1,
     update_critic_times=2,

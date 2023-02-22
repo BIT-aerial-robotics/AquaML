@@ -840,6 +840,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     ############################# resample function ################################
     # resample action method
 
+    # The output of resample function is tuple. The last element is the output of actor model.
     @tf.function
     def _resample_action_no_log_std(self, actor_obs: tuple):
         """
@@ -864,7 +865,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         action = mu + noise * sigma
         log_pi = tf.math.log(prob)
 
-        return action, log_pi
+        return (action, log_pi)
 
     @tf.function
     def _resample_action_log_std(self, actor_obs: tuple):
@@ -894,7 +895,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         log_prob = tf.math.log(prob)
 
-        return action, log_prob
+        return (action, log_prob)
 
     # @tf.function
     def _resample_action_log_prob(self, actor_obs: tuple):
@@ -914,7 +915,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         action, log_prob = self.actor(*actor_obs)
 
-        return action, log_prob
+        return (action, log_prob)
 
     def _resample_log_prob_no_std(self, obs, action):
 
@@ -933,7 +934,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         std = tf.exp(self.tf_log_std)
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
-        return log_prob
+        return (log_prob, *out)
 
     # def _resample_log_prob_with_std(self, obs, action):
 
@@ -951,7 +952,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         std = tf.exp(log_std)
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
-        return log_prob
+        return (log_prob, *out)
 
     def concat_dict(self, dict_tuple: tuple):
         """

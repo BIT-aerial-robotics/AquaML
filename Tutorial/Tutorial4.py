@@ -3,6 +3,14 @@ In this tutorial we will learn how to use the FusionPPO algorithm to train a RL 
 
 The environment we use is the POMDP Pendulum-v1.
 """
+import sys
+sys.path.append('..')
+from AquaML.Tool import allocate_gpu
+from mpi4py import MPI
+
+# get group communicator
+comm = MPI.COMM_WORLD
+allocate_gpu(comm)
 
 import tensorflow as tf
 from AquaML.DataType import DataInfo
@@ -24,12 +32,14 @@ class Actor_net(tf.keras.Model):
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
 
         self.action_dense = tf.keras.layers.Dense(64, activation='relu')
+        self.action_dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
 
         self.value_dense = tf.keras.layers.Dense(64, activation='relu')
+        self.value_dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.value_layer = tf.keras.layers.Dense(1)
 
-        self.learning_rate = 2e-4
+        self.learning_rate = 2e-3
 
         self.rnn_flag = True
 
@@ -45,8 +55,10 @@ class Actor_net(tf.keras.Model):
         whole_seq, last_seq, hidden_state = self.lstm(vel, hidden_states)
         x = self.dense2(whole_seq)
         action_x = self.action_dense(x)
+        action_x = self.action_dense2(action_x)
         action = self.action_layer(action_x)
         value_x = self.value_dense(x)
+        value_x = self.value_dense2(value_x)
         value = self.value_layer(value_x)
 
         return (action, value, last_seq, hidden_state)
@@ -136,11 +148,11 @@ env = PendulumWrapper('Pendulum-v1')
 fusion_ppo_parameter = FusionPPO_parameter(
     epoch_length=200,
     n_epochs=2000,
-    total_steps=4000,
-    batch_size=256,
+    total_steps=6000,
+    batch_size=20,
     update_times=4,
-    update_actor_times=2,
-    update_critic_times=4,
+    update_actor_times=6,
+    update_critic_times=6,
     gamma=0.99,
     epsilon=0.2,
     lambada=0.95,
@@ -157,7 +169,8 @@ starter = RLTaskStarter(
     model_class_dict=model_class_dict,
     algo=FusionPPO,
     algo_hyperparameter=fusion_ppo_parameter,
-    name='FPPO'
+    name='FPPO2',
+    mpi_comm=comm,
 )
 
 starter.run()

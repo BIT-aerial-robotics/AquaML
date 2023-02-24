@@ -137,13 +137,13 @@ class RLTaskStarter(BaseStarter):
 
     def _run_mpi_(self):
         for i in range(self.max_epochs):
-            if self.thread_id == 0:
+            if self.level == 0:
                 self.algo.sync()
             else:
                 pass
             self.mpi_comm.Barrier()
 
-            if self.thread_id > 0:
+            if self.level == 1:
                 self.algo.sync()
                 self.algo.worker.roll(self.roll_out_length)
                 self.roll_out_length = self.update_interval

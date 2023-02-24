@@ -724,8 +724,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             self.log_std = DataUnit(name=self.name + '_log_std', dtype=np.float32,
                                     shape=self.rl_io_info.actor_out_info['action'],
                                     level=self.level, computer_type=self._computer_type)
-
-            self.log_std.set_value(np.zeros(self.rl_io_info.actor_out_info['action'], dtype=np.float32) - 0.5)
+            if self.level == 0:
+                self.log_std.set_value(np.zeros(self.rl_io_info.actor_out_info['action'], dtype=np.float32) - 0.5)
             self.tf_log_std = tf.Variable(self.log_std.buffer, trainable=True)
             self._explore_dict = {'log_std': self.tf_log_std}
 

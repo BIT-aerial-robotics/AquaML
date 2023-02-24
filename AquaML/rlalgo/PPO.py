@@ -215,51 +215,95 @@ class PPO(BaseRLAlgo):
             for idx in self.expand_dims_idx:
                 actor_obs[idx] = tf.expand_dims(actor_obs[idx], axis=1)
 
+        info_list = []
+        buffer_size = train_actor_input['actor_obs'][0].shape[0]
+        critic_buffer_size = self.hyper_parameters.buffer_size
+        critic_batch_steps = self.hyper_parameters.batch_size
+
         for _ in range(self.hyper_parameters.update_times):
-            # train actor
-            # TODO: wrap this part into a function
-            for _ in range(self.hyper_parameters.update_actor_times):
-                start_index = 0
-                end_index = 0
+            # fusion ppo firstly update critic
+            start_index = 0
+            end_index = 0
+            critic_start_index = 0
+            while end_index < buffer_size:
+                end_index = min(start_index + self.hyper_parameters.batch_size,
+                                buffer_size)
+                critic_end_index = min(critic_start_index + critic_batch_steps, critic_buffer_size)
+                critic_optimize_info_list = []
                 actor_optimize_info_list = []
-                while end_index < self.hyper_parameters.buffer_size:
-                    end_index = min(start_index + self.hyper_parameters.batch_size, self.hyper_parameters.buffer_size)
+                batch_train_actor_input = self.get_batch_data(train_actor_input, start_index, end_index)
+                batch_train_critic_input = self.get_batch_data(train_critic_input, critic_start_index, critic_end_index)
+                start_index = end_index
+                critic_start_index = critic_end_index
+                for _ in range(self.hyper_parameters.update_critic_times):
+                    critic_optimize_info = self.train_critic(
+                        critic_obs=batch_train_critic_input['critic_obs'],
+                        target=batch_train_critic_input['target'],
+                    )
+                    critic_optimize_info_list.append(critic_optimize_info)
 
-                    batch_train_actor_input = self.get_batch_data(train_actor_input, start_index, end_index)
-
-                    start_index = end_index
-
+                for _ in range(self.hyper_parameters.update_actor_times):
                     actor_optimize_info = self.train_actor(
                         actor_obs=batch_train_actor_input['actor_obs'],
                         advantage=batch_train_actor_input['advantage'],
                         old_log_prob=batch_train_actor_input['old_log_prob'],
                         action=batch_train_actor_input['action'],
-                        epsilon=tf.cast(self.hyper_parameters.epsilon, dtype=tf.float32),
-                        entropy_coefficient=tf.cast(self.hyper_parameters.entropy_coeff, dtype=tf.float32),
                     )
                     actor_optimize_info_list.append(actor_optimize_info)
+                critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)
                 actor_optimize_info = self.cal_average_batch_dict(actor_optimize_info_list)
+                info = {**critic_optimize_info, **actor_optimize_info}
+                info_list.append(info)
 
-            # train critic
-            for _ in range(self.hyper_parameters.update_critic_times):
-                start_index = 0
-                end_index = 0
-                critic_optimize_info_list = []
-                for _ in range(self.hyper_parameters.update_critic_times):
-                    while end_index < self.hyper_parameters.buffer_size:
-                        end_index = min(start_index + self.hyper_parameters.batch_size,
-                                        self.hyper_parameters.buffer_size)
+            info = self.cal_average_batch_dict(info_list)
 
-                        batch_train_critic_input = self.get_batch_data(train_critic_input, start_index, end_index)
+            return info
 
-                        start_index = end_index
-
-                        critic_optimize_info = self.train_critic(
-                            critic_obs=batch_train_critic_input['critic_obs'],
-                            target=batch_train_critic_input['target'],
-                        )
-                        critic_optimize_info_list.append(critic_optimize_info)
-                    critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)
-
-        return_dict = {**actor_optimize_info, **critic_optimize_info}
-        return return_dict
+        # for _ in range(self.hyper_parameters.update_times):
+        #     # train actor
+        #     # TODO: wrap this part into a function
+        #     for _ in range(self.hyper_parameters.update_actor_times):
+        #         start_index = 0
+        #         end_index = 0
+        #         actor_optimize_info_list = []
+        #         while end_index < self.hyper_parameters.buffer_size:
+        #             end_index = min(start_index + self.hyper_parameters.batch_size, self.hyper_parameters.buffer_size)
+        #
+        #             batch_train_actor_input = self.get_batch_data(train_actor_input, start_index, end_index)
+        #
+        #             start_index = end_index
+        #
+        #             actor_optimize_info = self.train_actor(
+        #                 actor_obs=batch_train_actor_input['actor_obs'],
+        #                 advantage=batch_train_actor_input['advantage'],
+        #                 old_log_prob=batch_train_actor_input['old_log_prob'],
+        #                 action=batch_train_actor_input['action'],
+        #                 epsilon=tf.cast(self.hyper_parameters.epsilon, dtype=tf.float32),
+        #                 entropy_coefficient=tf.cast(self.hyper_parameters.entropy_coeff, dtype=tf.float32),
+        #             )
+        #             actor_optimize_info_list.append(actor_optimize_info)
+        #         actor_optimize_info = self.cal_average_batch_dict(actor_optimize_info_list)
+        #
+        #     # train critic
+        #     for _ in range(self.hyper_parameters.update_critic_times):
+        #         start_index = 0
+        #         end_index = 0
+        #         critic_optimize_info_list = []
+        #         for _ in range(self.hyper_parameters.update_critic_times):
+        #             while end_index < self.hyper_parameters.buffer_size:
+        #                 end_index = min(start_index + self.hyper_parameters.batch_size,
+        #                                 self.hyper_parameters.buffer_size)
+        #
+        #                 batch_train_critic_input = self.get_batch_data(train_critic_input, start_index, end_index)
+        #
+        #                 start_index = end_index
+        #
+        #                 critic_optimize_info = self.train_critic(
+        #                     critic_obs=batch_train_critic_input['critic_obs'],
+        #                     target=batch_train_critic_input['target'],
+        #                 )
+        #                 critic_optimize_info_list.append(critic_optimize_info)
+        #             critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)
+        #
+        # return_dict = {**actor_optimize_info, **critic_optimize_info}
+        # return return_dict

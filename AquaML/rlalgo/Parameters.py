@@ -3,8 +3,14 @@ import abc
 
 class BaseParameter(abc.ABC):
 
-    def __init__(self, epoch_length: int, n_epochs: int, buffer_size: int, batch_size: int, update_interval: int = 0,
-                 update_times=1):
+    def __init__(self, epoch_length: int,
+                 n_epochs: int,
+                 buffer_size: int,
+                 batch_size: int,
+                 update_interval: int = 0,
+                 update_times=1,
+                 batch_trajectory=False
+                 ):
         """
         Parameters of environment.
         
@@ -16,6 +22,10 @@ class BaseParameter(abc.ABC):
             batch_size (int): batch size.
             update_interval (int): update interval.
             update_times (int): times for optimizing the network.
+            batch_trajectory (bool): whether to use batch trajectory. This argument is to
+            control how to train the recurrent network. If batch_trajectory is True, the data
+            will like (batch_size, trajectory_length, feature_dim), you can see as (batch_size,time_step,feature_dim).
+            If batch_trajectory is False, the data will like (batch_size, 1, feature_dim).
         """
 
         self.epoch_length = epoch_length
@@ -27,6 +37,7 @@ class BaseParameter(abc.ABC):
         self.display_interval = 1
         self.calculate_episodes = 5
         self.update_times = update_times
+        self.batch_trajectory = batch_trajectory
 
 
 class SAC_parameter(BaseParameter):
@@ -198,6 +209,7 @@ class FusionPPO_parameter(BaseParameter):
                  update_critic_times: int = 1,
                  update_actor_times: int = 1,
                  entropy_coeff: float = 0.01,
+                 batch_trajectory:bool = False,
                  epsilon: float = 0.2,
                  gamma: float = 0.99,
                  lambada: float = 0.95,
@@ -215,7 +227,8 @@ class FusionPPO_parameter(BaseParameter):
             lambada (float): lambada for GAE.
             entropy_coeff (float): entropy coefficient.
         """
-        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times)
+        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times,
+                         batch_trajectory=batch_trajectory)
 
         self.gamma = gamma
         self.lambada = lambada

@@ -35,10 +35,11 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer = 'Adam'
 
+        self.rnn_flag = True
+
     @tf.function
     def call(self, vel, hidden1, hidden2):
         hidden_states = (hidden1, hidden2)
-        vel = tf.expand_dims(vel, axis=1)
         whole_seq, last_seq, hidden_state = self.lstm(vel, hidden_states)
         x = self.dense1(whole_seq)
         x = self.dense2(x)

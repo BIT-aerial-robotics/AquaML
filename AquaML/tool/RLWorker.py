@@ -35,7 +35,7 @@ class RLWorker:
             self.rl_algo.actor.reset()
             self.initial_summary_reward()
 
-        action_dict = self.rl_algo.get_action_train(self.obs)
+        action_dict = self.rl_algo.get_action(self.obs)
 
         obs_, reward, done, info = self.env.step(action_dict)  # obs, reward are dict
 

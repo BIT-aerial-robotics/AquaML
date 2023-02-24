@@ -98,6 +98,9 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             
         """
 
+        self.rnn_actor_flag = None
+        self.expand_dims_idx = ()
+        # self.expand_dims_name = None
         self.recoder = None
         self.explore_policy = None
         self.tf_log_std = None
@@ -279,6 +282,29 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # actor model must be given
         if self.actor is None:
             raise ValueError('Actor model must be given.')
+
+    def initialize_actor_config(self):
+        # initialize sample action
+        self.rnn_actor_flag = getattr(self.actor, 'rnn_flag', False)
+
+        if self.rnn_actor_flag:
+            self.expand_dims_idx = []
+
+            idx = 0
+
+            names = self.actor.input_name
+            for name in names:
+                if 'hidden' in name:
+                    pass
+                else:
+                    self.expand_dims_idx.append(idx)
+                idx += 1
+            self.expand_dims_idx = tuple(self.expand_dims_idx)
+
+            # if self.hyper_parameters.batch_trajectory:
+            #     for name in names:
+            #         if 'hidden' in name:
+            #             raise ValueError('Batch trajectory mode dose not need to input hidden state.')
 
     def optimize(self):
 
@@ -521,6 +547,58 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return average_batch_dict
 
+    def get_batch_timesteps(self, data_dict: dict):
+        """
+        Covert data dict to batch timesteps. The data like (batch_size, timesteps, *)
+        after processed by this function.
+        """
+
+        # get done index
+        index_done = np.where(self.data_pool.get_unit_data('mask') == 0)[0] + 1
+
+        # create buffer to store new data
+        new_data_dict = {}
+        for key, value in data_dict.items():
+            if isinstance(value, tuple) or isinstance(value, list):
+                list_lists = []
+                for idx, data in enumerate(value):
+                    list_lists.append([])
+                    data_dict[key][idx] = data.numpy()
+                new_data_dict[key] = list_lists
+            else:
+                new_data_dict[key] = []
+                data_dict[key] = value.numpy()
+
+        start_index = 0
+
+        for end_index in index_done:
+            for key, value in data_dict.items():
+                if isinstance(value, tuple) or isinstance(value, list):
+                    for idx, data in enumerate(value):
+                        buffer = np.expand_dims(data[start_index:end_index], axis=0)
+                        new_data_dict[key][idx].append(buffer)
+                else:
+                    buffer = np.expand_dims(value[start_index:end_index], axis=0)
+                    new_data_dict[key].append(buffer)
+
+            start_index = end_index
+
+        # batch timesteps
+        for key, value in data_dict.items():
+            if isinstance(value, tuple) or isinstance(value, list):
+                value = new_data_dict[key]
+                for idx, data in enumerate(value):
+                    buffer = np.vstack(data)
+                    buffer = tf.cast(buffer, dtype=tf.float32)
+                    new_data_dict[key][idx] = buffer
+            else:
+                value = new_data_dict[key]
+                buffer = np.vstack(value)
+                buffer = tf.cast(buffer, tf.float32)
+                new_data_dict[key] = buffer
+
+        return new_data_dict
+
     # TODO: calculate by multi thread
     ############################# calculate reward information #############################
     # calculate general advantage estimation
@@ -659,7 +737,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             self.explore_policy = VoidExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
 
     ############################# get function ################################
-    def get_action_train(self, obs: dict):
+    def get_action(self, obs: dict):
         """
 
         sample action in the training process.
@@ -677,6 +755,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # get actor input
         for key in self.actor.input_name:
             input_data.append(tf.cast(obs[key], dtype=tf.float32))
+
+        # expand_dims
+        for idx in self.expand_dims_idx:
+            input_data[idx] = tf.expand_dims(input_data[idx], axis=1)
 
         actor_out = self.actor(*input_data)  # out is a tuple
 
@@ -696,6 +778,44 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             return_dict[name] = policy_out[name]
 
         return return_dict
+
+    # def get_action_rnn(self, obs: dict):
+    #     """
+    #
+    #     sample action with rnn model.
+    #
+    #     Args:
+    #         obs (dict): observation from environment. eg. {'obs':data}.
+    #                     The data must be tensor. And its shape is (batch, feature).
+    #
+    #     Returns:
+    #         _type_: _description_
+    #     """
+    #
+    #     input_data = []
+    #
+    #     # get actor input
+    #     for key in self.actor.input_name:
+    #         input_data.append(tf.cast(obs[key], dtype=tf.float32))
+    #
+    #     actor_out = self.actor(*input_data)  # out is a tuple
+    #
+    #     policy_out = dict(zip(self.actor.output_info, actor_out))
+    #
+    #     for name, value in self._explore_dict.items():
+    #         policy_out[name] = value
+    #
+    #     action, prob = self.explore_policy(policy_out)
+    #
+    #     policy_out['action'] = action
+    #     policy_out['prob'] = prob
+    #
+    #     # create return dict according to rl_io_info.actor_out_name
+    #     return_dict = dict()
+    #     for name in self.rl_io_info.actor_out_name:
+    #         return_dict[name] = policy_out[name]
+    #
+    #     return return_dict
 
     def get_batch_data(self, data_dict: dict, start_index, end_index):
         """
@@ -900,7 +1020,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return (action, log_prob)
 
-    # @tf.function
+    @tf.function
     def _resample_action_log_prob(self, actor_obs: tuple):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
@@ -976,7 +1096,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return concat_dict
 
-    def initialize_model_weights(self, model):
+    def initialize_model_weights(self, model, expand_dims=False):
         """
         initial model.
         """
@@ -990,6 +1110,9 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             shape, _ = self.rl_io_info.get_data_info(name)
             data = tf.zeros(shape=shape, dtype=tf.float32)
             input_data.append(data)
+        if expand_dims:
+            for idx in self.expand_dims_idx:
+                input_data[idx] = tf.expand_dims(input_data[idx], axis=1)
 
         model(*input_data)
 
@@ -1033,7 +1156,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         It is a abstract method.
 
         Recommend when you implement this method, input of this method should be hyperparameters.
-        The hyperparameters can be tuned in the training process.
+        The hyper parameters can be tuned in the training process.
 
         Returns:
             _type_: dict. Optimizer information. eg. {'loss':data, 'total_reward':data}

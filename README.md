@@ -412,6 +412,12 @@ mpirun -n 6 python Tutorial1.py
 
 #### Create reinforcement learning environment
 
+## Understanding of our frame work
+
+### Training RL with recurrent neural network
+
+
+
 ## Change logs
 
 #### v1.1

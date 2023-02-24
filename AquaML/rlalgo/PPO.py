@@ -51,11 +51,15 @@ class PPO(BaseRLAlgo):
 
         self.hyper_parameters = parameters
 
+        self.actor = actor()
+        self.initialize_actor_config()
+        self.initialize_model_weights(self.actor)
+
         if self.level == 0:
             if self.resample_log_prob is None:
                 raise ValueError(
                     'resample_log_prob must be set when using PPO. You probably make an actor with output ''log_prob''.')
-            self.actor = actor()
+
             self.critic = critic()
 
             # initialize actor and critic
@@ -67,11 +71,6 @@ class PPO(BaseRLAlgo):
                 'actor': self.actor,
                 'critic': self.critic,
             }
-        else:
-            self.actor = actor()
-
-            # initialize actor
-            self.initialize_model_weights(self.actor)
 
         # create optimizer
         if self.level == 0:
@@ -211,6 +210,10 @@ class PPO(BaseRLAlgo):
             'critic_obs': critic_obs,
             'target': target,
         }
+
+        if self.rnn_actor_flag:
+            for idx in self.expand_dims_idx:
+                actor_obs[idx] = tf.expand_dims(actor_obs[idx], axis=1)
 
         for _ in range(self.hyper_parameters.update_times):
             # train actor

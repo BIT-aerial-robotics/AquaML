@@ -63,11 +63,17 @@ class SAC2(BaseRLAlgo):
             calculate_episodes=parameters.calculate_episodes,
         )
 
+        self.actor = actor()
+
+        self.initialize_actor_config()
+
+        self.initialize_model_weights(self.actor, expand_dims=self.rnn_actor_flag)
+
         # TODO: initialize the network in the future
         # Notice: qf just be used  in main thread, actor for all threads
         if self.level == 0:
             # main thread
-            self.actor = actor()
+
             self.qf1 = qf1()
             self.qf2 = qf2()
 
@@ -76,7 +82,7 @@ class SAC2(BaseRLAlgo):
             self.target_qf2 = qf2()
 
             # initialize the network
-            self.initialize_model_weights(self.actor)
+
             self.initialize_model_weights(self.qf1)
             self.initialize_model_weights(self.qf2)
             self.initialize_model_weights(self.target_qf1)
@@ -96,10 +102,6 @@ class SAC2(BaseRLAlgo):
                                     'target_qf1': self.target_qf1,
                                     'target_qf2': self.target_qf2, }
         else:
-            self.actor = actor()
-
-            # initialize the network
-            self.initialize_model_weights(self.actor)
 
             # None
             self.qf1 = None
@@ -136,7 +138,7 @@ class SAC2(BaseRLAlgo):
 
         self._sync_model_dict = {'actor': self.actor, }
 
-    @tf.function
+    # @tf.function
     def train_q_fun(self, qf_obs: tuple,
                     next_qf_obs: tuple,
                     next_actor_obs: tuple,
@@ -362,6 +364,12 @@ class SAC2(BaseRLAlgo):
             action = tf.cast(data_dict['action'], dtype=tf.float32)
 
             tf_gamma = tf.cast(self.hyper_parameters.gamma, dtype=tf.float32)
+
+            if self.rnn_actor_flag:
+                for idx in self.expand_dims_idx:
+                    actor_obs[idx] = tf.expand_dims(actor_obs[idx], axis=1)
+                    next_actor_obs[idx] = tf.expand_dims(next_actor_obs[idx], axis=1)
+                    # now for method 1
 
             q_optimize_info = self.train_q_fun(
                 qf_obs=qf_obs,

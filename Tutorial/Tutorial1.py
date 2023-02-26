@@ -233,7 +233,7 @@ starter = RLTaskStarter(
     model_class_dict=model_class_dict,
     algo=SAC2,
     algo_hyperparameter=sac_parameter,
-    # mpi_comm=comm,
+    mpi_comm=comm,
     name=None
 )
 

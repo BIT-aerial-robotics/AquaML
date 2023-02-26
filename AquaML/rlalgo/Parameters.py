@@ -8,6 +8,7 @@ class BaseParameter(abc.ABC):
                  buffer_size: int,
                  batch_size: int,
                  update_interval: int = 0,
+                 store_model_times:int = 5,
                  update_times=1,
                  batch_trajectory=False
                  ):
@@ -38,13 +39,16 @@ class BaseParameter(abc.ABC):
         self.calculate_episodes = 5
         self.update_times = update_times
         self.batch_trajectory = batch_trajectory
+        self.store_model_times = store_model_times
 
 
 class SAC_parameter(BaseParameter):
 
     def __init__(self, epoch_length: int, n_epochs: int, batch_size: int,
                  update_interval: int,
-                 discount: float, tau: float):
+                 discount: float, tau: float,
+                 store_model_times=5
+                 ):
         """
         Parameters of SAC algorithm.
         
@@ -64,7 +68,7 @@ class SAC_parameter(BaseParameter):
   
             
         """
-        super().__init__(epoch_length, n_epochs, batch_size, update_interval)
+        super().__init__(epoch_length, n_epochs, batch_size, update_interval, store_model_times=store_model_times)
 
         self.discount = discount
         self.tau = tau
@@ -84,7 +88,9 @@ class SAC2_parameter(BaseParameter):
                  update_times: int = 1,
                  calculate_episodes: int = 5,
                  display_interval: int = 1,
-                 update_interval: int = 0):
+                 update_interval: int = 0,
+                 store_model_times=5,
+                 ):
         """
         Parameters of SAC2 algorithm.
 
@@ -136,7 +142,7 @@ class SAC2_parameter(BaseParameter):
             display_interval (int, optional): display interval which depends on epoch. Defaults to 1.
         """
         super().__init__(episode_length, n_epochs, buffer_size,
-                         batch_size, update_interval, )
+                         batch_size, update_interval, store_model_times=store_model_times)
 
         self.discount = discount
         self.tau = tau
@@ -167,6 +173,7 @@ class PPO_parameter(BaseParameter):
                  epsilon: float = 0.2,
                  gamma: float = 0.99,
                  lambada: float = 0.95,
+                 store_model_times=5
                  ):
         """
         Parameters of PPO algorithm.
@@ -185,7 +192,8 @@ class PPO_parameter(BaseParameter):
 
 
         """
-        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times)
+        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times,
+                         store_model_times=store_model_times)
 
         self.gamma = gamma
         self.lambada = lambada

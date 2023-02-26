@@ -274,7 +274,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # just do in m main thread
         if self.level == 0:
             # initial recoder
-            self.recoder = Recoder(log_folder=self.log_path)
+            history_model_path = self.name + '/' + 'history_model'
+            self.recoder = Recoder(log_folder=self.log_path, history_model_log_folder=history_model_path, )
         else:
             self.recoder = None
 
@@ -338,6 +339,14 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             for key, model in self._all_model_dict.items():
                 self.recoder.record_weight(model, total_steps, prefix=key)
 
+            info = {**reward_info, **optimize_info}
+            if epoch % self.hyper_parameters.store_model_times == 0:
+                self.recoder.recorde_history_model(
+                    self._all_model_dict,
+                    epoch,
+                    info
+                )
+
     def check(self):
         """
         check some information.
@@ -347,6 +356,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
                 raise ValueError('Mini buffer size must be given.')
         if self._sync_model_dict is None:
             raise ValueError('Sync model must be given.')
+
+        if self.level == 0:
+            if len(self._all_model_dict) < 1:
+                raise ValueError("Model dictionary is void! Please check _all_model_dict!")
 
     ############################# key function #############################
     def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):

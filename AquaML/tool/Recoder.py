@@ -1,9 +1,30 @@
 import tensorflow as tf
 import datetime
+import os
+
+
+def mkdir(path: str):
+    """
+    create a directory in current path.
+
+    Args:
+        path (_type_:str): name of directory.
+
+    Returns:
+        _type_: str or None: path of directory.
+    """
+    current_path = os.getcwd()
+    # print(current_path)
+    path = os.path.join(current_path, path)
+    if not os.path.exists(path):
+        os.makedirs(path)
+        return path
+    else:
+        None
 
 
 class Recoder:
-    def __init__(self, log_folder: str, ):
+    def __init__(self, log_folder: str, history_model_log_folder: str):
 
         # folder for storing the log
         self.log_folder = log_folder
@@ -16,6 +37,8 @@ class Recoder:
         # file name
         self.logs_folder_1 = self.log_folder + '/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
+        self.history_model_log_folder = history_model_log_folder
+        mkdir(self.history_model_log_folder)
         self.main_writer = tf.summary.create_file_writer(self.logs_folder_1)
 
     # record histogram
@@ -105,7 +128,7 @@ class Recoder:
                     self.record_histogram(var.name, var, step, prefix=prefix + '/' + name[:-4] + 'weight')
             else:
                 # record scalar
-                self.record_scalar(name, key, step, prefix=prefix+'/')
+                self.record_scalar(name, key, step, prefix=prefix + '/')
 
     def record_weight(self, model, step, prefix=''):
         """
@@ -126,3 +149,22 @@ class Recoder:
             if 'grad' in key or 'var' in key:
                 continue
             print("{}:{}".format(key, value))
+
+    def recorde_history_model(self, model_dict: dict, epoch, optimize_info: dict):
+
+        # mkdir
+        dir_path = self.history_model_log_folder + '/' + str(epoch)
+        mkdir(dir_path)
+
+        # store model
+        for key, model in model_dict.items():
+            model.save_weights(dir_path + '/' + key + '.h5', overwrite=True)
+
+        # write optimize info
+        # with open(dir_path + '/' + 'info.txt', 'a') as f:
+        #     # f.write('{}:{}'.format(key, value))
+        #     f.write('\r\t')
+        for key, value in optimize_info.items():
+            with open(dir_path + '/' + 'info.txt', 'a') as f:
+                f.write('{}:{}'.format(key, value))
+                f.write('\n')

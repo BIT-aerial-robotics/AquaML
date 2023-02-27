@@ -220,7 +220,7 @@ sac_parameter = SAC2_parameter(
     calculate_episodes=5,
     alpha_learning_rate=3e-3,
     update_times=1,
-    store_model_times=30
+    store_model_times=5
 )
 
 model_class_dict = {

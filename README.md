@@ -416,8 +416,6 @@ mpirun -n 6 python Tutorial1.py
 
 ### Training RL with recurrent neural network
 
-
-
 ## Change logs
 
 #### v1.1
@@ -433,6 +431,11 @@ mpirun -n 6 python Tutorial1.py
 
 1. split optimize thread and worker thread.
 2. add soft actor critic.
+3. Add storing history model function.
+
+#### v2.0.1
+
+1. Add meta learing.
 
 ## Requirement
 

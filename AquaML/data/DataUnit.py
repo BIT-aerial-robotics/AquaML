@@ -138,10 +138,7 @@ class DataUnit:
         Args:
             value (any): value.
         """
-        if self.level == 0:
-            self._buffer[:] = value[:]
-        else:
-            raise Exception("Current thread is sub thread!")
+        self._buffer[:] = value[:]
 
     # get data slice
     def get_slice(self, start: int, end: int):

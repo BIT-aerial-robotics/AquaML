@@ -31,6 +31,7 @@ class SAC(BaseRLAlgo):
             env=env,
             rl_io_info=rl_io_info,
             name=name,
+            hyper_parameters=parameters,
             update_interval=parameters.update_interval,
             computer_type=computer_type,
             level=level,

@@ -28,7 +28,9 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
 
-    def __init__(self, env, rl_io_info: RLIOInfo, name: str, update_interval: int = 0, mini_buffer_size: int = 0,
+    def __init__(self, env, rl_io_info: RLIOInfo, name: str,
+                 hyper_parameters,
+                 update_interval: int = 0, mini_buffer_size: int = 0,
                  calculate_episodes=5,
                  display_interval=1,
                  computer_type: str = 'PC',
@@ -112,6 +114,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.update_interval = update_interval
         self.mini_buffer_size = mini_buffer_size
         self.display_interval = display_interval
+        self.hyper_parameters = hyper_parameters
 
         self.cache_path = name + '/cache'  # cache path
         self.log_path = name + '/log'
@@ -220,7 +223,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # the hyper parameters is a dictionary
         # you should point out the hyper parameters in your algorithm
         # will be used in optimize function
-        self.hyper_parameters = None
+
 
         # optimizer are created in main thread
         self.optimizer_dict = {}  # store optimizer, convenient search

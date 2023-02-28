@@ -21,8 +21,11 @@ class RLWorker:
 
         self.summary_store_bias = self.rl_algo.sample_id * self.rl_algo.each_thread_summary_episodes
 
+        self.max_steps = self.rl_algo.hyper_parameters.epoch_length
+
         self.obs = None
         self.step_count = 0
+        self.episode_step_count = 0
 
     # TODO: 加入最大步数限制
     def step(self):
@@ -33,6 +36,7 @@ class RLWorker:
             self.obs = self.env.reset()
             self.reset_flag = False
             self.rl_algo.actor.reset()
+            self.episode_step_count = 0
             self.initial_summary_reward()
 
         action_dict = self.rl_algo.get_action(self.obs)
@@ -44,6 +48,11 @@ class RLWorker:
         self.record_summary_reward(reward)
 
         self.step_count += 1
+
+        self.episode_step_count += 1
+
+        if self.episode_step_count >= self.max_steps:
+            done = True
 
         # done flag is True, need to reset the environment
         if done:

@@ -29,5 +29,22 @@ class ArgsPool(BasePool):
                 level=self.level
             )
 
+    def multi_init(self):
+        """
+        multi thread initial.
+
+        We suppose, after the shared memory is created, shared memory will be read.
+        """
+
+        if self.level == 0:
+            for name, unit in self.data_pool.items():
+                unit.create_share_memory()
+        else:
+            for name, unit in self.data_pool.items():
+                unit.read_share_memory()
+
+    def get_param(self, name):
+        return self.data_pool[name].buffer[0]
+
 
 

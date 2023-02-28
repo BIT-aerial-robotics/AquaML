@@ -28,48 +28,50 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
 
-    def __init__(self, env, rl_io_info: RLIOInfo, name: str, update_interval: int = 0, mini_buffer_size: int = 0,
+    def __init__(self, env, rl_io_info: RLIOInfo, name: str,
+                 hyper_parameters,
+                 update_interval: int = 0, mini_buffer_size: int = 0,
                  calculate_episodes=5,
                  display_interval=1,
                  computer_type: str = 'PC',
                  level: int = 0, thread_ID: int = -1, total_threads: int = 1, policy_type: str = 'off'):
         """create base for reinforcement learning algorithm.
         This base class provides exploration policy, data pool(multi thread).
-        Some tools are also provided for reinforcement learning algorithm such as 
-        calculate general advantage estimation. 
-        
+        Some tools are also provided for reinforcement learning algorithm such as
+        calculate general advantage estimation.
+
         When you create a reinforcement learning algorithm, you should inherit this class. And do the following things:
-        
+
         1. You should run init() function in your __init__ function. The position of init() function is at the end of __init__ function.
 
         2. You need to point out which model is the actor, then in __init__ function, you should write:
            "self.actor = actor"
-        
-        3. Explore policy is a function which is used to generate action. You should use or create a explore policy. 
+
+        3. Explore policy is a function which is used to generate action. You should use or create a explore policy.
         Then in __init__ function, you should write:
         "self.explore_policy = explore_policy"
-        You can create a explore policy by inherit ExplorePolicyBase class(AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase). 
-        
+        You can create a explore policy by inherit ExplorePolicyBase class(AquaML.rlalgo.ExplorePolicy.ExplorePolicyBase).
+
         4. Notice: after optimize the model, you should update optimize_epoch.
            The same as sample_epoch.
-           
-        5. Notice: if you want to use multi thread, please specify which model needs to be synchronized by 
+
+        5. Notice: if you want to use multi thread, please specify which model needs to be synchronized by
            setting  self._sync_model_dict
-        
-        
+
+
         Some recommends for off-policy algorithm:
         1. mini_buffer_size should have given out.
-        
-        
-        
+
+
+
         Args:
             env (AquaML.rlalgo.EnvBase): reinforcement learning environment.
-            
+
             rl_io_info (RLIOInfo): reinforcement learning input and output information.
-            
+
             name (str): reinforcement learning name.
-            
-            update_interval (int, optional): update interval. This is an important parameter. 
+
+            update_interval (int, optional): update interval. This is an important parameter.
             It determines how many steps to update the model. If update_interval == 1, it means update model after each step.
             if update_interval == 0, it means update model after buffer is full. Defaults to 0.
             That is unusually used in on-policy algorithm.
@@ -82,20 +84,20 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             display_interval (int, optional): display interval. Defaults to 1.
 
             computer_type (str, optional): 'PC' or 'HPC'. Defaults to 'PC'.
-            
+
             level (int, optional): thread level. 0 means main thread, 1 means sub thread. Defaults to 0.
-            
+
             thread_ID (int, optional): ID is given by mpi. -1 means single thread. Defaults to -1.
-            
+
             total_threads (int, optional): total threads. Defaults to 1.
-            
+
             policy_type (str, optional): 'off' or 'on'. Defaults to 'off'.
 
         Raises:
             ValueError: if thread_ID == -1, it means single thread, then level must be 0.
             ValueError: if computer_type == 'HPC', then level must be 0.
             ValueError('Sync model must be given.')
-            
+
         """
 
         self.rnn_actor_flag = None
@@ -112,6 +114,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.update_interval = update_interval
         self.mini_buffer_size = mini_buffer_size
         self.display_interval = display_interval
+        self.hyper_parameters = hyper_parameters
 
         self.cache_path = name + '/cache'  # cache path
         self.log_path = name + '/log'
@@ -140,7 +143,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self._explore_dict = {}  # store explore policy, convenient for multi thread
 
         # TODO: 需要升级为异步执行的方式
-        # TODO: 需要确认主线程和子线程得到得硬件不一样是否影响执行速度 
+        # TODO: 需要确认主线程和子线程得到得硬件不一样是否影响执行速度
         # allocate start index and size for each thread
         # main thread will part in sample data
         # just used when computer_type == 'PC'
@@ -220,7 +223,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # the hyper parameters is a dictionary
         # you should point out the hyper parameters in your algorithm
         # will be used in optimize function
-        self.hyper_parameters = None
 
         # optimizer are created in main thread
         self.optimizer_dict = {}  # store optimizer, convenient search
@@ -232,7 +234,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         self.policy_type = policy_type  # 'off' or 'on'
 
-        # mini buffer size 
+        # mini buffer size
         # according to the type of algorithm,
 
         self._sync_model_dict = {}  # store sync model, convenient for multi thread
@@ -244,7 +246,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     ############################# key component #############################
     def init(self):
         """initial algorithm.
-        
+
         This function will be called by starter.
         """
         # multi thread communication
@@ -618,12 +620,12 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     def calculate_GAE(self, rewards, values, next_values, masks, gamma, lamda):
         """
         calculate general advantage estimation.
-        
+
         Reference:
         ----------
-        [1] Schulman J, Moritz P, Levine S, Jordan M, Abbeel P. High-dimensional continuous 
+        [1] Schulman J, Moritz P, Levine S, Jordan M, Abbeel P. High-dimensional continuous
         control using generalized advantage estimation. arXiv preprint arXiv:1506.02438. 2015 Jun 8.
-        
+
         Args:
             rewards (np.ndarray): rewards.
             values (np.ndarray): values.
@@ -867,7 +869,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     def get_trainable_actor(self):
         """
         get trainable weights of this model.
-        
+
         actor model is special, it has two parts, actor and explore policy.
         Maybe in some times, explore policy is independent on actor model.
         """
@@ -1093,7 +1095,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     def concat_dict(self, dict_tuple: tuple):
         """
         concat dict.
-        
+
         Args:
             dict_tuple (tuple): dict tuple.
         Returns:

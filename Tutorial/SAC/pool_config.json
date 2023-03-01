@@ -1,0 +1,81 @@
+{
+   "SAC_log_std": {
+      "shape": [
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 4
+   },
+   "SAC_summary_total_reward": {
+      "shape": [
+         5,
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 20
+   },
+   "SAC_obs": {
+      "shape": [
+         100000,
+         3
+      ],
+      "dtype": "np.float32",
+      "nbytes": 1200000
+   },
+   "SAC_pos": {
+      "shape": [
+         100000,
+         2
+      ],
+      "dtype": "np.float32",
+      "nbytes": 800000
+   },
+   "SAC_next_obs": {
+      "shape": [
+         100000,
+         3
+      ],
+      "dtype": "np.float32",
+      "nbytes": 1200000
+   },
+   "SAC_next_pos": {
+      "shape": [
+         100000,
+         2
+      ],
+      "dtype": "np.float32",
+      "nbytes": 800000
+   },
+   "SAC_mask": {
+      "shape": [
+         100000,
+         1
+      ],
+      "dtype": "np.int32",
+      "nbytes": 400000
+   },
+   "SAC_action": {
+      "shape": [
+         100000,
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 400000
+   },
+   "SAC_prob": {
+      "shape": [
+         100000,
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 400000
+   },
+   "SAC_total_reward": {
+      "shape": [
+         100000,
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 400000
+   }
+}

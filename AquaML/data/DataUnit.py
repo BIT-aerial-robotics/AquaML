@@ -2,6 +2,8 @@ import numpy as np
 from multiprocessing import shared_memory
 import copy
 import warnings
+import os
+import json
 
 
 class DataUnit:
@@ -79,6 +81,23 @@ class DataUnit:
         else:
             raise Exception("Current thread is sub thread!")
 
+    def create_shared_memory_V2(self, name, shape: tuple, nbytes: int, dtype:str):
+        """Create shared-memory.
+
+        Args:
+            name (str): Name of shared memory.
+            shape (tuple): Buffer shape.
+            dtype (str): Buffer dtype.
+        """
+        dtype = self.str_to_dtype(dtype)
+
+        self._shape = shape
+        self.__nbytes = nbytes
+        self._dtype = dtype
+        self.name = name
+        self.shm_buffer = shared_memory.SharedMemory(create=True, size=self.__nbytes, name=self.name)
+        self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
+
     def read_shared_memory(self, shape: tuple):
         """Read shared memory.
 
@@ -98,6 +117,36 @@ class DataUnit:
             self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
         else:
             raise Exception("Current thread is main thread!")
+
+    def read_shared_memory_V2(self, name, shape: tuple, nbytes: int, dtype:str):
+
+        dtype = self.str_to_dtype(dtype)
+
+        self._shape = shape
+        self.__nbytes = nbytes
+        self._dtype = dtype
+        self.name = name
+        self.shm_buffer = shared_memory.SharedMemory(name=self.name, size=self.__nbytes)
+        self._buffer = np.ndarray(self._shape, dtype=self._dtype, buffer=self.shm_buffer.buf)
+
+    def get_key_info(self):
+        """Get key info.
+
+        Returns:
+            _type_: dict
+        """
+
+        dtype = self.get_str_from_dtype(self._dtype)
+
+        dic = {
+            self.name: {
+                'shape': self._shape,
+                'dtype': dtype,
+                'nbytes': self.__nbytes,
+            },
+        }
+
+        return dic
 
     def compute_nbytes(self, shape: tuple) -> int:
         """Compute numpy array nbytes.
@@ -139,6 +188,12 @@ class DataUnit:
             value (any): value.
         """
         self._buffer[:] = value[:]
+
+    def __call__(self):
+        if self.shape == (1,):
+            return self._buffer[0]
+        else:
+            return self._buffer
 
     # get data slice
     def get_slice(self, start: int, end: int):
@@ -189,6 +244,15 @@ class DataUnit:
                 time.sleep(0.5)
                 self.shm_buffer.close()
 
+    def clear(self):
+        if self.shm_buffer is not None:
+            if self.level == 1:
+                self.shm_buffer.close()
+                self.shm_buffer.unlink()
+            else:
+                import time
+                self.shm_buffer.close()
+
     @property
     def shape(self):
         """Get shape.
@@ -206,3 +270,57 @@ class DataUnit:
             _type_: np.type
         """
         return self._dtype
+
+    @staticmethod
+    def get_dtype_from_str(dtype: str):
+        """Get dtype from str.
+
+        Args:
+            dtype (str): dtype in str.
+
+        """
+        if dtype == 'np.float':
+            dtype = np.float
+        elif dtype == 'np.float16':
+            dtype = np.float16
+        elif dtype == 'np.float32':
+            dtype = np.float32
+        elif dtype == 'np.float64':
+            dtype = np.float64
+        elif dtype == 'np.int':
+            dtype = np.int
+        elif dtype == 'np.int32':
+            dtype = np.int32
+        elif dtype == 'np.int64':
+            dtype = np.int64
+
+        return dtype
+
+    @staticmethod
+    def get_str_from_dtype(dtype: np.dtype):
+        """Get str from dtype.
+
+        Args:
+            dtype (np.dtype): dtype.
+
+        """
+        if dtype == np.float:
+            dtype = 'np.float'
+        elif dtype == np.float16:
+            dtype = 'np.float16'
+        elif dtype == np.float32:
+            dtype = 'np.float32'
+        elif dtype == np.float64:
+            dtype = 'np.float64'
+        elif dtype == np.int:
+            dtype = 'np.int'
+        elif dtype == np.int32:
+            dtype = 'np.int32'
+        elif dtype == np.int64:
+            dtype = 'np.int64'
+
+        return dtype
+
+
+# print(DataUnit.get_dtype_from_str('np.float32'))
+# print(DataUnit.get_str_from_dtype(np.float32))

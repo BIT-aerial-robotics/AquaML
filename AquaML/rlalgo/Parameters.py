@@ -8,7 +8,7 @@ class BaseParameter(abc.ABC):
                  buffer_size: int,
                  batch_size: int,
                  update_interval: int = 0,
-                 store_model_times:int = 5,
+                 store_model_times: int = 5,
                  update_times=1,
                  batch_trajectory=False
                  ):
@@ -40,6 +40,24 @@ class BaseParameter(abc.ABC):
         self.update_times = update_times
         self.batch_trajectory = batch_trajectory
         self.store_model_times = store_model_times
+
+        self.adjust_parameters = []
+
+    def point_adjust_parameter(self, names: list):
+        """
+        For higher level algorithm, you can adjust the parameter in this function.
+        """
+
+        self.adjust_parameters = names
+
+        # check the parameter name whether is in the class
+        for name in names:
+            if not hasattr(self, name):
+                raise AttributeError(f'{name} is not in {self.__class__.__name__} class')
+
+    def set_adjust_parameter_value(self, parm_dict: dict):
+        for key, value in parm_dict.items():
+            setattr(self, key, value)
 
 
 class SAC_parameter(BaseParameter):
@@ -217,7 +235,7 @@ class FusionPPO_parameter(BaseParameter):
                  update_critic_times: int = 1,
                  update_actor_times: int = 1,
                  entropy_coeff: float = 0.01,
-                 batch_trajectory:bool = False,
+                 batch_trajectory: bool = False,
                  epsilon: float = 0.2,
                  gamma: float = 0.99,
                  lambada: float = 0.95,

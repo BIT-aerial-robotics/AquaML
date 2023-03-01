@@ -1,6 +1,7 @@
 from AquaML.data.DataUnit import DataUnit
 from AquaML.data.BasePool import BasePool
 from AquaML.DataType import DataInfo
+import json
 import numpy as np
 
 
@@ -118,5 +119,24 @@ class DataPool(BasePool):
             data_dict[name] = self.data_pool[name].get_data_by_indices(indices)
 
         return data_dict
+
+    def save_units_info_json(self, path: str):
+        """write units info to json file.
+
+        Args:
+            path (str): path.
+        """
+
+        info_dics = {}
+
+        for name, unit in self.data_pool.items():
+
+            info_dic = unit.get_key_info()
+
+            for key, value in info_dic.items():
+                info_dics[key] = value
+
+        # with open(path+'/pool_config.jason', 'w') as f:
+        json.dump(info_dics, open(path+'/pool_config.json', 'w'), indent=3)
 
 

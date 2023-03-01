@@ -33,6 +33,63 @@ class BasePool:
         for name, data_unit in self.data_pool.items():
             data_unit.read_shared_memory(info_dic.shape_dict[name])
 
+    def read_shared_memory_V2(self):
+        """read shared memory.
+
+        Sub thread.
+
+        Args:
+            info_dic (DataInfo): store data information.
+        """
+
+        for name, data_unit in self.data_pool.items():
+            data_unit.read_shared_memory_V2(
+                name=data_unit.name,
+                shape=data_unit.shape,
+                dtype=data_unit.dtype,
+                nbytes=data_unit.nbytes,
+            )
+
+    def create_shared_memory_from_dic(self, info_dic: dict):
+        """read shared memory from dic.
+
+        Sub thread.
+
+        Args:
+            info_dic (dict): store data information.
+        """
+        # create void data unit
+
+        for key, unit in self.data_pool.items():
+            name = unit.name
+            info = info_dic[name]
+            self.data_pool[key] = unit.create_shared_memory_V2(
+                name=name,
+                shape=info['shape'],
+                dtype=info['dtype'],
+                nbytes=info['nbytes'],
+            )
+
+    def read_shared_memory_from_dic(self, info_dic: dict):
+        """read shared memory from dic.
+
+        Sub thread.
+
+        Args:
+            info_dic (dict): store data information.
+        """
+        # create void data unit
+
+        for key, unit in self.data_pool.items():
+            name = unit.name
+            info = info_dic[name]
+            self.data_pool[key] = unit.read_shared_memory_V2(
+                name=name,
+                shape=info['shape'],
+                dtype=info['dtype'],
+                nbytes=info['nbytes'],
+            )
+
     def get_unit(self, name: str):
         """get data unit.
 
@@ -64,6 +121,12 @@ class BasePool:
         """
         for name, data_unit in self.data_pool.items():
             self.data_pool[name].close()
+
+    def clear(self):
+        """clear data pool.
+        """
+        for name, data_unit in self.data_pool.items():
+            self.data_pool[name].clear()
 
     def add_unit(self, name: str, data_unit: DataUnit):
         """add data unit.

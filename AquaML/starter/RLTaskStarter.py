@@ -7,9 +7,11 @@ import atexit
 
 # TODO: 检查任务级别
 class RLTaskStarter(BaseStarter):
-    def __init__(self, env, model_class_dict: dict,
+    def __init__(self, env,
+                 model_class_dict: dict,
                  algo,
                  algo_hyperparameter,
+                 meta_flag: bool = False,
                  mpi_comm=None,
                  computer_type: str = 'PC',
                  name=None,
@@ -22,6 +24,7 @@ class RLTaskStarter(BaseStarter):
             model_class_dict (dict): model class dict. {'actor':actor_class, 'critic':critic_class}. 
                                     They must be inherited class of AquaML.BaseClass.RLBaseModel.
             algo_hyperparameter : This is a structure. See AquaML.rl.algo.Parameters.
+            meta_flag (bool, optional): meta learning flag. Defaults to False.
             mpi_comm (None or MPI.COMM_WORLD): mpi communicator. If True, use mpi to run the task. Default is False.
             computer_type (str): computer type. Default is 'PC'. It decides the way 
                                  to communicate with each thread.
@@ -99,8 +102,12 @@ class RLTaskStarter(BaseStarter):
 
         # create folder
         self.initial_dir(self.algo.name)
+
         # initial algorithm
-        self.algo.init()
+        if meta_flag:
+            self.algo.meta_init()
+        else:
+            self.algo.init()
 
         self.mini_buffer_size = self.algo.each_thread_mini_buffer_size
         self.update_interval = self.algo.each_thread_update_interval
@@ -155,6 +162,24 @@ class RLTaskStarter(BaseStarter):
             self.mpi_comm.Barrier()
 
         self.algo.close()
+
+    def recreate_data_pool(self):
+        if self.mpi_comm is not None:
+            if self.thread_id == 0:
+                self.algo.clear_data_pool()
+            self.mpi_comm.Barrier()
+            if self.thread_id > 0:
+                self.algo.clear_data_pool()
+            self.mpi_comm.Barrier()
+
+            if self.thread_id == 0:
+                self.algo.recreate_data_pool()
+            self.mpi_comm.Barrier()
+            if self.thread_id > 0:
+                self.algo.reread_data_pool()
+        else:
+            self.algo.clear_data_pool()
+            self.algo.recreate_data_pool()
 
     # @atexit.register
     def __del__(self):

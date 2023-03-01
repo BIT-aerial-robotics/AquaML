@@ -16,7 +16,7 @@ class ArgsPool(BasePool):
         )
         self.data_pool = dict()
 
-    def create_buffer_from_tuple(self, info_tuple: tuple):
+    def create_buffer_from_tuple(self, info_tuple: tuple or list):
         """
         Create buffer.
         """
@@ -28,6 +28,14 @@ class ArgsPool(BasePool):
                 computer_type=self._computer_type,
                 level=self.level
             )
+
+    # def read_shared_memory_from_tuple(self, info_tuple: tuple or list):
+
+    def create_shared_memory(self):
+        """create shared memory from dic.
+        """
+        for key, data_unit in self.data_pool.items():
+            data_unit.create_shared_memory()
 
     def multi_init(self):
         """

@@ -6,8 +6,33 @@ from AquaML.data.DataUnit import DataUnit
 from AquaML.rlalgo.ExplorePolicy import GaussianExplorePolicy, VoidExplorePolicy
 from AquaML.tool.RLWorker import RLWorker
 from AquaML.BaseClass import BaseAlgo
+from AquaML.data.ArgsPool import ArgsPool
 import numpy as np
 from AquaML.tool.Recoder import Recoder
+import json
+import os
+
+
+# import time
+
+def mkdir(path: str):
+    """
+    create a directory in current path.
+
+    Args:
+        path (_type_:str): name of directory.
+
+    Returns:
+        _type_: str or None: path of directory.
+    """
+    current_path = os.getcwd()
+    # print(current_path)
+    path = os.path.join(current_path, path)
+    if not os.path.exists(path):
+        os.makedirs(path)
+        return path
+    else:
+        None
 
 
 def compute_advantage(gamma, lmbda, td_delta):
@@ -100,6 +125,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         """
 
+        self.args_pool = None
+        self.adjust_parameters = None
         self.rnn_actor_flag = None
         self.expand_dims_idx = ()
         # self.expand_dims_name = None
@@ -132,6 +159,14 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         '''
         If it runs in single thread, self.thread_ID == 0, self.total_threads == 1
         '''
+
+        # config cache file
+        self.pool_info_path = self.name
+        self.pool_info_file = self.name + '/pool_config.json'
+
+        self.meta_path = self.name + '/meta'
+
+        mkdir(self.meta_path)
 
         # create data pool according to thread level
         self.data_pool = DataPool(name=self.name, level=self.level,
@@ -198,7 +233,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # create worker
         if self.total_threads > 1:
             if self.level == 0:
-                self.env = None
+                # self.env = None
                 self.worker = None
             else:
                 self.worker = RLWorker(self)
@@ -278,6 +313,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             # initial recoder
             history_model_path = self.name + '/' + 'history_model'
             self.recoder = Recoder(log_folder=self.log_path, history_model_log_folder=history_model_path, )
+            self.data_pool.save_units_info_json(self.pool_info_path)
+
         else:
             self.recoder = None
 
@@ -285,6 +322,93 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # actor model must be given
         if self.actor is None:
             raise ValueError('Actor model must be given.')
+
+    # meta initialize
+    def meta_init(self):
+        """meta initialize.
+
+        This function will be called by starter.
+        """
+
+        reward_info_dict = {}
+
+        for name in self.rl_io_info.reward_info:
+            reward_info_dict['summary_' + name] = (
+                self.total_segment * self.each_thread_summary_episodes, 1)
+
+        # add summary reward information to data pool
+        for name, shape in reward_info_dict.items():
+            # this must be first level name
+            buffer = DataUnit(name=self.name + '_' + name, shape=shape, dtype=np.float32, level=self.level,
+                              computer_type=self._computer_type)
+            self.rl_io_info.add_info(name=name, shape=shape, dtype=np.float32)
+            self.data_pool.add_unit(name=name, data_unit=buffer)
+
+        # meta need to initialize the data pool by shared memory
+
+        self.data_pool.multi_init(self.rl_io_info.data_info, type='buffer')
+
+        # just do in m main thread
+        if self.level == 0:
+            # initial recoder
+            history_model_path = self.name + '/' + 'history_model'
+            self.recoder = Recoder(log_folder=self.log_path, history_model_log_folder=history_model_path, )
+            self.data_pool.save_units_info_json(self.name)
+        else:
+            self.recoder = None
+
+    def init_args_pool(self):
+        # summary how many parameters should be automatically adjusted
+        adjust_parameters = []
+        # hyper parameters
+        for name in self.hyper_parameters.adjust_parameters:
+            adjust_parameters.append(name)
+        # environment parameters
+        for name in self.env.adjust_parameters:
+            adjust_parameters.append(name)
+
+        self.adjust_parameters = adjust_parameters
+
+        self.args_pool = ArgsPool(
+            name=self.name,
+            level=self.level,
+            computer_type=self._computer_type,
+        )
+
+        self.args_pool.create_buffer_from_tuple(self.adjust_parameters)
+        if self.level == 0:
+            self.args_pool.create_shared_memory()
+
+    def read_args_pool(self):
+        if self.level == 0:
+            self.args_pool.read_shared_memory_V2()
+
+    # recreate data pool
+    def recreate_data_pool(self):
+        """recreate data pool.
+
+        This function will be called by higher level algorithm.
+
+        Before recreate data pool, you should clear the data pool.
+        """
+
+        pool_info_dict = json.load(open(self.pool_info_file, 'r'))
+        self.data_pool.create_buffer_from_dic(pool_info_dict)
+
+    def reread_data_pool(self):
+        """reread data pool.
+
+        This function will be called by higher level algorithm.
+        """
+        pool_info_dict = json.load(open(self.pool_info_file, 'r'))
+        self.data_pool.read_shared_memory_from_dic(pool_info_dict)
+
+    def clear_data_pool(self):
+        """clear data pool.
+
+        This function will be called by higher level algorithm.
+        """
+        self.data_pool.clear()
 
     def initialize_actor_config(self):
         # initialize sample action
@@ -362,6 +486,11 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         if self.level == 0:
             if len(self._all_model_dict) < 1:
                 raise ValueError("Model dictionary is void! Please check _all_model_dict!")
+
+                # check some information
+                # actor model must be given
+        if self.actor is None:
+            raise ValueError('Actor model must be given.')
 
     ############################# key function #############################
     def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
@@ -1147,11 +1276,16 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         if self.log_std is not None:
             self.sync_log_std()
 
+    def meta_save_model(self):
+        pass
+
     def close(self):
         """
         close.
         """
         self.data_pool.close()
+        if self.args_pool is not None:
+            self.args_pool.close()
 
     def sync_log_std(self):
         """

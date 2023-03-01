@@ -102,6 +102,7 @@ class RLBaseEnv(abc.ABC):
         self._reward_info = ('total_reward',)  # reward info is a tuple
         self._obs_info = None  # DataInfo
         self.action_state_info = {}  # default is empty dict
+        self.adjust_parameters = []  # default is empty list, this is used for high level algorithm
 
     @abc.abstractmethod
     def reset(self):
@@ -125,6 +126,7 @@ class RLBaseEnv(abc.ABC):
         done (bool): done flag of environment.
         info (dict or None): info of environment.
         """
+
     @abc.abstractmethod
     def close(self):
         """

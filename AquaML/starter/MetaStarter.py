@@ -30,7 +30,7 @@ class MetaStarter:
                  meta_parameter,
                  inner_algo_starter,
                  inner_parameter,
-                 num_inner_algo,
+                 # num_inner_algo,
                  name: str = None,
                  mpi_comm=None,
                  computer_type: str = 'PC',
@@ -47,12 +47,14 @@ class MetaStarter:
         """
         mkdir(name)
         self.name = name
-        self.num_inner_algo = num_inner_algo
+        self.num_inner_algo = meta_algo['num_inner_algo']
         prefix_inner_algo_name = 'inner'
         self.mpi_comm = mpi_comm
         inner_parameter['meta_flag'] = True
         inner_parameter['computer_type'] = computer_type
         inner_parameter['prefix_name'] = name
+
+        # It should create inner algorithm first, then create meta algorithm.
 
         if mpi_comm is not None:
             self.total_threads = MPI.COMM_WORLD.Get_size()
@@ -66,12 +68,27 @@ class MetaStarter:
                 self.inner_algos = inner_algo_starter(**inner_parameter)
             self.inner_algos = None
         else:
-            self.inner_algos = []
+            self.inner_algos = {}
             # allocate name and parameters for inner algorithm
-            for i in range(num_inner_algo):
+            for i in range(self.num_inner_algo):
                 inner_algo_name = prefix_inner_algo_name + str(i)
 
                 inner_parameter['name'] = inner_algo_name
 
                 algo = inner_algo_starter(**inner_parameter)
-                self.inner_algos.append(algo)
+
+                # after this, the inner algorithm will be created.
+                self.inner_algos[inner_algo_name] = algo
+
+        # Then create meta algorithm
+        if mpi_comm is not None:
+            if self.thread_id == 0:
+                meta_parameter['name'] = name
+                meta_parameter['computer_type'] = computer_type
+
+                # instantiate meta algorithm
+                self.meta_algo = meta_algo['meta_algo'](**meta_parameter)
+        else:
+            meta_parameter['name'] = name
+            meta_parameter['computer_type'] = computer_type
+            self.meta_algo = meta_algo['meta_algo'](**meta_parameter)

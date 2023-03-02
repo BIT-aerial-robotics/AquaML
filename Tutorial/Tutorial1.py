@@ -236,6 +236,7 @@ starter = RLTaskStarter(
     model_class_dict=model_class_dict,
     algo=SAC2,
     algo_hyperparameter=sac_parameter,
+    meta_flag=True,
     # mpi_comm=comm,
     name=None,
     # prefix_name='Meta'

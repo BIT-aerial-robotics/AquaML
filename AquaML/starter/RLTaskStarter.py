@@ -144,6 +144,13 @@ class RLTaskStarter(BaseStarter):
 
         self.algo.close()
 
+    def meta_run(self):
+        # run one epoch
+        self.algo.sync()
+        self.algo.worker.roll(self.roll_out_length)
+        self.roll_out_length = self.update_interval
+        self.algo.optimize()
+
     def _run_mpi_(self):
         for i in range(self.max_epochs):
             if self.level == 0:

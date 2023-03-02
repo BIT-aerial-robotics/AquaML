@@ -81,7 +81,7 @@ class DataPool(BasePool):
             
             """
             if self.level == 0:
-                self.create_buffer_from_dic(info_dic)
+                self.create_buffer_from_dict(info_dic)
                 if self._computer_type == 'PC':
                     self.create_share_memory()
             else:

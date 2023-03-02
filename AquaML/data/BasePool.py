@@ -1,5 +1,6 @@
 from AquaML.DataType import DataInfo
 from AquaML.data.DataUnit import DataUnit
+import json
 
 
 class BasePool:
@@ -8,6 +9,8 @@ class BasePool:
         self.name = name
         self._computer_type = computer_type
         self.level = level
+
+        self.pool_file = None
 
     def create_share_memory(self):
         """create shared memory!
@@ -70,7 +73,7 @@ class BasePool:
                 nbytes=info['nbytes'],
             )
 
-    def read_shared_memory_from_dic(self, info_dic: dict):
+    def read_shared_memory_from_dict_direct(self, info_dic: dict, prefix=None):
         """read shared memory from dic.
 
         Sub thread.
@@ -80,14 +83,35 @@ class BasePool:
         """
         # create void data unit
 
-        for key, unit in self.data_pool.items():
-            name = unit.name
-            info = info_dic[name]
-            self.data_pool[key] = unit.read_shared_memory_V2(
-                name=name,
-                shape=info['shape'],
-                dtype=info['dtype'],
-                nbytes=info['nbytes'],
+        if prefix is None:
+            start_index = 0
+        else:
+            start_index = len(prefix) + 1
+
+        for key, value in info_dic.items():
+            name = key[start_index:]
+            self.data_pool[name].read_shared_memory_V2(
+                name=key,
+                shape=value['shape'],
+                dtype=value['dtype'],
+                nbytes=value['nbytes'],
+            )
+
+    def create_buffer_from_dict_direct(self, info_dic: dict, prefix=None):
+
+        if prefix is None:
+            start_index = 0
+        else:
+            start_index = len(prefix) + 1
+
+        for key, value in info_dic.items():
+            dtype = DataUnit.get_dtype_from_str(value['dtype'])
+            self.data_pool[key[start_index:]] = DataUnit(
+                name=key,
+                shape=value['shape'],
+                dtype=dtype,
+                computer_type=self._computer_type,
+                level=self.level,
             )
 
     def get_unit(self, name: str):
@@ -136,3 +160,25 @@ class BasePool:
             data_unit (DataUnit): data unit.
         """
         self.data_pool[name] = data_unit
+
+    def save_units_info_json(self, file: str):
+        """write units info to json file.
+
+        Args:
+            file (str): path.
+        """
+
+        info_dics = {}
+
+        for name, unit in self.data_pool.items():
+
+            info_dic = unit.get_key_info()
+
+            for key, value in info_dic.items():
+                info_dics[key] = value
+
+        # with open(path+'/pool_config.jason', 'w') as f:
+        json.dump(info_dics, open(file, 'w'), indent=3)
+
+    def set_pool_file(self, file):
+        self.pool_file = file

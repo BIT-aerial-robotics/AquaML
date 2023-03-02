@@ -23,6 +23,7 @@ class SAC(BaseRLAlgo):
                  vf: BaseModel,
                  computer_type: str = 'PC',
                  name: str = 'SAC',
+                 prefix_name: str = None,
                  level: int = 0,
                  thread_ID: int = -1,
                  total_threads: int = 1, ):
@@ -37,6 +38,7 @@ class SAC(BaseRLAlgo):
             level=level,
             thread_ID=thread_ID,
             total_threads=total_threads,
+            prefix_name=prefix_name,
         )
 
         # TODO:: initialize the network in the future

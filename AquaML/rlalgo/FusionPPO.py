@@ -14,6 +14,7 @@ class FusionPPO(BaseRLAlgo):
                  actor,
                  critic,
                  computer_type: str = 'PC',
+                 prefix_name=None,
                  name: str = 'PPO',
                  level: int = 0,
                  thread_id: int = -1,
@@ -42,6 +43,7 @@ class FusionPPO(BaseRLAlgo):
             level=level,
             thread_ID=thread_id,
             total_threads=total_threads,
+            prefix_name=prefix_name,
         )
 
         self.hyper_parameters = parameters

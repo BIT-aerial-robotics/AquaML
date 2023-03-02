@@ -220,8 +220,10 @@ sac_parameter = SAC2_parameter(
     calculate_episodes=5,
     alpha_learning_rate=3e-3,
     update_times=1,
-    store_model_times=5
+    store_model_times=2
 )
+
+sac_parameter.point_adjust_parameter(['batch_size', 'buffer_size', 'mini_buffer_size'])
 
 model_class_dict = {
     'actor': Actor_net,
@@ -235,7 +237,8 @@ starter = RLTaskStarter(
     algo=SAC2,
     algo_hyperparameter=sac_parameter,
     # mpi_comm=comm,
-    name=None
+    name=None,
+    # prefix_name='Meta'
 )
 
 starter.run()

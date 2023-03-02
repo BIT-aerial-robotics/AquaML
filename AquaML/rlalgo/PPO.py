@@ -14,6 +14,7 @@ class PPO(BaseRLAlgo):
                  critic,
                  computer_type: str = 'PC',
                  name: str = 'PPO',
+                 prefix_name: str = None,
                  level: int = 0,
                  thread_id: int = -1,
                  total_threads: int = 1, ):
@@ -47,6 +48,7 @@ class PPO(BaseRLAlgo):
             computer_type=computer_type,
             level=level,
             thread_ID=thread_id,
+            prefix_name=prefix_name,
             total_threads=total_threads,
         )
 

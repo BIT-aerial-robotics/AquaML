@@ -12,6 +12,7 @@ class RLTaskStarter(BaseStarter):
                  algo,
                  algo_hyperparameter,
                  meta_flag: bool = False,
+                 prefix_name: str = None,
                  mpi_comm=None,
                  computer_type: str = 'PC',
                  name=None,
@@ -91,6 +92,7 @@ class RLTaskStarter(BaseStarter):
             'env': env,
             'rl_io_info': rl_io_info,
             'parameters': algo_hyperparameter,
+            'prefix_name': prefix_name,
         }
 
         model_args = model_class_dict
@@ -101,7 +103,7 @@ class RLTaskStarter(BaseStarter):
         self.algo = algo(**algo_args)
 
         # create folder
-        self.initial_dir(self.algo.name)
+        # self.initial_dir(self.algo.name)
 
         # initial algorithm
         if meta_flag:

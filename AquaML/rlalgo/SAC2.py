@@ -17,6 +17,7 @@ class SAC2(BaseRLAlgo):
                  computer_type: str = 'PC',
                  name: str = 'SAC',
                  level: int = 0,
+                 prefix_name: str = None,
                  thread_id: int = -1,
                  total_threads: int = 1):
 
@@ -62,6 +63,7 @@ class SAC2(BaseRLAlgo):
             mini_buffer_size=parameters.mini_buffer_size,
             display_interval=parameters.display_interval,
             calculate_episodes=parameters.calculate_episodes,
+            prefix_name=prefix_name,
         )
 
         self.actor = actor()

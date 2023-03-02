@@ -53,13 +53,20 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     # TODO:统一输入接口
     # TODO:判断是否启动多线程 (done)  
 
-    def __init__(self, env, rl_io_info: RLIOInfo, name: str,
+    def __init__(self, env,
+                 rl_io_info: RLIOInfo,
+                 name: str,
                  hyper_parameters,
-                 update_interval: int = 0, mini_buffer_size: int = 0,
+                 update_interval: int = 0,
+                 mini_buffer_size: int = 0,
                  calculate_episodes=5,
                  display_interval=1,
+                 prefix_name=None,
                  computer_type: str = 'PC',
-                 level: int = 0, thread_ID: int = -1, total_threads: int = 1, policy_type: str = 'off'):
+                 level: int = 0,
+                 thread_ID: int = -1,
+                 total_threads: int = 1,
+                 policy_type: str = 'off'):
         """create base for reinforcement learning algorithm.
         This base class provides exploration policy, data pool(multi thread).
         Some tools are also provided for reinforcement learning algorithm such as
@@ -143,9 +150,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.display_interval = display_interval
         self.hyper_parameters = hyper_parameters
 
-        self.cache_path = name + '/cache'  # cache path
-        self.log_path = name + '/log'
-
         # parameter of multithread
         self._computer_type = computer_type
         self.level = level
@@ -161,12 +165,21 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         '''
 
         # config cache file
-        self.pool_info_path = self.name
-        self.pool_info_file = self.name + '/pool_config.json'
+        # self.data_pool_info_path = self.
+        if prefix_name is not None:
+            name = prefix_name + '/' + name
+        self.cache_path = name + '/cache'  # cache path
+        self.meta_path = name + '/meta'
+        self.log_path = name + '/log'
+        self.data_pool_info_file = self.meta_path + '/data_pool_config.json'
 
-        self.meta_path = self.name + '/meta'
+        self.args_pool_info_file = self.meta_path + '/args_pool_config.json'
+
+        self.history_model_path = name + '/' + 'history_model'
 
         mkdir(self.meta_path)
+        mkdir(self.cache_path)
+        mkdir(self.log_path)
 
         # create data pool according to thread level
         self.data_pool = DataPool(name=self.name, level=self.level,
@@ -177,58 +190,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # TODO: 私有变量会出问题，貌似这个没用
         self._explore_dict = {}  # store explore policy, convenient for multi thread
 
-        # TODO: 需要升级为异步执行的方式
-        # TODO: 需要确认主线程和子线程得到得硬件不一样是否影响执行速度
-        # allocate start index and size for each thread
-        # main thread will part in sample data
-        # just used when computer_type == 'PC'
-        if self._computer_type == 'PC':
-            if self.thread_ID > 0:
-                # thread ID start from 0
-                self.each_thread_size = int(self.rl_io_info.buffer_size / self.sample_threads)
-                self.each_thread_start_index = int((self.thread_ID - 1) * self.each_thread_size)
-
-                self.max_buffer_size = self.each_thread_size * self.sample_threads
-
-                # if mini_buffer_size == 0, it means pre-sample data is disabled
-                self.each_thread_mini_buffer_size = int(self.mini_buffer_size / self.sample_threads)
-                self.mini_buffer_size = int(self.each_thread_mini_buffer_size * self.sample_threads)
-
-                if self.update_interval == 0:
-                    # 这种情形属于将所有buffer填充满以后再更新模型
-                    # if update_interval == 0, it means update model after buffer is full
-                    self.each_thread_update_interval = self.each_thread_size  # update interval for each thread
-                else:
-                    # if update_interval != 0, it means update model after each step
-                    # then we need to calculate how many steps to update model for each thread
-                    # 每个线程更新多少次等待更新模型
-                    self.each_thread_update_interval = int(
-                        self.update_interval / self.sample_threads)  # update interval for each thread
-                if self.level > 0:
-                    self.sample_id = self.thread_ID - 1
-                else:
-                    self.sample_id = 0
-            else:
-                self.each_thread_size = self.rl_io_info.buffer_size
-                self.each_thread_start_index = 0
-                self.each_thread_mini_buffer_size = self.mini_buffer_size
-                if self.update_interval == 0:
-                    self.each_thread_update_interval = self.each_thread_size  # update interval for each thread
-                else:
-                    self.each_thread_update_interval = self.update_interval  # update interval for each thread
-
-                self.max_buffer_size = self.each_thread_size
-
-                self.thread_ID = 0
-                self.sample_id = 0  # sample id is used to identify which thread is sampling data
-
-                # self.each_thread_update_interval = self.update_interval # update interval for each thread
-
-        else:
-            # TODO: HPC will implement in the future
-            self.each_thread_size = None
-            self.each_thread_start_index = None
-            self.each_thread_update_interval = None
+        self.allocate_data_pool()
 
         # create worker
         if self.total_threads > 1:
@@ -311,12 +273,14 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # just do in m main thread
         if self.level == 0:
             # initial recoder
-            history_model_path = self.name + '/' + 'history_model'
-            self.recoder = Recoder(log_folder=self.log_path, history_model_log_folder=history_model_path, )
-            self.data_pool.save_units_info_json(self.pool_info_path)
+            # history_model_path = name + '/' + 'history_model'
+            self.recoder = Recoder(log_folder=self.log_path, history_model_log_folder=self.history_model_path, )
+            self.data_pool.save_units_info_json(self.data_pool_info_file)
 
         else:
             self.recoder = None
+
+        self.init_args_pool()
 
         # check some information
         # actor model must be given
@@ -351,11 +315,13 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # just do in m main thread
         if self.level == 0:
             # initial recoder
-            history_model_path = self.name + '/' + 'history_model'
-            self.recoder = Recoder(log_folder=self.log_path, history_model_log_folder=history_model_path, )
-            self.data_pool.save_units_info_json(self.name)
+            # history_model_path = self.name + '/' + 'history_model'
+            self.recoder = Recoder(log_folder=self.log_path, history_model_log_folder=self.history_model_path, )
+            self.data_pool.save_units_info_json(self.data_pool_info_file)
         else:
             self.recoder = None
+
+        self.init_args_pool()
 
     def init_args_pool(self):
         # summary how many parameters should be automatically adjusted
@@ -378,6 +344,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.args_pool.create_buffer_from_tuple(self.adjust_parameters)
         if self.level == 0:
             self.args_pool.create_shared_memory()
+            self.args_pool.save_units_info_json(self.args_pool_info_file)
 
     def read_args_pool(self):
         if self.level == 0:
@@ -392,16 +359,16 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         Before recreate data pool, you should clear the data pool.
         """
 
-        pool_info_dict = json.load(open(self.pool_info_file, 'r'))
-        self.data_pool.create_buffer_from_dic(pool_info_dict)
+        pool_info_dict = json.load(open(self.data_pool_info_file, 'r'))
+        self.data_pool.create_buffer_from_dict_direct(pool_info_dict, prefix=self.name)
 
     def reread_data_pool(self):
         """reread data pool.
 
         This function will be called by higher level algorithm.
         """
-        pool_info_dict = json.load(open(self.pool_info_file, 'r'))
-        self.data_pool.read_shared_memory_from_dic(pool_info_dict)
+        pool_info_dict = json.load(open(self.data_pool_info_file, 'r'))
+        self.data_pool.read_shared_memory_from_dict_direct(pool_info_dict)
 
     def clear_data_pool(self):
         """clear data pool.
@@ -432,6 +399,60 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             #     for name in names:
             #         if 'hidden' in name:
             #             raise ValueError('Batch trajectory mode dose not need to input hidden state.')
+
+    def allocate_data_pool(self):
+
+        """allocate data pool.
+        Each thread use different part of data pool.
+        """
+
+        if self._computer_type == 'PC':
+            if self.thread_ID > 0:
+                # thread ID start from 0
+                self.each_thread_size = int(self.rl_io_info.buffer_size / self.sample_threads)
+                self.each_thread_start_index = int((self.thread_ID - 1) * self.each_thread_size)
+
+                self.max_buffer_size = self.each_thread_size * self.sample_threads
+
+                # if mini_buffer_size == 0, it means pre-sample data is disabled
+                self.each_thread_mini_buffer_size = int(self.mini_buffer_size / self.sample_threads)
+                self.mini_buffer_size = int(self.each_thread_mini_buffer_size * self.sample_threads)
+
+                if self.update_interval == 0:
+                    # 这种情形属于将所有buffer填充满以后再更新模型
+                    # if update_interval == 0, it means update model after buffer is full
+                    self.each_thread_update_interval = self.each_thread_size  # update interval for each thread
+                else:
+                    # if update_interval != 0, it means update model after each step
+                    # then we need to calculate how many steps to update model for each thread
+                    # 每个线程更新多少次等待更新模型
+                    self.each_thread_update_interval = int(
+                        self.update_interval / self.sample_threads)  # update interval for each thread
+                if self.level > 0:
+                    self.sample_id = self.thread_ID - 1
+                else:
+                    self.sample_id = 0
+            else:
+                self.each_thread_size = self.rl_io_info.buffer_size
+                self.each_thread_start_index = 0
+                self.each_thread_mini_buffer_size = self.mini_buffer_size
+                if self.update_interval == 0:
+                    self.each_thread_update_interval = self.each_thread_size  # update interval for each thread
+                else:
+                    self.each_thread_update_interval = self.update_interval  # update interval for each thread
+
+                self.max_buffer_size = self.each_thread_size
+
+                self.thread_ID = 0
+                self.sample_id = 0  # sample id is used to identify which thread is sampling data
+
+                # self.each_thread_update_interval = self.update_interval # update interval for each thread
+
+        else:
+            # TODO: HPC will implement in the future
+            self.each_thread_size = None
+            self.each_thread_start_index = None
+            self.each_thread_update_interval = None
 
     def optimize(self):
 

@@ -1,0 +1,23 @@
+{
+   "SAC_batch_size": {
+      "shape": [
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 4
+   },
+   "SAC_buffer_size": {
+      "shape": [
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 4
+   },
+   "SAC_mini_buffer_size": {
+      "shape": [
+         1
+      ],
+      "dtype": "np.float32",
+      "nbytes": 4
+   }
+}

@@ -1,6 +1,5 @@
 from AquaML.data.DataUnit import DataUnit
 from AquaML.data.BasePool import BasePool
-from AquaML.DataType import DataInfo
 import numpy as np
 
 

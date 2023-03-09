@@ -81,7 +81,7 @@ class PendulumWrapper(RLBaseEnv):
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs',),
-            shapes=(3,),
+            shapes=((3,),),
             dtypes=np.float32
         )
 

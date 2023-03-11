@@ -107,3 +107,27 @@ class VoidExplorePolicy(ExplorePolicyBase):
 
     def resample_prob(self, mu, log_std, action):
         return tf.ones((1, *self.shape))
+
+
+# 离散探索策略
+class CategoricalExplorePolicy(ExplorePolicyBase):
+    def __init__(self, shape):
+        super().__init__(shape)
+        self.input_name = ('action',)
+
+    # @tf.function
+    def noise_and_prob(self, batch_size=1):
+        pass
+
+    def scale_out(self, action):
+        dist = tfp.distributions.Categorical(logits=action)
+        sample_action = dist.sample()
+        prob = dist.prob(sample_action)
+
+        return sample_action, prob
+
+    def resample_prob(self, log_prob, action):
+
+        dist = tfp.distributions.Categorical(logits=log_prob)
+        log_prob = dist.log_prob(action)
+        return log_prob

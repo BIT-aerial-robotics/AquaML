@@ -3,7 +3,7 @@ import tensorflow as tf
 from AquaML.data.DataPool import DataPool
 from AquaML.DataType import RLIOInfo
 from AquaML.data.DataUnit import DataUnit
-from AquaML.rlalgo.ExplorePolicy import GaussianExplorePolicy, VoidExplorePolicy
+from AquaML.rlalgo.ExplorePolicy import GaussianExplorePolicy, VoidExplorePolicy, CategoricalExplorePolicy
 from AquaML.tool.RLWorker import RLWorker
 from AquaML.BaseClass import BaseAlgo
 from AquaML.data.ArgsPool import ArgsPool
@@ -268,7 +268,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             # print(self.rl_io_info.data_info)
             self.data_pool.multi_init(self.rl_io_info.data_info, type='buffer')
         else:  # single thread
-            self.data_pool.create_buffer_from_dic(self.rl_io_info.data_info)
+            self.data_pool.create_buffer_from_dict(self.rl_io_info.data_info)
 
         # just do in m main thread
         if self.level == 0:
@@ -901,6 +901,11 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             # log_std is void
             self.explore_policy = VoidExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
 
+    # create categorical exploration policy
+    def create_categorical_exploration_policy(self):
+
+        self.explore_policy = CategoricalExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
+
     ############################# get function ################################
     def get_action(self, obs: dict):
         """
@@ -1204,7 +1209,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         action, log_prob = self.actor(*actor_obs)
 
         return (action, log_prob)
-
+    # @tf.function
     def _resample_log_prob_no_std(self, obs, action):
 
         """
@@ -1241,6 +1246,21 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
         return (log_prob, *out)
+
+    def _resample_log_prob_categorical(self, obs, action):
+        """
+        Re get log_prob of action.
+        The output of actor model is (log_prob,).
+        It is different from resample_action.
+
+        """
+
+        out = self.actor(*obs)
+        s_log_prob = out[0]
+
+        log_prob = self.explore_policy.resample_prob(s_log_prob, action)
+
+        return (log_prob,)
 
     def concat_dict(self, dict_tuple: tuple):
         """

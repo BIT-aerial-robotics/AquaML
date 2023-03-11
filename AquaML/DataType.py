@@ -58,7 +58,7 @@ class RLIOInfo:
     Information of reinforcement learning model input and output.
     """
 
-    def __init__(self, obs_info: dict, obs_type_info, actor_out_info: dict, reward_info: tuple, buffer_size: int):
+    def __init__(self, obs_info: dict, obs_type_info, actor_out_info: dict, reward_info: tuple, buffer_size: int, ):
         """Reinforcement learning model input-output(IO) information.
         
 

@@ -95,7 +95,7 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.initial_obs(obs)
 
-        return obs
+        return obs, True # 2.0.1 new version
 
     def step(self, action_dict):
         action = action_dict['action']

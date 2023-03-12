@@ -150,6 +150,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.display_interval = display_interval
         self.hyper_parameters = hyper_parameters
 
+        self.store_counter = 0
+
         # parameter of multithread
         self._computer_type = computer_type
         self.level = level
@@ -215,6 +217,14 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             elif self.rl_io_info.explore_info == 'void-std':
                 self.resample_action = self._resample_action_log_prob
                 self.resample_log_prob = None
+            elif self.rl_io_info.explore_info == 'discrete':
+                self.resample_action = None
+                self.resample_log_prob = self._resample_log_prob_discrete
+
+        if self.rl_io_info.explore_info == 'discrete':
+            self.create_explore_policy = self.create_categorical_exploration_policy
+        else:
+            self.create_explore_policy = self.create_gaussian_exploration_policy
 
         # hyper parameters
         # the hyper parameters is a dictionary
@@ -238,6 +248,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self._sync_explore_dict = {}  # store sync explore policy, convenient for multi thread
 
         self._all_model_dict = {}  # store all model, convenient to record model
+
+        self._used_characters = ('reward',)
 
     # initial algorithm
     ############################# key component #############################
@@ -528,7 +540,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # store data to buffer
         # support multi thread
 
-        idx = (self.worker.step_count - 1) % self.each_thread_size
+        self.store_counter += 1
+        idx = (self.store_counter - 1) % self.each_thread_size
         index = self.each_thread_start_index + idx  # index in each thread
 
         # store obs to buffer
@@ -907,7 +920,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.explore_policy = CategoricalExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
 
     ############################# get function ################################
-    def get_action(self, obs: dict):
+    def get_action(self, obs: dict, test_flag: bool = False):
         """
 
         sample action in the training process.
@@ -937,7 +950,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         for name, value in self._explore_dict.items():
             policy_out[name] = value
 
-        action, prob = self.explore_policy(policy_out)
+        action, prob = self.explore_policy(policy_out, test_flag=test_flag)
 
         policy_out['action'] = action
         policy_out['prob'] = prob
@@ -1247,7 +1260,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         return (log_prob, *out)
 
-    def _resample_log_prob_categorical(self, obs, action):
+    def _resample_log_prob_discrete(self, obs, action):
         """
         Re get log_prob of action.
         The output of actor model is (log_prob,).

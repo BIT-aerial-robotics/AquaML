@@ -10,7 +10,10 @@ class BaseParameter(abc.ABC):
                  update_interval: int = 0,
                  store_model_times: int = 5,
                  update_times=1,
-                 batch_trajectory=False
+                 eval_episodes=0,
+                 batch_trajectory=False,
+                 action_space_type: str = None,
+                 eval_interval: int = 1,
                  ):
         """
         Parameters of environment.
@@ -27,6 +30,8 @@ class BaseParameter(abc.ABC):
             control how to train the recurrent network. If batch_trajectory is True, the data
             will like (batch_size, trajectory_length, feature_dim), you can see as (batch_size,time_step,feature_dim).
             If batch_trajectory is False, the data will like (batch_size, 1, feature_dim).
+            action_space_type (str): action space type. It can be 'discrete' or 'continuous'. Default is None.
+            None means the action space type is continuous.
         """
 
         self.epoch_length = epoch_length
@@ -42,6 +47,11 @@ class BaseParameter(abc.ABC):
         self.store_model_times = store_model_times
 
         self.adjust_parameters = []
+
+        self.action_space_type = action_space_type
+
+        self.eval_episodes = eval_episodes
+        self.eval_interval = eval_interval
 
     def point_adjust_parameter(self, names: list):
         """
@@ -65,7 +75,10 @@ class SAC_parameter(BaseParameter):
     def __init__(self, epoch_length: int, n_epochs: int, batch_size: int,
                  update_interval: int,
                  discount: float, tau: float,
-                 store_model_times=5
+                 store_model_times=5,
+                 eval_episodes=0,
+                 action_space_type: str = None,
+                 eval_interval: int = 1,
                  ):
         """
         Parameters of SAC algorithm.
@@ -83,10 +96,18 @@ class SAC_parameter(BaseParameter):
             update_interval (int): update interval.
             discount (float): discount factor.
             tau (float): Soft value function target update weight.
+            store_model_times (int): times of storing the model.
+            action_space_type (str): action space type. It can be 'discrete' or 'continuous'. Default is None.
+            None means the action space type is continuous.
   
             
         """
-        super().__init__(epoch_length, n_epochs, batch_size, update_interval, store_model_times=store_model_times)
+        super().__init__(epoch_length, n_epochs, batch_size, update_interval,
+                         store_model_times=store_model_times,
+                         action_space_type=action_space_type,
+                         eval_episodes=eval_episodes,
+                         eval_interval=eval_interval,
+                         )
 
         self.discount = discount
         self.tau = tau
@@ -108,6 +129,9 @@ class SAC2_parameter(BaseParameter):
                  display_interval: int = 1,
                  update_interval: int = 0,
                  store_model_times=5,
+                 action_space_type: str = None,
+                 eval_episodes=0,
+                 eval_interval: int = 1,
                  ):
         """
         Parameters of SAC2 algorithm.
@@ -159,8 +183,16 @@ class SAC2_parameter(BaseParameter):
             calculate_episodes (int, optional): calculate episodes. Defaults to 5.
             display_interval (int, optional): display interval which depends on epoch. Defaults to 1.
         """
-        super().__init__(episode_length, n_epochs, buffer_size,
-                         batch_size, update_interval, store_model_times=store_model_times)
+        super().__init__(episode_length,
+                         n_epochs,
+                         buffer_size,
+                         batch_size,
+                         update_interval,
+                         store_model_times=store_model_times,
+                         action_space_type=action_space_type,
+                         eval_episodes=eval_episodes,
+                         eval_interval=eval_interval,
+                         )
 
         self.discount = discount
         self.tau = tau
@@ -191,7 +223,11 @@ class PPO_parameter(BaseParameter):
                  epsilon: float = 0.2,
                  gamma: float = 0.99,
                  lambada: float = 0.95,
-                 store_model_times=5
+                 store_model_times=5,
+                 action_space_type: str = None,
+                 batch_trajectory: bool = False,
+                 eval_episodes=0,
+                 eval_interval: int = 1,
                  ):
         """
         Parameters of PPO algorithm.
@@ -210,8 +246,16 @@ class PPO_parameter(BaseParameter):
 
 
         """
-        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times,
-                         store_model_times=store_model_times)
+        super().__init__(epoch_length,
+                         n_epochs,
+                         total_steps,
+                         batch_size,
+                         update_times=update_times,
+                         store_model_times=store_model_times,
+                         action_space_type=action_space_type,
+                         eval_episodes=eval_episodes,
+                         eval_interval=eval_interval,
+                         )
 
         self.gamma = gamma
         self.lambada = lambada
@@ -220,6 +264,7 @@ class PPO_parameter(BaseParameter):
         self.update_critic_times = update_critic_times
         self.update_actor_times = update_actor_times
         self.calculate_episodes = int(self.buffer_size / self.epoch_length)
+        self.batch_trajectory = batch_trajectory
         # self.learning_rate = learning_rate
         # self.update_interval = update_interval
 
@@ -239,6 +284,9 @@ class FusionPPO_parameter(BaseParameter):
                  epsilon: float = 0.2,
                  gamma: float = 0.99,
                  lambada: float = 0.95,
+                 action_space_type: str = None,
+                 eval_episodes=0,
+                 eval_interval: int = 1,
                  ):
         """
         Parameters of Fusion PPO algorithm.
@@ -253,8 +301,16 @@ class FusionPPO_parameter(BaseParameter):
             lambada (float): lambada for GAE.
             entropy_coeff (float): entropy coefficient.
         """
-        super().__init__(epoch_length, n_epochs, total_steps, batch_size, update_times=update_times,
-                         batch_trajectory=batch_trajectory)
+        super().__init__(epoch_length,
+                         n_epochs,
+                         total_steps,
+                         batch_size,
+                         update_times=update_times,
+                         batch_trajectory=batch_trajectory,
+                         action_space_type=action_space_type,
+                         eval_episodes=eval_episodes,
+                         eval_interval=eval_interval,
+                         )
 
         self.gamma = gamma
         self.lambada = lambada

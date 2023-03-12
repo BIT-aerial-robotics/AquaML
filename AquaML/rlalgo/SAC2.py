@@ -132,7 +132,7 @@ class SAC2(BaseRLAlgo):
             self.alpha_optimizer = None
 
         # create gaussian noise
-        self.create_gaussian_exploration_policy()
+        self.create_explore_policy()
 
         # target entropy
         self.target_entropy = -tf.constant(self.rl_io_info.actor_out_info['action'], dtype=tf.float32)

@@ -113,6 +113,12 @@ class RLBaseEnv(abc.ABC):
         observation (dict): observation of environment.
         """
 
+    def display(self):
+        """
+        Display the environment.
+        """
+        pass
+
     @abc.abstractmethod
     def step(self, action):
         """

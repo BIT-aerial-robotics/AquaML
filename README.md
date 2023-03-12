@@ -239,7 +239,7 @@ If you want change the environment into POMDP, then you can:
 
         obs = self.initial_obs(obs)
 
-        return obs
+        return obs, True
 ```
 
  For POMDP version:
@@ -256,7 +256,7 @@ If you want change the environment into POMDP, then you can:
 
         obs = self.initial_obs(obs)
 
-        return obs
+        return obs, True
 ```
 
 ###### 4. Implement ``step``
@@ -411,6 +411,14 @@ mpirun -n 6 python Tutorial1.py
 #### Create new reinforcement algorithm
 
 #### Create reinforcement learning environment
+
+## System occupancy character
+
+In this frame work, some characters will be used automatically such as: in RL ``reward`` will be used to summarize the performance of agent so you should avoid to use it.
+
+## Reinforcement learning
+
+``reward``
 
 ## Understanding of our frame work
 

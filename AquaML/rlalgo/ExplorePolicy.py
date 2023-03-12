@@ -35,8 +35,13 @@ class ExplorePolicyBase(abc.ABC):
         """
         Scale the action to the range of environment.
         """
+    @abc.abstractmethod
+    def test_action(self, *args, **kwargs):
+        """
+        Test action.
+        """
 
-    def __call__(self, inputs_dict: dict):
+    def __call__(self, inputs_dict: dict, test_flag=False):
         """inputs_dict is a dict. The key is the name of input. The value is the input.
         inputs_dict must contain all the output of actor model.
         such as:
@@ -55,7 +60,10 @@ class ExplorePolicyBase(abc.ABC):
         for key in self.input_name:
             inputs.append(inputs_dict[key])
 
-        return self.scale_out(*inputs)
+        if test_flag:
+            return self.test_action(*inputs)
+        else:
+            return self.scale_out(*inputs)
 
     @abc.abstractmethod
     def resample_prob(self, mu, log_std, action):
@@ -92,6 +100,9 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         log_prob = dist.log_prob(action)
         return log_prob
 
+    def test_action(self, mu, log_std):
+        return mu, tf.ones((1, *self.shape))
+
 
 class VoidExplorePolicy(ExplorePolicyBase):
     def __init__(self, shape):
@@ -107,6 +118,9 @@ class VoidExplorePolicy(ExplorePolicyBase):
 
     def resample_prob(self, mu, log_std, action):
         return tf.ones((1, *self.shape))
+
+    def test_action(self, mu):
+        return mu, tf.ones((1, *self.shape))
 
 
 # 离散探索策略
@@ -131,3 +145,9 @@ class CategoricalExplorePolicy(ExplorePolicyBase):
         dist = tfp.distributions.Categorical(logits=log_prob)
         log_prob = dist.log_prob(action)
         return log_prob
+
+    def test_action(self, action):
+
+        action = tf.argmax(action, axis=-1)
+
+        return action, tf.ones((1, *self.shape))

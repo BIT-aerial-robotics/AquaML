@@ -71,7 +71,7 @@ class SAC(BaseRLAlgo):
             self.create_optimizer(name='vf', optimizer=self.vf.optimizer, lr=self.vf.learning_rate)
 
         # create distribution
-        self.create_gaussian_exploration_policy()
+        self.create_explore_policy()
 
     @tf.function
     def train_q_fun(self, q_obs: tuple, v_next_obs: tuple, reward: tf.Tensor,

@@ -58,7 +58,13 @@ class RLIOInfo:
     Information of reinforcement learning model input and output.
     """
 
-    def __init__(self, obs_info: dict, obs_type_info, actor_out_info: dict, reward_info: tuple, buffer_size: int, ):
+    def __init__(self, obs_info: dict,
+                 obs_type_info,
+                 actor_out_info: dict,
+                 reward_info: tuple,
+                 buffer_size: int,
+                 action_space_type: str = None,
+                 ):
         """Reinforcement learning model input-output(IO) information.
         
 
@@ -133,6 +139,11 @@ class RLIOInfo:
             data_info_dict[key] = insert_buffer_size(shape)
             data_type_info_dict[key] = np.float32
 
+        # next action
+        for key in actor_out_info.keys():
+            data_info_dict['next_' + key] = data_info_dict[key]
+            data_type_info_dict['next_' + key] = data_type_info_dict[key]
+
         # NOTE: actor_out contains exploration policy output
         # if 'prob' in actor_out_info, add it to data_info
         prob_flag = False
@@ -185,6 +196,9 @@ class RLIOInfo:
                 self.explore_info = 'global-std'
             else:
                 self.explore_info = 'self-std'
+
+        if action_space_type is not None:
+            self.explore_info = action_space_type
 
         self.store_data_name = tuple(data_info_dict.keys())
 

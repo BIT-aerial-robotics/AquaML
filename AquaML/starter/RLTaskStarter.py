@@ -74,7 +74,8 @@ class RLTaskStarter(BaseStarter):
                               obs_type_info=obs_info.type_dict,
                               actor_out_info=actor_out_info,
                               reward_info=env.reward_info,
-                              buffer_size=algo_hyperparameter.buffer_size
+                              buffer_size=algo_hyperparameter.buffer_size,
+                              action_space_type=algo_hyperparameter.action_space_type,
                               )
 
         # create dict for instancing algorithm
@@ -120,6 +121,9 @@ class RLTaskStarter(BaseStarter):
         else:
             self.roll_out_length = self.mini_buffer_size
 
+        self.eval_steps = algo_hyperparameter.eval_episodes * algo_hyperparameter.epoch_length
+        self.eval_interval = algo_hyperparameter.eval_interval
+
         # store key objects
         self.max_epochs = algo_hyperparameter.n_epochs * algo_hyperparameter.display_interval
         self.mpi_comm = mpi_comm
@@ -137,9 +141,12 @@ class RLTaskStarter(BaseStarter):
     def _run_(self):
         for i in range(self.max_epochs):
             # self.algo.sync()
-            self.algo.worker.roll(self.roll_out_length)
+            self.algo.worker.roll(self.roll_out_length, test_flag=False)
             self.roll_out_length = self.update_interval
             self.algo.optimize()
+            if (i + 1) % self.eval_interval == 0:
+                self.algo.worker.roll(self.eval_steps, test_flag=True)
+            # self.algo.worker.roll(self.eval_steps, test_flag=True)
             # self.algo.sync()
 
         self.algo.close()

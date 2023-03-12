@@ -35,7 +35,7 @@ class GymEnvWrapper(RLBaseEnv):
 
         obs = self.initial_obs(obs)
 
-        return obs
+        return obs, True
 
     def step(self, action_dict):
         action = action_dict['action']

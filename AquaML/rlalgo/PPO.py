@@ -56,7 +56,7 @@ class PPO(BaseRLAlgo):
 
         self.actor = actor()
         self.initialize_actor_config()
-        self.initialize_model_weights(self.actor)
+        self.initialize_model_weights(self.actor, self.rnn_actor_flag)
 
         if self.level == 0:
             if self.resample_log_prob is None:
@@ -65,8 +65,14 @@ class PPO(BaseRLAlgo):
 
             self.critic = critic()
 
+            # judge number hidden state
+            self.hidden_state_num = 0
+            for input_name in self.actor.input_name:
+                if 'hidden' in input_name:
+                    self.hidden_state_num += 1
+
             # initialize actor and critic
-            self.initialize_model_weights(self.actor)
+            # self.initialize_model_weights(self.actor)
             self.initialize_model_weights(self.critic)
 
             # all models dict
@@ -84,7 +90,7 @@ class PPO(BaseRLAlgo):
             self.critic_optimizer = None
 
         # create exploration policy
-        self.create_gaussian_exploration_policy()
+        self.create_explore_policy()
 
     @tf.function
     def train_critic(self,
@@ -215,8 +221,23 @@ class PPO(BaseRLAlgo):
         }
 
         if self.rnn_actor_flag:
-            for idx in self.expand_dims_idx:
-                actor_obs[idx] = tf.expand_dims(actor_obs[idx], axis=1)
+            if self.hyper_parameters.batch_trajectory:
+                train_actor_input = self.get_batch_timesteps(train_actor_input)
+                actor_obs = train_actor_input['actor_obs']  # input
+
+                hidden_lists = []
+
+                for key, shape in self.actor.output_info.items():
+                    if 'hidden' in key:
+                        hidden = tf.zeros(shape=(actor_obs[0].shape[0], shape[0]), dtype=tf.float32)
+                        hidden_lists.append(hidden)
+
+                actor_obs = (*actor_obs[:-self.hidden_state_num], *hidden_lists)
+                train_actor_input['actor_obs'] = actor_obs
+
+            else:
+                for idx in self.expand_dims_idx:
+                    actor_obs[idx] = tf.expand_dims(actor_obs[idx], axis=1)
 
         info_list = []
         buffer_size = train_actor_input['actor_obs'][0].shape[0]

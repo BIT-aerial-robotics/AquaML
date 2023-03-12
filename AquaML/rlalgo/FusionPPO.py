@@ -114,7 +114,7 @@ class FusionPPO(BaseRLAlgo):
             self.critic_optimizer = None
 
         # create exploration policy
-        self.create_gaussian_exploration_policy()
+        self.create_explore_policy()
 
     @tf.function
     def train_critic(self,

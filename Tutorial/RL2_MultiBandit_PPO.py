@@ -18,7 +18,7 @@ Reference:
 2. Learning to Learn by Gradient Descent by Gradient Descent, 2016, https://arxiv.org/abs/1606.04474
 """
 
-num_of_bandits = 6
+num_of_bandits = 4
 
 
 class Actor_net(tf.keras.Model):
@@ -29,7 +29,7 @@ class Actor_net(tf.keras.Model):
 
         self.action_layer = tf.keras.layers.Dense(num_of_bandits, activation='softmax')
 
-        self.learning_rate = 2e-4
+        self.learning_rate = 2e-5
 
         self.output_info = {'action': (1,), 'hidden1': (64,), 'hidden2': (64,)}  # 离散变量较为特殊，输出维度为1
 
@@ -89,9 +89,9 @@ ppo_parameter = PPO_parameter(
     update_times=1,
     update_actor_times=1,
     update_critic_times=1,
-    gamma=0.,
+    gamma=0.99,
     epsilon=0.01,
-    lambada=0.5,
+    lambada=0.95,
     action_space_type='discrete',
     eval_episodes=5,
     eval_interval=1,

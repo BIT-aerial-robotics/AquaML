@@ -8,7 +8,7 @@ class BernoulliBandit(RLBaseEnv):
     def __init__(self, num_of_bandits, random_freq=0):
         super(BernoulliBandit, self).__init__()
         # 随机生成K个概率，作为K个老虎机的概率
-        self.probs = np.random.uniform(size=num_of_bandits, low=0.1, high=0.3)
+        self.probs = np.random.uniform(size=num_of_bandits, low=0.1, high=0.3) * 0
 
         self.best_idx = np.random.randint(0, num_of_bandits - 1, 1)  # 获奖概率最大的老虎机的索引
         self.probs[self.best_idx] = 0.95
@@ -35,7 +35,7 @@ class BernoulliBandit(RLBaseEnv):
         self.current_step_count = 0
 
     def random_bandit(self):
-        self.probs = np.random.uniform(size=self.K, low=0.1, high=0.3)
+        self.probs = np.random.uniform(size=self.K, low=0.1, high=0.3) * 0
 
         self.best_idx = np.random.randint(0, self.K - 1, 1)  # 获奖概率最大的老虎机的索引
         self.probs[self.best_idx] = 0.95
@@ -71,7 +71,7 @@ class BernoulliBandit(RLBaseEnv):
         if rand < self.probs[action]:
             reward = 1
         else:
-            reward = 0
+            reward = -0.5
 
         self.actions[action] += 1
 

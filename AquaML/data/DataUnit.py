@@ -304,7 +304,7 @@ class DataUnit:
             dtype (np.dtype): dtype.
 
         """
-        if dtype == np.float:
+        if dtype == np.float_:
             dtype = 'np.float'
         elif dtype == np.float16:
             dtype = 'np.float16'
@@ -313,7 +313,7 @@ class DataUnit:
         elif dtype == np.float64:
             dtype = 'np.float64'
         elif dtype == np.int:
-            dtype = 'np.int'
+            dtype = 'np.int_'
         elif dtype == np.int32:
             dtype = 'np.int32'
         elif dtype == np.int64:

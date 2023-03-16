@@ -1,5 +1,6 @@
 from AquaML.data.DataUnit import DataUnit
 from AquaML.data.BasePool import BasePool
+from AquaML.BaseClass import BaseParameter
 import numpy as np
 
 
@@ -45,13 +46,19 @@ class ArgsPool(BasePool):
 
         if self.level == 0:
             for name, unit in self.data_pool.items():
-                unit.create_share_memory()
+                unit.create_shared_memory()
         else:
+            import time
+            time.sleep(6)
             for name, unit in self.data_pool.items():
-                unit.read_share_memory()
+                unit.read_shared_memory(shape=unit.shape)
 
     def get_param(self, name):
         return self.data_pool[name].buffer[0]
+
+    def set_param_by_dict(self, param_dict: dict):
+        for key, value in param_dict.items():
+            self.data_pool[key].set_value(value)
 
 
 

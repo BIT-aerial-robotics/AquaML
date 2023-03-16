@@ -87,9 +87,9 @@ class RLWorker:
         for _ in range(update_interval):
             self.step(test_flag=test_flag)
 
-        if test_flag:
-            if update_interval>0:
-                self.env.display()
+        # if test_flag:
+        #     if update_interval>0:
+        #         self.env.display()
 
     def summary_reward(self):
         pass

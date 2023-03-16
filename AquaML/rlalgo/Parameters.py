@@ -1,7 +1,8 @@
 import abc
+from AquaML.BaseClass import BaseParameter
 
 
-class BaseParameter(abc.ABC):
+class BaseParameter(BaseParameter, abc.ABC):
 
     def __init__(self, epoch_length: int,
                  n_epochs: int,
@@ -33,7 +34,7 @@ class BaseParameter(abc.ABC):
             action_space_type (str): action space type. It can be 'discrete' or 'continuous'. Default is None.
             None means the action space type is continuous.
         """
-
+        super().__init__()
         self.epoch_length = epoch_length
         self.n_epochs = n_epochs
         self.buffer_size = buffer_size

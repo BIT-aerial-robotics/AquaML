@@ -292,7 +292,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         else:
             self.recoder = None
 
-        self.init_args_pool()
+        # self.init_args_pool()
 
         # check some information
         # actor model must be given

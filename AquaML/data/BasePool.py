@@ -27,7 +27,6 @@ class BasePool:
             info_dic (DataInfo): store data information.
         """
         # create void data unit
-
         for name in info_dic.names:
             self.data_pool[name] = DataUnit(self.name + '_' + name, computer_type=self._computer_type, level=self.level,
                                             dtype=info_dic.type_dict[name])

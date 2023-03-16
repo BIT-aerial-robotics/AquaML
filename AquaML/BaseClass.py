@@ -103,6 +103,8 @@ class RLBaseEnv(abc.ABC):
         self._obs_info = None  # DataInfo
         self.action_state_info = {}  # default is empty dict
         self.adjust_parameters = []  # default is empty list, this is used for high level algorithm
+        self.meta_parameters = {}  # meta参数接口
+        self.reward_fn_input = []  # 计算reward需要哪些参数, 使用meta时候声明
 
     @abc.abstractmethod
     def reset(self):
@@ -168,6 +170,15 @@ class RLBaseEnv(abc.ABC):
                 self.action_state_info[key] = shape
                 self._obs_info.add_info(key, shape, np.float32)
 
+    def get_reward(self):
+        """
+        该函数用于计算reward，用于meta中得到reward，如果不需要使用，不用理会。
+        当然，此函数实现需要注意，计算时候需要考虑矩阵运算，此为meta唯一接口，因此在core中可以不一样，
+        内部计算必须使用tf内部函数，防止梯度消失，具体参照TensorFlow官网中关于Tf.GradientTape介绍。
+
+        我们建议support env和core env使用不同reward函数，但是拥有一套meta参数。
+        """
+
 
 class RLBaseModel(abc.ABC, tf.keras.Model):
     """All the neral network models should inherit this class.
@@ -229,5 +240,54 @@ class RLBaseModel(abc.ABC, tf.keras.Model):
         return self._output_info
 
 
+# TODO: 多线程参数设置太反人类，逐渐替换
+class BaseParameter:
+    """
+    The base class of parameter.
+    """
+
+    def __init__(self):
+        self.meta_parameters = {}
+
+    def add_meta_parameters(self, meta_parameters: dict):
+        """
+        Set the meta parameters.
+        """
+        for key, value in meta_parameters.items():
+            self.meta_parameters[key] = value
+            setattr(self, key, value)
+
+    def add_meta_parameter_by_names(self, meta_parameter_names: tuple or list):
+        """
+        Set the meta parameters by names.
+        """
+        dic = {}
+        for name in meta_parameter_names:
+            value = getattr(self, name)
+            dic[name] = value
+
+        self.add_meta_parameters(dic)
+        self.meta_parameters = dic
+
+    def update_meta_parameters(self, meta_parameters: dict):
+        """
+        Update the meta parameters.
+        """
+        for key, value in meta_parameters.items():
+            if key in self.meta_parameters.keys():
+                self.meta_parameters[key] = value
+                setattr(self, key, value)
+
+    @property
+    def meta_parameter_names(self):
+        return tuple(self.meta_parameters.keys())
+
+
 if __name__ == '__main__':
-    BaseStarter.mkdir('test')
+    parameter = BaseParameter()
+
+    parameter.add_meta_parameters({'a': 1, 'b': 2})
+
+    parameter.add_meta_parameter_by_names(['a', 'b'])
+
+    print(parameter.meta_parameters)

@@ -187,8 +187,11 @@ class DataUnit:
         Args:
             value (any): value.
         """
-        self._buffer[:] = value[:]
-
+        if self.shape == (1,):
+            self._buffer[0] = value
+        else:
+            self._buffer[:] = value[:]
+    @property
     def __call__(self):
         if self.shape == (1,):
             return self._buffer[0]
@@ -219,7 +222,7 @@ class DataUnit:
         """
         return self._buffer[indices]
 
-    @property
+    # @property
     def buffer(self):
         """Get buffer.
 
@@ -324,3 +327,8 @@ class DataUnit:
 
 # print(DataUnit.get_dtype_from_str('np.float32'))
 # print(DataUnit.get_str_from_dtype(np.float32))
+if __name__ == '__main__':
+
+    unit = DataUnit('test', (1, ), np.float32, level=0)
+
+    print(unit())

@@ -29,6 +29,8 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer = 'Adam'
 
+        self.weight_path = "PPO/history_model/5/actor.h5"
+
     @tf.function
     def call(self, obs):
         x = self.dense1(obs)
@@ -59,6 +61,8 @@ class Critic_net(tf.keras.Model):
         self.input_name = ('obs',)
 
         self.optimizer = 'Adam'
+
+        self.weight_path = "PPO/history_model/5/critic.h5"
 
     def call(self, obs):
         x = self.dense1(obs)

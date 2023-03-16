@@ -105,6 +105,9 @@ class RLTaskStarter(BaseStarter):
         self.mini_buffer_size = self.algo.each_thread_mini_buffer_size
         self.update_interval = self.algo.each_thread_update_interval
 
+        if self.level == 0:
+            self.algo.load_weights_from_file()
+
         # roll out length
         if self.mini_buffer_size == 0:
             self.roll_out_length = self.update_interval

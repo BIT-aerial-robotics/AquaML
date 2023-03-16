@@ -428,6 +428,16 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         model2.set_weights(new_weights)
 
+    def load_weights_from_file(self):
+        """
+        load weights from file.
+        """
+        for key, model in self._all_model_dict.items():
+            path = getattr(model, 'weight_path', None)
+            if path is not None:
+                model.load_weights(path)
+                print("load {} weight from {}".format(key, path))
+
     def summary_reward_info(self):
         """
         summary reward information.

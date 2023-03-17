@@ -249,6 +249,8 @@ class PPO(BaseRLAlgo):
                         advantage=batch_train_actor_input['advantage'],
                         old_log_prob=batch_train_actor_input['old_log_prob'],
                         action=batch_train_actor_input['action'],
+                        epsilon=self.hyper_parameters.epsilon,
+                        entropy_coefficient=self.hyper_parameters.entropy_coeff,
                     )
                     actor_optimize_info_list.append(actor_optimize_info)
                 critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)

@@ -8,3 +8,6 @@ AquaML/data/__pycache__/DataPool.cpython-38.pyc
 *.iml
 *.xml
 *.v2
+*.txt
+*.h5
+*.json

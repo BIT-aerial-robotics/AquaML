@@ -170,7 +170,7 @@ starter = RLTaskStarter(
     algo=FusionPPO,
     algo_hyperparameter=fusion_ppo_parameter,
     name='FPPO2',
-    mpi_comm=comm,
+    # mpi_comm=comm,
 )
 
 starter.run()

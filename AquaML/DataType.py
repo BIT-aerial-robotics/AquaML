@@ -138,11 +138,11 @@ class RLIOInfo:
         for key, shape in actor_out_info.items():
             data_info_dict[key] = insert_buffer_size(shape)
             data_type_info_dict[key] = np.float32
-
-        # next action
-        for key in actor_out_info.keys():
-            data_info_dict['next_' + key] = data_info_dict[key]
-            data_type_info_dict['next_' + key] = data_type_info_dict[key]
+        #
+        # # next action
+        # for key in actor_out_info.keys():
+        #     data_info_dict['next_' + key] = data_info_dict[key]
+        #     data_type_info_dict['next_' + key] = data_type_info_dict[key]
 
         # NOTE: actor_out contains exploration policy output
         # if 'prob' in actor_out_info, add it to data_info

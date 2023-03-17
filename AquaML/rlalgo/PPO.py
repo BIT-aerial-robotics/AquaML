@@ -111,6 +111,15 @@ class PPO(BaseRLAlgo):
         }
         return dic
 
+    def compute_critic_loss(self,
+                            critic_obs: tuple,
+                            target: tf.Tensor,
+                            ):
+        v = self.critic(*critic_obs)
+        critic_loss = tf.reduce_mean(tf.square(v - target))
+
+        return critic_loss
+
     @tf.function
     def train_actor(self,
                     actor_obs: tuple,
@@ -155,6 +164,34 @@ class PPO(BaseRLAlgo):
         }
 
         return dic
+
+    def compute_actor_loss(self,
+                           actor_obs: tuple,
+                           advantage: tf.Tensor,
+                           old_log_prob: tf.Tensor,
+                           action: tf.Tensor,
+                           epsilon:tf.Tensor,
+                           entropy_coefficient: tf.Tensor,
+                           ):
+        out = self.resample_log_prob(actor_obs, action)
+
+        log_prob = out[0]
+
+        # importance sampling
+        ratio = tf.exp(log_prob - old_log_prob)
+
+        actor_surrogate_loss = tf.reduce_mean(
+            tf.minimum(
+                ratio * advantage,
+                tf.clip_by_value(ratio, 1 - epsilon, 1 + epsilon) * advantage,
+            )
+        )
+
+        entropy_loss = -tf.reduce_mean(log_prob)
+
+        actor_loss = -actor_surrogate_loss - entropy_coefficient * entropy_loss
+
+        return actor_loss
 
     def _optimize_(self):
         data_dict = self.get_all_data
@@ -272,6 +309,8 @@ class PPO(BaseRLAlgo):
                         advantage=batch_train_actor_input['advantage'],
                         old_log_prob=batch_train_actor_input['old_log_prob'],
                         action=batch_train_actor_input['action'],
+                        epsilon=self.hyper_parameters.epsilon,
+                        entropy_coefficient=self.hyper_parameters.entropy_coeff,
                     )
                     actor_optimize_info_list.append(actor_optimize_info)
                 critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)

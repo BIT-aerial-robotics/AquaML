@@ -60,5 +60,8 @@ class ArgsPool(BasePool):
         for key, value in param_dict.items():
             self.data_pool[key].set_value(value)
 
+    def set_param_by_name(self, name, value):
+        self.data_pool[name].set_value(value)
+
 
 

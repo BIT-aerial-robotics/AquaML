@@ -64,13 +64,13 @@ class Critic_net(tf.keras.Model):
 
         self.output_name = {'value': (1,)}
 
-        self.input_name = ('reward2', 'action', 'times', 'best_idx', 'best_pr', 'pr')
+        self.input_name = ('reward2', 'times', 'best_idx', 'best_pr', 'pr')
 
         self.optimizer = 'Adam'
 
     @tf.function
-    def call(self, reward, action, times, best_idx, best_pr, pr):
-        inputs = tf.concat([reward, action, times, best_idx, best_pr, pr], axis=1)
+    def call(self, reward, times, best_idx, best_pr, pr):
+        inputs = tf.concat([reward, times, best_idx, best_pr, pr], axis=1)
         x = self.dense1(inputs)
         value = self.value_layer(x)
         return value

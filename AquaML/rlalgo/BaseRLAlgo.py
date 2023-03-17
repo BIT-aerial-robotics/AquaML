@@ -132,7 +132,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
         """
 
-        self.args_pool = None
+        # self.args_pool = None
         self.adjust_parameters = None
         self.rnn_actor_flag = None
         self.expand_dims_idx = ()
@@ -151,6 +151,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.hyper_parameters = hyper_parameters
 
         self.store_counter = 0
+
+        # meta配置参数
+        self.meta_parameter_names = None
+        self.args_pool = None
 
         # parameter of multithread
         self._computer_type = computer_type
@@ -803,11 +807,38 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         n_steps_target = np.zeros_like(rewards)
         cumulated_advantage = 0.0
         length = len(rewards)
-        index = length - 1
+        index = length
 
         # td_target = rewards + gamma * next_values * masks
         # td_delta = td_target - values
-        # advantage = compute_advantage(self.hyper_parameters.gamma, self.hyper_parameters.lambada, td_delta)
+        # advantage = compute_advantage(gamma, lamda, td_delta)
+        for i in range(length):
+            index -= 1
+            delta = rewards[index] + gamma * next_values[index] - values[index]
+            cumulated_advantage = gamma * lamda * masks[index] * cumulated_advantage + delta
+            gae[index] = cumulated_advantage
+            n_steps_target[index] = gae[index] + values[index]
+
+        # return advantage, td_target
+
+        return gae, n_steps_target
+
+    def calculate_GAEV2(self, rewards: tf.Tensor, values: tf.Tensor, next_values: tf.Tensor,
+                        masks: tf.Tensor, gamma: tf.Variable, lamda: tf.Variable):
+
+        """
+        为了兼容meta，2.1版本中所有的td之类的必须支持tf的自动微分。
+        """
+        length = len(rewards)
+
+        # 创建指定大小空list
+        gae = [None] * length
+        n_steps_target = [None] * length
+
+        cumulated_advantage = tf.Variable(0.0, dtype=tf.float32, trainable=False)
+
+        index = length
+
         for i in range(length):
             index -= 1
             delta = rewards[index] + gamma * next_values[index] - values[index]
@@ -844,6 +875,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     # create keras optimizer
     def create_optimizer(self, name: str, optimizer: str, lr: float):
         """
+        # TODO: v2.1需要升级改函数操作太麻烦不建议使用
         create keras optimizer for each model.
 
         Reference:
@@ -1124,6 +1156,12 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         for key, unit in self.data_pool.data_pool.items():
             return_dict[key] = unit.buffer
 
+        if self.meta_parameter_names is not None:
+
+            for key in self.meta_parameter_names:
+                value = self.args_pool.get_param(key)
+                return_dict[key] = np.ones_like(return_dict['total_reward']) * value
+
         return return_dict
 
     @property
@@ -1222,6 +1260,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         action, log_prob = self.actor(*actor_obs)
 
         return (action, log_prob)
+
     # @tf.function
     def _resample_log_prob_no_std(self, obs, action):
 
@@ -1364,3 +1403,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         Returns:
             _type_: dict. Optimizer information. eg. {'loss':data, 'total_reward':data}
         """
+
+    def meta_sync(self):
+        self.hyper_parameters.update_meta_parameter_by_args_pool(self.args_pool)
+        self.env.update_meta_parameter_by_args_pool(self.args_pool)
+

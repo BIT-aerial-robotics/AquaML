@@ -16,7 +16,7 @@ from AquaML.data.DataUnit import DataUnit
 from AquaML.data.DataPool import DataPool
 import tensorflow as tf
 import numpy as np
-from AquaML.meta.parameters import RollOutParameter
+from AquaML.meta.parameters import MetaGradientParameter
 import atexit
 
 
@@ -27,7 +27,7 @@ class MGRL:
                  core_model_class_dict,  # core algorithm model class dict
                  core_env,  # core environment
                  support_env,  # support environment
-                 support_env_rollout_parameter: RollOutParameter,  # support environment rollout parameter，
+                 meta_parameter: MetaGradientParameter,  # support environment rollout parameter，
                  mpi_comm=None,
                  name="MGRL",
                  computer_type='PC',
@@ -45,6 +45,7 @@ class MGRL:
         ################################################################
         # 配置参数汇总
         ################################################################
+        self.store_counter = 0
         self.expand_dims_idx = None
         self.rnn_actor_flag = None
         self._computer_type = computer_type
@@ -54,14 +55,18 @@ class MGRL:
         self.each_thread_start_index = None
         self.each_thread_size = None
 
-        self.max_steps = support_env_rollout_parameter.max_steps
+        self.max_steps = meta_parameter.max_steps
         self, name = name
 
         # 读取meta parameter
         env_meta_parameters = support_env.meta_parameters
 
         # 将meta parameter添加到core hyperparameter， core hyperparameter集中式管理所有参数
-        core_hyperparameter.add_meta_parameters(env_meta_parameters)
+        if len(env_meta_parameters) < 1:
+            self.meta_reward_flag = False
+        else:
+            self.meta_reward_flag = True
+            core_hyperparameter.add_meta_parameters(env_meta_parameters)
 
         # 根据mpi comm分配线程级别
         if mpi_comm is None:
@@ -82,7 +87,7 @@ class MGRL:
                 self.level = 0
 
             # 确认其余节点是否需要support env
-            if support_env_rollout_parameter.multi_thread_flag:
+            if meta_parameter.multi_thread_flag:
                 # 需要support env不做任何操作
                 if self.level == 0:
                     support_env.close()
@@ -99,6 +104,7 @@ class MGRL:
 
         # 获取meta parameters的name
         meta_parameter_names = core_hyperparameter.meta_parameter_names
+        self.meta_parameter_names = meta_parameter_names  # 存储meta parameter name
 
         # 创建args pool buffer
         self.args_pool.create_buffer_from_tuple(meta_parameter_names)
@@ -114,7 +120,7 @@ class MGRL:
         self.support_env = support_env
 
         # 检查rollout参数
-        support_env_rollout_parameter = self.check_parameter(support_env_rollout_parameter, sample_thread_num)
+        support_env_rollout_parameter = self.check_parameter(meta_parameter, sample_thread_num)
 
         # 检查core hyperparameter
         core_hyperparameter = self.check_parameter(core_hyperparameter, sample_thread_num)
@@ -174,6 +180,9 @@ class MGRL:
         self.core_algorithm.init()
 
         # 由于房前MGRL不支持off-policy，所以这里只支持on-policy， 不需要设置预采样代码
+        # 为core algorithm设置接口
+        self.core_algorithm.meta_parameter_names = self.meta_parameter_names  # 检查这部分逻辑
+        self.core_algorithm.args_pool = self.args_pool
 
         ############################################################################################################
         # 下面创建meta algorithm
@@ -221,9 +230,90 @@ class MGRL:
                 summary_episodes=support_env_rollout_parameter.summary_episodes,  # 重新计算summary_episodes
             )
 
-        # 所有线程
+        # 所有线程直接使用内环actor，这样不需要同步
+        self.actor = self.core_algorithm.actor
+        self.critic = self.core_algorithm.critic
+
+        self.get_action = self.core_algorithm.get_action  # 使用和core一样的get_action
+
+        # 创建meta optimizer
+        if self.level == 0:
+            self.meta_optimizer = getattr(tf.keras.optimizers, meta_parameter.optimizer)(
+                learning_rate=meta_parameter.learning_rate)
+        else:
+            self.meta_optimizer = None
+
+        self.actor_ratio = tf.constant(meta_parameter.actor_ratio, dtype=tf.float32)
+        self.critic_ratio = tf.constant(meta_parameter.critic_ratio, dtype=tf.float32)
 
         atexit.register(self.close)
+
+    def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
+        """
+        将数据存储到buffer中
+        """
+        self.store_counter += 1
+        idx = (self.store_counter - 1) % self.each_thread_size
+        index = self.start_index + idx
+
+        # 存储到buffer中
+        self.data_pool.store(obs, index)
+
+        # store next_obs to buffer
+        self.data_pool.store(next_obs, index, prefix='next_')
+
+        # store action to buffer
+        self.data_pool.store(action, index)
+
+        # store reward to buffer
+        self.data_pool.store(reward, index)
+
+        # store mask to buffer
+        self.data_pool.data_pool['mask'].store(mask, index)
+
+    def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True):
+        """
+
+        Get corresponding data from data dict.
+
+        Args:
+            data_dict (dict): data dict.
+            names (tuple): name of data.
+            prefix (str): prefix of data name.
+            tf_tensor (bool): if return tf tensor.
+        Returns:
+            corresponding data. list or tuple.
+        """
+
+        data = []
+
+        for name in names:
+            name = prefix + name
+            buffer = data_dict[name]
+            if tf_tensor:
+                buffer = tf.cast(buffer, dtype=tf.float32)
+            data.append(buffer)
+
+        return data
+
+    def get_all_data(self):
+        """
+        TODO: v2.1版本中将此函数扩展为标准接口，逐步改进， data_pool作为输入之类的
+
+        该函数会自动搜寻所有pool中的数据，并且匹配格式，返回一个dict
+        """
+        return_dict = {}
+
+        for key, unit in self.data_pool.data_pool.items():
+            return_dict[key] = unit.buffer
+
+        if self.meta_parameter_names is not None:
+            for key in self.meta_parameter_names:
+                value = self.args_pool.get_param(key)
+                return_dict[key] = np.ones_like(return_dict['total_reward']) * value
+                return_dict['next_' + key] = np.ones_like(return_dict['total_reward']) * value
+
+        return return_dict
 
     @staticmethod
     def check_parameter(parameters, sample_thread_num):
@@ -254,7 +344,124 @@ class MGRL:
         self.each_summary_episodes = int(self.meta_worker.summary_episodes / sample_thread_num)
         self.each_summary_episodes_start_index = self.each_summary_episodes * thread_id
 
-        self.buffer_size = self.each_thread_size * sample_thread_num
+        self.buffer_size = self.each_thread_size * self.sample_thread_num
+
+    def optimize(self):
+        """
+        2.1版本中这个为run会调用的函数，这个函数是所有run的接口
+        """
+        info = self._optimize_()
+
+        print("#######{}########".format('meta loop'))
+        for key, value in info.items():
+            print("{}: {}".format(key, value))
+
+        for key, value in self.meta_parameters.items():
+            print("{}: {}".format(key, value))
+
+    def _optimize_(self):
+        """
+        2.1版，实现优化算法的地方
+        """
+        data_dict = self.get_all_data()
+
+        # 从buffer中获取数据
+        critic_obs = self.get_corresponding_data(data_dict, self.critic.input_name)
+        next_critic_obs = self.get_corresponding_data(data_dict, self.critic.input_name,
+                                                      prefix='next_')
+
+        actor_obs = self.get_corresponding_data(data_dict, self.actor.input_name)
+
+        # 获取total reward
+        total_reward = data_dict['total_reward']
+
+        # 获取mask
+        masks = data_dict['mask']
+
+        # 获取action
+        actions = data_dict['action']
+
+        # get old prob
+        old_prob = data_dict['prob']
+
+        # 转换成tf tensor
+        rewards = tf.cast(total_reward, dtype=tf.float32)
+        masks = tf.cast(masks, dtype=tf.float32)
+        actions = tf.cast(actions, dtype=tf.float32)
+        old_prob = tf.convert_to_tensor(old_prob, dtype=tf.float32)
+        old_log_prob = tf.math.log(old_prob)
+
+        if 'value' in self.actor.output_info:
+            values = data_dict['value']
+            next_values = data_dict['next_value']
+        else:
+            values = self.critic(*critic_obs).numpy()
+            next_values = self.critic(*next_critic_obs).numpy()
+
+        with tf.GradientTape() as tape:
+            tape.watch(self.meta_parameters.values())
+            # 计算GAE
+            gae, target = self.core_algorithm.calculate_GAEV2(
+                rewards=rewards,
+                values=values,
+                next_values=next_values,
+                masks=masks,
+                gamma=self.meta_parameters['gamma'],
+                lamda=self.meta_parameters['lamda'],
+            )
+
+            # 计算actor loss
+            actor_loss = self.core_algorithm.compute_actor_loss(
+                actor_obs=actor_obs,
+                advantage=gae,
+                old_log_prob=old_log_prob,
+                actions=actions,
+                epsilon=self.core_algorithm.hyper_parameters.epsilon,
+                entropy_coefficient=self.core_algorithm.hyper_parameters.entropy_coeff,
+            )
+
+            # 计算critic loss
+            critic_loss = self.core_algorithm.compute_critic_loss(
+                critic_obs=critic_obs,
+                target=target,
+            )
+
+            # 计算loss
+            loss = self.actor_ratio * actor_loss + self.critic_ratio * critic_loss
+
+        # 计算梯度
+        grad = tape.gradient(loss, self.meta_parameters.values())
+        # 更新梯度
+        self.meta_optimizer.apply_gradients(zip(grad, self.meta_parameters.values()))
+
+        return {
+            'actor_loss': actor_loss.numpy(),
+            'critic_loss': critic_loss.numpy(),
+            'loss': loss.numpy(),
+        }
+
+    def _run_(self):
+        """
+        单线程运行
+        """
+        for _ in range(self.max_steps):
+            self.core_algorithm.worker.roll(self.core_algorithm.each_thread_update_interval,
+                                            test_flag=False)
+            self.core_algorithm.optimize()
+            self.meta_worker.roll(self, test_flag=True)
+            self.optimize()
+            self.sync()
+
+    def sync(self):
+        """
+        所有同步事件2.1都用此函数
+        """
+        # 更新args pool 内容
+        for key, value in self.meta_parameters.items():
+            self.args_pool.set_param_by_name(key, value.numpy())
+
+        # 同步core_algorithm参数
+        self.core_algorithm.meta_sync()
 
     def create_data_pool(self):
         """

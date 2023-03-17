@@ -222,7 +222,7 @@ class DataUnit:
         """
         return self._buffer[indices]
 
-    # @property
+    @property
     def buffer(self):
         """Get buffer.
 

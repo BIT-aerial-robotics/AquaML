@@ -115,6 +115,14 @@ class RLBaseEnv(abc.ABC):
         observation (dict): observation of environment.
         """
 
+    def update_meta_parameter_by_args_pool(self, args_pool):
+        """
+        update meta parameters.
+        """
+        for key, value in self.meta_parameters.items():
+            value = args_pool.get_parm(key)
+            setattr(self, key, value)
+
     def display(self):
         """
         Display the environment.
@@ -277,6 +285,14 @@ class BaseParameter:
             if key in self.meta_parameters.keys():
                 self.meta_parameters[key] = value
                 setattr(self, key, value)
+
+    def update_meta_parameter_by_args_pool(self, args_pool):
+        """
+        Update the meta parameters by args pool.
+        """
+        for key, value in self.meta_parameters.items():
+            value = args_pool.get_parm(key)
+            setattr(self, key, value)
 
     @property
     def meta_parameter_names(self):

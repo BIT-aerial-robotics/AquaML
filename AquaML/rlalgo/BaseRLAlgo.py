@@ -1161,6 +1161,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             for key in self.meta_parameter_names:
                 value = self.args_pool.get_param(key)
                 return_dict[key] = np.ones_like(return_dict['total_reward']) * value
+                return_dict['next_' + key] = np.ones_like(return_dict['total_reward']) * value
 
         return return_dict
 
@@ -1344,7 +1345,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         input_data = []
 
         for name in input_data_name:
-            shape, _ = self.rl_io_info.get_data_info(name)
+            try:
+                shape, _ = self.rl_io_info.get_data_info(name)
+            except:
+                shape = (1, 1)
             data = tf.zeros(shape=shape, dtype=tf.float32)
             input_data.append(data)
         if expand_dims:

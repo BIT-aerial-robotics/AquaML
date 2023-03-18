@@ -34,7 +34,7 @@ class RLWorker:
             self.obs, flag = self.env.reset()
             self.reset_flag = False
             if flag:
-                algo.reset_actor()  # 重置actor
+                algo.actor.reset()  # 重置actor
             self.episode_step_count = 0
 
         action_dict = algo.get_action(self.obs, test_flag=test_flag)
@@ -52,8 +52,8 @@ class RLWorker:
         else:
             mask = 1
 
-        if not test_flag:
-            algo.store_data(obs=self.obs, action=action_dict,
+        # if not test_flag:
+        algo.store_data(obs=self.obs, action=action_dict,
                             reward=reward, next_obs=obs_, mask=mask)
 
         self.obs = obs_

@@ -291,7 +291,7 @@ class BaseParameter:
         Update the meta parameters by args pool.
         """
         for key, value in self.meta_parameters.items():
-            value = args_pool.get_parm(key)
+            value = args_pool.get_param(key)
             setattr(self, key, value)
 
     @property

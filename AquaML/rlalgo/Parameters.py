@@ -18,7 +18,7 @@ class BaseParameter(BaseParameter, abc.ABC):
                  ):
         """
         Parameters of environment.
-        
+
         All the algorithm parameters should inherit this class.
 
         Args:
@@ -83,11 +83,11 @@ class SAC_parameter(BaseParameter):
                  ):
         """
         Parameters of SAC algorithm.
-        
+
         Reference:
         ----------
-        [1] Haarnoja, Tuomas, et al. "Soft actor-critic: Off-policy maximum 
-        entropy deep reinforcement learning with a stochastic actor." 
+        [1] Haarnoja, Tuomas, et al. "Soft actor-critic: Off-policy maximum
+        entropy deep reinforcement learning with a stochastic actor."
         arXiv preprint arXiv:1801.01290 (2018).
 
         Args:
@@ -100,8 +100,8 @@ class SAC_parameter(BaseParameter):
             store_model_times (int): times of storing the model.
             action_space_type (str): action space type. It can be 'discrete' or 'continuous'. Default is None.
             None means the action space type is continuous.
-  
-            
+
+
         """
         super().__init__(epoch_length, n_epochs, batch_size, update_interval,
                          store_model_times=store_model_times,
@@ -164,10 +164,10 @@ class SAC2_parameter(BaseParameter):
         the algorithm will use 0.99 (discount) as the discount factor.
         The algorithm will use 0.005 (tau) as the target network update weight.
          The algorithm will use 3e-4 (alpha_learning_rate) as the alpha learning rate.
-        
+
         Reference:
         ----------
-        [1] Haarnoja, Tuomas, et al. "Soft actor-critic algorithms and applications." 
+        [1] Haarnoja, Tuomas, et al. "Soft actor-critic algorithms and applications."
         arXiv preprint arXiv:1812.05905 (2018).
 
         Args:
@@ -265,6 +265,7 @@ class PPO_parameter(BaseParameter):
         self.update_critic_times = update_critic_times
         self.update_actor_times = update_actor_times
         self.calculate_episodes = int(self.buffer_size / self.epoch_length)
+        self.summary_episodes = self.calculate_episodes
         self.batch_trajectory = batch_trajectory
         # self.learning_rate = learning_rate
         # self.update_interval = update_interval

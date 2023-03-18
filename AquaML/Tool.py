@@ -125,3 +125,23 @@ def allocate_gpu(comm):
             print("Not enough GPU hardware devices available")
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+
+def mkdir(path: str):
+    """
+        create a directory in current path.
+
+        Args:
+            path (_type_:str): name of directory.
+
+        Returns:
+            _type_: str or None: path of directory.
+        """
+    current_path = os.getcwd()
+    # print(current_path)
+    path = os.path.join(current_path, path)
+    if not os.path.exists(path):
+        os.makedirs(path)
+        return path
+    else:
+        None

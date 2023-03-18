@@ -14,6 +14,7 @@ from AquaML.tool.RLWorkerV2 import RLWorker
 from AquaML.DataType import RLIOInfo
 from AquaML.data.DataUnit import DataUnit
 from AquaML.data.DataPool import DataPool
+from AquaML.Tool import mkdir
 import tensorflow as tf
 import numpy as np
 from AquaML.meta.parameters import MetaGradientParameter
@@ -45,6 +46,7 @@ class MGRL:
         ################################################################
         # 配置参数汇总
         ################################################################
+        self.each_start_index = None
         self.store_counter = 0
         self.expand_dims_idx = None
         self.rnn_actor_flag = None
@@ -52,11 +54,13 @@ class MGRL:
         self.buffer_size = None
         self.each_summary_episodes_start_index = None
         self.each_summary_episodes = None
-        self.each_thread_start_index = None
+        # self.each_start_index = None
         self.each_thread_size = None
 
         self.max_steps = meta_parameter.max_steps
-        self, name = name
+        self.name = name
+
+        self.meta_hyperparameter = meta_parameter
 
         # 读取meta parameter
         env_meta_parameters = support_env.meta_parameters
@@ -124,6 +128,9 @@ class MGRL:
 
         # 检查core hyperparameter
         core_hyperparameter = self.check_parameter(core_hyperparameter, sample_thread_num)
+
+        if self.level == 0:
+            mkdir(name)
 
         # 现在开始实例化core algorithm，目前参考RLTaskStarter.py，后期会进行框架调整
         ########################################################################################
@@ -211,6 +218,10 @@ class MGRL:
             computer_type=self._computer_type,
         )
 
+        # self.data_pool.multi_init()
+
+        # self.data_pool.c
+
         # 创建trainable variable
         if self.level == 0:
             self.meta_parameters = {}
@@ -246,6 +257,8 @@ class MGRL:
         self.actor_ratio = tf.constant(meta_parameter.actor_ratio, dtype=tf.float32)
         self.critic_ratio = tf.constant(meta_parameter.critic_ratio, dtype=tf.float32)
 
+        self.create_data_pool()
+
         atexit.register(self.close)
 
     def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
@@ -254,7 +267,7 @@ class MGRL:
         """
         self.store_counter += 1
         idx = (self.store_counter - 1) % self.each_thread_size
-        index = self.start_index + idx
+        index = self.each_start_index + idx
 
         # 存储到buffer中
         self.data_pool.store(obs, index)
@@ -340,8 +353,8 @@ class MGRL:
         这个函数也会逐渐扩展到其他算法中。
         """
         self.each_thread_size = int(buffer_size / sample_thread_num)
-        self.each_thread_start_index = self.each_thread_size * thread_id
-        self.each_summary_episodes = int(self.meta_worker.summary_episodes / sample_thread_num)
+        self.each_start_index = self.each_thread_size * thread_id
+        self.each_summary_episodes = int(self.meta_hyperparameter.summary_episodes / sample_thread_num)
         self.each_summary_episodes_start_index = self.each_summary_episodes * thread_id
 
         self.buffer_size = self.each_thread_size * self.sample_thread_num
@@ -352,12 +365,12 @@ class MGRL:
         """
         info = self._optimize_()
 
-        print("#######{}########".format('meta loop'))
+        print("------{}------".format('meta loop'))
         for key, value in info.items():
             print("{}: {}".format(key, value))
 
         for key, value in self.meta_parameters.items():
-            print("{}: {}".format(key, value))
+            print("{}: {}".format(key, value.numpy()))
 
     def _optimize_(self):
         """
@@ -398,49 +411,137 @@ class MGRL:
             values = self.critic(*critic_obs).numpy()
             next_values = self.critic(*next_critic_obs).numpy()
 
-        with tf.GradientTape() as tape:
+        start_index = 0
+        end_index = 0
+
+        while end_index < self.buffer_size:
+            end_index = min(start_index + self.meta_hyperparameter.batch_size,
+                            self.buffer_size)
+
+            # GAE的输入
+            batch_rewards = rewards[start_index:end_index]
+            batch_values = values[start_index:end_index]
+            batch_next_values = next_values[start_index:end_index]
+            batch_masks = masks[start_index:end_index]
+
+            batch_actor_obs = []
+            for obs in actor_obs:
+                batch_actor_obs.append(obs[start_index:end_index])
+            batch_actions = actions[start_index:end_index]
+            batch_old_log_prob = old_log_prob[start_index:end_index]
+
+            batch_critic_obs = []
+            for obs in critic_obs:
+                batch_critic_obs.append(obs[start_index:end_index])
+
+            start_index = end_index
+            dic = self.train(
+                batch_rewards=batch_rewards,
+                batch_values=batch_values,
+                batch_next_values=batch_next_values,
+                batch_masks=batch_masks,
+                batch_actor_obs=batch_actor_obs,
+                batch_actions=batch_actions,
+                batch_old_log_prob=batch_old_log_prob,
+                batch_critic_obs=batch_critic_obs,
+            )
+
+            # with tf.GradientTape(persistent=True) as tape:
+            #     tape.watch(self.meta_parameters.values())
+            #
+            #     gae, target = self.core_algorithm.calculate_GAEV2(
+            #         rewards=batch_rewards,
+            #         values=batch_values,
+            #         next_values=batch_next_values,
+            #         masks=batch_masks,
+            #         gamma=self.meta_parameters['gamma'],
+            #         lamda=self.meta_parameters['lambada'],
+            #     )
+            #
+            #     # 计算actor loss
+            #     actor_loss = self.core_algorithm.compute_actor_loss(
+            #         actor_obs=batch_actor_obs,
+            #         advantage=gae,
+            #         action=batch_actions,
+            #         old_log_prob=batch_old_log_prob,
+            #         epsilon=self.core_algorithm.hyper_parameters.epsilon,
+            #         entropy_coefficient=self.core_algorithm.hyper_parameters.entropy_coeff,
+            #     )
+            #
+            #     # 计算critic loss
+            #     critic_loss = self.core_algorithm.compute_critic_loss(
+            #         critic_obs=batch_critic_obs,
+            #         target=target,
+            #     )
+            #
+            #     # 计算loss
+            #     loss = self.actor_ratio * actor_loss + self.critic_ratio * critic_loss
+            #
+            # # 计算梯度
+            # meta_grad = tape.gradient(loss, self.meta_parameters.values())
+            # critic_grad = tape.gradient(critic_loss, self.critic.trainable_variables)
+            #
+            # # 更新梯度
+            # self.meta_optimizer.apply_gradients(zip(meta_grad, self.meta_parameters.values()))
+            # self.core_algorithm.critic_optimizer.apply_gradients(zip(critic_grad, self.critic.trainable_variables))
+
+        return dic
+
+    # @tf.function
+    def train(self, batch_rewards,
+              batch_values,
+              batch_next_values,
+              batch_masks,
+              batch_actor_obs,
+              batch_actions,
+              batch_old_log_prob,
+              batch_critic_obs):
+        with tf.GradientTape(persistent=True) as tape:
             tape.watch(self.meta_parameters.values())
-            # 计算GAE
+            tape.watch(self.critic.trainable_variables)
+
             gae, target = self.core_algorithm.calculate_GAEV2(
-                rewards=rewards,
-                values=values,
-                next_values=next_values,
-                masks=masks,
+                rewards=batch_rewards,
+                values=batch_values,
+                next_values=batch_next_values,
+                masks=batch_masks,
                 gamma=self.meta_parameters['gamma'],
-                lamda=self.meta_parameters['lamda'],
+                lamda=self.meta_parameters['lambada'],
             )
 
             # 计算actor loss
             actor_loss = self.core_algorithm.compute_actor_loss(
-                actor_obs=actor_obs,
+                actor_obs=batch_actor_obs,
                 advantage=gae,
-                old_log_prob=old_log_prob,
-                actions=actions,
+                action=batch_actions,
+                old_log_prob=batch_old_log_prob,
                 epsilon=self.core_algorithm.hyper_parameters.epsilon,
                 entropy_coefficient=self.core_algorithm.hyper_parameters.entropy_coeff,
             )
 
             # 计算critic loss
             critic_loss = self.core_algorithm.compute_critic_loss(
-                critic_obs=critic_obs,
+                critic_obs=batch_critic_obs,
                 target=target,
             )
 
             # 计算loss
             loss = self.actor_ratio * actor_loss + self.critic_ratio * critic_loss
 
-        # 计算梯度
-        grad = tape.gradient(loss, self.meta_parameters.values())
+            # 计算梯度
+        meta_grad = tape.gradient(loss, self.meta_parameters.values())
+        critic_grad = tape.gradient(critic_loss, self.critic.trainable_variables)
+        # print('meta_grad', meta_grad)
         # 更新梯度
-        self.meta_optimizer.apply_gradients(zip(grad, self.meta_parameters.values()))
+        self.meta_optimizer.apply_gradients(zip(meta_grad, self.meta_parameters.values()))
+        self.core_algorithm.critic_optimizer.apply_gradients(zip(critic_grad, self.critic.trainable_variables))
 
         return {
             'actor_loss': actor_loss.numpy(),
             'critic_loss': critic_loss.numpy(),
             'loss': loss.numpy(),
         }
-
-    def _run_(self):
+    def run(self):
         """
         单线程运行
         """
@@ -451,6 +552,33 @@ class MGRL:
             self.meta_worker.roll(self, test_flag=True)
             self.optimize()
             self.sync()
+
+    def cal_average_batch_dict(self, data_list: list):
+        """
+            calculate average batch dict.
+
+            Args:
+                data_list (list): store data dict list.
+
+            Returns:
+                _type_: dict. average batch dict.
+            """
+        average_batch_dict = {}
+        for key in data_list[0]:
+            average_batch_dict[key] = []
+
+        for data_dict in data_list:
+            for key, value in data_dict.items():
+                average_batch_dict[key].append(value)
+
+        # average
+        for key, value in average_batch_dict.items():
+            if 'gard' in key:
+                pass
+            else:
+                average_batch_dict[key] = np.mean(value)
+
+        return average_batch_dict
 
     def sync(self):
         """

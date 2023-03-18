@@ -22,14 +22,15 @@ class MetaGradientParameter(RollOutParameter):
                  max_epochs,
                  max_steps,
                  total_steps,
-                 update_interval,
+                 batch_size,
+                 # update_interval,
                  summary_episodes,
                  optimizer='Adam',
                  multi_thread_flag=False):
         super().__init__(
             max_steps=max_steps,
             total_steps=total_steps,
-            update_interval=update_interval,
+            update_interval=total_steps,
             summary_episodes=summary_episodes,
             multi_thread_flag=multi_thread_flag
         )
@@ -38,6 +39,7 @@ class MetaGradientParameter(RollOutParameter):
         self.critic_ratio = critic_ratio
         self.learning_rate = learning_rate
         self.optimizer = optimizer
+        self.batch_size = batch_size
 
 
 if __name__ == '__main__':

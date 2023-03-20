@@ -226,6 +226,7 @@ class PPO_parameter(BaseParameter):
                  lambada: float = 0.95,
                  store_model_times=5,
                  action_space_type: str = None,
+                 batch_advantage_normlization: bool = False,
                  batch_trajectory: bool = False,
                  eval_episodes=0,
                  eval_interval: int = 1,
@@ -244,6 +245,13 @@ class PPO_parameter(BaseParameter):
             n_epochs (int): times of optimizing the network.
             batch_size (int): batch size.
             epsilon (float): epsilon for clipping. Also, can be seen as the clip range.
+            gamma (float): discount factor.
+            lambada (float): lambada for GAE.
+            entropy_coeff (float): entropy coefficient.
+            update_times (int): update times for each epoch.
+            update_critic_times (int): update critic times for each epoch.
+            update_actor_times (int): update actor times for each epoch.
+            batch_advantage_normlization (bool, optional): whether to normalize the advantage. Defaults to False.
 
 
         """
@@ -267,6 +275,7 @@ class PPO_parameter(BaseParameter):
         self.calculate_episodes = int(self.buffer_size / self.epoch_length)
         self.summary_episodes = self.calculate_episodes
         self.batch_trajectory = batch_trajectory
+        self.batch_advantage_normlization = batch_advantage_normlization
         # self.learning_rate = learning_rate
         # self.update_interval = update_interval
 
@@ -286,6 +295,7 @@ class FusionPPO_parameter(BaseParameter):
                  epsilon: float = 0.2,
                  gamma: float = 0.99,
                  lambada: float = 0.95,
+                 batch_advantage_normalization: bool = False,
                  action_space_type: str = None,
                  eval_episodes=0,
                  eval_interval: int = 1,
@@ -320,3 +330,4 @@ class FusionPPO_parameter(BaseParameter):
         self.epsilon = epsilon
         self.update_critic_times = update_critic_times
         self.update_actor_times = update_actor_times
+        self.batch_advantage_normalization = batch_advantage_normalization

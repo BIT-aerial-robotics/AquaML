@@ -39,7 +39,14 @@ class Actor_net(tf.keras.Model):
         self.value_dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.value_layer = tf.keras.layers.Dense(1)
 
-        self.learning_rate = 2e-3
+        self.learning_rate = self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=0.01,
+            decay_steps=1,
+            decay_rate=0.9,
+
+        )
+
+        # self.learning_rate = 2e-4
 
         self.rnn_flag = True
 
@@ -77,7 +84,12 @@ class Critic_net(tf.keras.Model):
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
-        self.learning_rate = 2e-3
+        self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=0.05,
+            decay_steps=1,
+            decay_rate=0.9,
+
+        )
 
         self.output_name = {'value': (1,)}
 
@@ -148,15 +160,16 @@ env = PendulumWrapper('Pendulum-v1')
 fusion_ppo_parameter = FusionPPO_parameter(
     epoch_length=200,
     n_epochs=2000,
-    total_steps=6000,
+    total_steps=4000,
     batch_size=20,
     update_times=4,
-    update_actor_times=6,
-    update_critic_times=6,
+    update_actor_times=4,
+    update_critic_times=4,
     gamma=0.99,
     epsilon=0.2,
     lambada=0.95,
-    batch_trajectory=True
+    batch_trajectory=True,
+    # batch_advantage_normalization=True,
 )
 
 model_class_dict = {

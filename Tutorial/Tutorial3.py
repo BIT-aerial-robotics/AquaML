@@ -23,7 +23,7 @@ class Actor_net(tf.keras.Model):
 
         self.learning_rate = 2e-4
 
-        self.output_info = {'action': (1,), 'log_std': (1,)}
+        self.output_info = {'action': (1,),}
 
         self.input_name = ('obs',)
 
@@ -34,9 +34,8 @@ class Actor_net(tf.keras.Model):
         x = self.dense1(obs)
         x = self.dense2(x)
         action = self.action_layer(x)
-        log_std = self.log_std(x)
 
-        return (action, log_std)
+        return (action,)
 
     def reset(self):
         pass
@@ -52,7 +51,12 @@ class Critic_net(tf.keras.Model):
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
-        self.learning_rate = 2e-3
+        self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=0.3,
+            decay_steps=10,
+            decay_rate=0.95,
+
+        )
 
         self.output_name = {'value': (1,)}
 
@@ -126,7 +130,8 @@ ppo_parameter = PPO_parameter(
     update_critic_times=4,
     gamma=0.99,
     epsilon=0.2,
-    lambada=0.95
+    lambada=0.95,
+    batch_advantage_normlization=True,
 )
 
 model_class_dict = {

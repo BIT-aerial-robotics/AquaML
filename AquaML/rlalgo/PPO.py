@@ -238,6 +238,9 @@ class PPO(BaseRLAlgo):
                                                lamda=self.hyper_parameters.lambada
                                                )
 
+        if self.hyper_parameters.batch_advantage_normlization:
+            advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+
         # convert to tensor
         advantage = tf.convert_to_tensor(advantage, dtype=tf.float32)
         target = tf.convert_to_tensor(target, dtype=tf.float32)

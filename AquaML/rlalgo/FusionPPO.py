@@ -254,6 +254,9 @@ class FusionPPO(BaseRLAlgo):
                                                lamda=self.hyper_parameters.lambada
                                                )
 
+        if self.hyper_parameters.batch_advantage_normalization:
+            advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+
         # convert to tensor
         advantage = tf.convert_to_tensor(advantage, dtype=tf.float32)
         target = tf.convert_to_tensor(target, dtype=tf.float32)
@@ -343,7 +346,7 @@ class FusionPPO(BaseRLAlgo):
                 lam = 1. / distance
                 lam = tf.clip_by_value(lam, 0, 0.2)
                 # lam = 1
-                lam = 0
+                # lam = 0
 
                 for _ in range(self.hyper_parameters.update_actor_times):
                     actor_optimize_info = self.train_actor(

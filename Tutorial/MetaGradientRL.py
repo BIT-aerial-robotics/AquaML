@@ -157,7 +157,8 @@ ppo_parameter = PPO_parameter(
     update_critic_times=4,
     gamma=0.9,
     epsilon=0.2,
-    lambada=0.95
+    lambada=0.95,
+    batch_advantage_normlization=True,
 )
 
 meta_parameters = {
@@ -191,8 +192,8 @@ meta_algo = MGRL(
     core_env=env,
     support_env=support_env,
     meta_parameter=meta_parameters,
-    mpi_comm=comm,
-    name='MGRL15',
+    # mpi_comm=comm,
+    name='MGRL',
 )
 
 meta_algo.run()

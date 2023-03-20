@@ -875,7 +875,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
     ############################# create function #############################
     # create keras optimizer
-    def create_optimizer(self, name: str, optimizer: str, lr: float):
+    def create_optimizer(self, name: str, optimizer: str, lr, args={}):
         """
         # TODO: v2.1需要升级改函数操作太麻烦不建议使用
         create keras optimizer for each model.
@@ -898,7 +898,10 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         # in main thread, create optimizer
         if self.level == 0:
             # create optimizer
-            optimizer = getattr(tf.keras.optimizers, optimizer)(learning_rate=lr)
+            # if optimizer == 'Adam':
+            #     optimizer = getattr(tf.keras.optimizers, optimizer)(learning_rate=lr, epsilon=1e-5, **args)
+            # else:
+            optimizer = getattr(tf.keras.optimizers, optimizer)(learning_rate=lr, **args)
         else:
             # None
             optimizer = None
@@ -1413,4 +1416,3 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
     def meta_sync(self):
         self.hyper_parameters.update_meta_parameter_by_args_pool(self.args_pool)
         self.env.update_meta_parameter_by_args_pool(self.args_pool)
-

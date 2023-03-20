@@ -175,6 +175,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         if prefix_name is not None:
             name = prefix_name + '/' + name
         self.cache_path = name + '/cache'  # cache path
+        print('cache path:', self.cache_path)
         self.meta_path = name + '/meta'
         self.log_path = name + '/log'
         self.data_pool_info_file = self.meta_path + '/data_pool_config.json'

@@ -130,7 +130,7 @@ class RLTaskStarter(BaseStarter):
     # single thread
     def _run_(self):
         for i in range(self.max_epochs):
-            # self.algo.sync()
+            self.algo.sync()
             self.algo.worker.roll(self.roll_out_length)
             self.roll_out_length = self.update_interval
             self.algo.optimize()

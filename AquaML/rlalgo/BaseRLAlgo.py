@@ -287,6 +287,8 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         if self.actor is None:
             raise ValueError('Actor model must be given.')
 
+        # self._sync_model_dict['actor'] = self.actor
+
     def initialize_actor_config(self):
         # initialize sample action
         self.rnn_actor_flag = getattr(self.actor, 'rnn_flag', False)

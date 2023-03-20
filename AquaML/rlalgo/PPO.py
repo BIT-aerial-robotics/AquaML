@@ -84,6 +84,10 @@ class PPO(BaseRLAlgo):
         # create exploration policy
         self.create_gaussian_exploration_policy()
 
+        self._sync_model_dict = {
+            'actor': self.actor,
+        }
+
     @tf.function
     def train_critic(self,
                      critic_obs: tuple,

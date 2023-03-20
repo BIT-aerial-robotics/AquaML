@@ -316,7 +316,7 @@ class DataUnit:
             dtype = 'np.float32'
         elif dtype == np.float64:
             dtype = 'np.float64'
-        elif dtype == np.int:
+        elif dtype == np.int_:
             dtype = 'np.int_'
         elif dtype == np.int32:
             dtype = 'np.int32'

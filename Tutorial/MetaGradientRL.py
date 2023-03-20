@@ -1,6 +1,13 @@
 import sys
-
 sys.path.append('..')
+from AquaML.Tool import allocate_gpu
+from mpi4py import MPI
+
+# get group communicator
+comm = MPI.COMM_WORLD
+allocate_gpu(comm)
+
+
 import tensorflow as tf
 from AquaML.rlalgo.PPO import PPO  # SAC algorithm
 from AquaML.rlalgo.Parameters import PPO_parameter
@@ -174,6 +181,7 @@ meta_parameters = MetaGradientParameter(
     total_steps=200,
     batch_size=8,
     summary_episodes=10,
+    multi_thread_flag=False,
 )
 
 meta_algo = MGRL(
@@ -183,6 +191,8 @@ meta_algo = MGRL(
     core_env=env,
     support_env=support_env,
     meta_parameter=meta_parameters,
+    # mpi_comm=comm,
+    name='MGRL10',
 )
 
 meta_algo.run()

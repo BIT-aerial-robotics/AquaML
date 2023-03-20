@@ -69,6 +69,9 @@ class MGRL(BaseAlgo):
         # 读取meta parameter
         env_meta_parameters = support_env.meta_parameters
 
+        # 异常处理
+        atexit.register(self.close)
+
         # 将meta parameter添加到core hyperparameter， core hyperparameter集中式管理所有参数
         if len(env_meta_parameters) < 1:
             self.meta_reward_flag = False
@@ -93,17 +96,21 @@ class MGRL(BaseAlgo):
 
             if self.thread_id == 0:
                 self.level = 0
+            else:
+                self.level = 1
 
             # 确认其余节点是否需要support env
             if meta_parameter.multi_thread_flag:
                 # 需要support env不做任何操作
-                if self.level == 0:
+                if self.level == 0: # 主线程不包含
                     support_env.close()
                     support_env = None
             else:
+                self.sample_thread_num = 1
                 # 不需要support env，将support env设置为None
-                support_env.close()
-                support_env = None
+                if self.level == 1: # 附属线程不包含
+                    support_env.close()
+                    support_env = None
 
         # 创建args pool集中式管理所有参数，共享内存机制
         self.args_pool = ArgsPool(name=name,
@@ -178,6 +185,7 @@ class MGRL(BaseAlgo):
             'rl_io_info': core_algorithm_info,
             'parameters': core_hyperparameter,
             'prefix_name': name,
+            'name': name + '_core_algorithm',
         }
 
         core_model_args = core_model_class_dict
@@ -251,7 +259,8 @@ class MGRL(BaseAlgo):
 
         # 所有线程直接使用内环actor，这样不需要同步
         self.actor = self.core_algorithm.actor
-        self.critic = self.core_algorithm.critic
+        if self.level == 0:
+            self.critic = self.core_algorithm.critic
 
         self.get_action = self.core_algorithm.get_action  # 使用和core一样的get_action
 
@@ -276,7 +285,7 @@ class MGRL(BaseAlgo):
         else:
             self.run = self._run_mpi_
 
-        atexit.register(self.close)
+
 
     def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
         """
@@ -508,6 +517,8 @@ class MGRL(BaseAlgo):
         单线程运行
         """
         for i in range(self.max_steps):
+            self.sync()
+            self.core_algorithm.sync()
             self.core_algorithm.worker.roll(self.core_algorithm.each_thread_update_interval,
                                             test_flag=False)
             self.core_algorithm.optimize()
@@ -515,7 +526,7 @@ class MGRL(BaseAlgo):
             self.optimize(i)
             self.sync()
 
-    def _run_mpi(self):
+    def _run_mpi_(self):
         """
         多线程运行
         """
@@ -563,14 +574,13 @@ class MGRL(BaseAlgo):
                     self.meta_worker.roll(self, test_flag=False)
 
             self.mpi_comm.Barrier()
+
             if self.level == 0:
                 self.optimize(i)
+            else:
+                pass
 
-            self.core_algorithm.worker.roll(self.core_algorithm.each_thread_update_interval,
-                                            test_flag=False)
-            self.core_algorithm.optimize()
-            self.meta_worker.roll(self, test_flag=False)
-            self.optimize(i)
+            self.mpi_comm.Barrier()
             # self.sync()
 
     def cal_average_batch_dict(self, data_list: list):
@@ -605,8 +615,9 @@ class MGRL(BaseAlgo):
         所有同步事件2.1都用此函数
         """
         # 更新args pool 内容
-        for key, value in self.meta_parameters.items():
-            self.args_pool.set_param_by_name(key, value.numpy())
+        if self.level == 0:
+            for key, value in self.meta_parameters.items():
+                self.args_pool.set_param_by_name(key, value.numpy())
 
         # 同步core_algorithm参数
         self.core_algorithm.meta_sync()

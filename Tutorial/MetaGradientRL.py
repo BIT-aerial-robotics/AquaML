@@ -191,8 +191,8 @@ meta_algo = MGRL(
     core_env=env,
     support_env=support_env,
     meta_parameter=meta_parameters,
-    # mpi_comm=comm,
-    name='MGRL13',
+    mpi_comm=comm,
+    name='MGRL15',
 )
 
 meta_algo.run()

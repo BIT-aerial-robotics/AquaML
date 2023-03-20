@@ -517,7 +517,7 @@ class MGRL(BaseAlgo):
         单线程运行
         """
         for i in range(self.max_steps):
-            self.sync()
+            # self.sync()
             self.core_algorithm.sync()
             self.core_algorithm.worker.roll(self.core_algorithm.each_thread_update_interval,
                                             test_flag=False)

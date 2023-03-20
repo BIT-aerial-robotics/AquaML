@@ -81,7 +81,7 @@ class DataUnit:
         else:
             raise Exception("Current thread is sub thread!")
 
-    def create_shared_memory_V2(self, name, shape: tuple, nbytes: int, dtype:str):
+    def create_shared_memory_V2(self, name, shape: tuple, nbytes: int, dtype: str):
         """Create shared-memory.
 
         Args:
@@ -118,7 +118,7 @@ class DataUnit:
         else:
             raise Exception("Current thread is main thread!")
 
-    def read_shared_memory_V2(self, name, shape: tuple, nbytes: int, dtype:str):
+    def read_shared_memory_V2(self, name, shape: tuple, nbytes: int, dtype: str):
 
         dtype = self.str_to_dtype(dtype)
 
@@ -191,6 +191,7 @@ class DataUnit:
             self._buffer[0] = value
         else:
             self._buffer[:] = value[:]
+
     @property
     def __call__(self):
         if self.shape == (1,):
@@ -236,7 +237,6 @@ class DataUnit:
         """
         delete data.
         """
-        del self._buffer
 
         if self.shm_buffer is not None:
             if self.level == 1:
@@ -246,6 +246,7 @@ class DataUnit:
                 import time
                 time.sleep(0.5)
                 self.shm_buffer.close()
+        # del self._buffer
 
     def clear(self):
         if self.shm_buffer is not None:
@@ -328,7 +329,6 @@ class DataUnit:
 # print(DataUnit.get_dtype_from_str('np.float32'))
 # print(DataUnit.get_str_from_dtype(np.float32))
 if __name__ == '__main__':
-
-    unit = DataUnit('test', (1, ), np.float32, level=0)
+    unit = DataUnit('test', (1,), np.float32, level=0)
 
     print(unit())

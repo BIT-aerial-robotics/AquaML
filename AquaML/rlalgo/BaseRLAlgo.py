@@ -482,6 +482,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         total_steps = self.get_current_steps
 
         optimize_info['total_steps'] = total_steps
+        # print(self.hyper_parameters.gamma)
 
         if self.optimize_epoch % self.display_interval == 0:
             # display information

@@ -62,7 +62,6 @@ class Critic_net(tf.keras.Model):
         self.optimizer = 'Adam'
 
     def call(self, obs, gamma, lambada):
-
         x = tf.concat([obs, gamma, lambada], axis=1)
 
         x = self.dense1(x)
@@ -89,6 +88,18 @@ class PendulumWrapper(RLBaseEnv):
             dtypes=np.float32
         )
 
+        self.ratio = 1.0
+        self.bias = 0.0
+
+        self.meta_parameters = {
+            'ratio': 1.0,
+            'bias': 0.0,
+        }
+
+        self._reward_info = ('total_reward', 'indicate_reward')
+
+        self.reward_fn_input = ('indicate_reward', 'ratio', 'bias')
+
     def reset(self):
         observation = self.env.reset()
         observation = observation.reshape(1, -1)
@@ -111,9 +122,15 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': reward}
+        reward_ = (reward + self.bias) * self.ratio
+
+        reward = {'total_reward': reward_, 'indicate_reward': reward}
 
         return obs, reward, done, info
+
+    def get_reward(self, indicate_reward, ratio, bias):
+        new_reward = ratio * (indicate_reward + bias)
+        return new_reward
 
     def close(self):
         self.env.close()
@@ -149,13 +166,13 @@ model_class_dict = {
 }
 
 meta_parameters = MetaGradientParameter(
-    actor_ratio=0.6,
-    critic_ratio=0.4,
+    actor_ratio=1,
+    critic_ratio=1,
     learning_rate=1e-3,
     max_epochs=100,
     max_steps=200,
-    total_steps=1000,
-    batch_size=64,
+    total_steps=200,
+    batch_size=8,
     summary_episodes=10,
 )
 

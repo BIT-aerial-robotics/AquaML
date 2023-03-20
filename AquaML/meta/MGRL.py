@@ -10,18 +10,19 @@ Reference:
 1. Meta-Gradient Reinforcement Learning, 2019, https://arxiv.org/abs/1903.03854
 """
 from AquaML.data.ArgsPool import ArgsPool
+from AquaML.BaseClass import BaseAlgo
 from AquaML.tool.RLWorkerV2 import RLWorker
 from AquaML.DataType import RLIOInfo
-from AquaML.data.DataUnit import DataUnit
 from AquaML.data.DataPool import DataPool
 from AquaML.Tool import mkdir
 import tensorflow as tf
 import numpy as np
 from AquaML.meta.parameters import MetaGradientParameter
 import atexit
+from mpi4py import MPI
 
 
-class MGRL:
+class MGRL(BaseAlgo):
     def __init__(self,
                  meta_core,  # core algorithm, such as PPO
                  core_hyperparameter,  # core algorithm hyperparameter
@@ -43,6 +44,7 @@ class MGRL:
         注意：
         1. env创建需要指定出需要调整超参数。
         """
+        super().__init__()
         ################################################################
         # 配置参数汇总
         ################################################################
@@ -61,6 +63,8 @@ class MGRL:
         self.name = name
 
         self.meta_hyperparameter = meta_parameter
+
+        self.mpi_comm = mpi_comm
 
         # 读取meta parameter
         env_meta_parameters = support_env.meta_parameters
@@ -191,6 +195,10 @@ class MGRL:
         self.core_algorithm.meta_parameter_names = self.meta_parameter_names  # 检查这部分逻辑
         self.core_algorithm.args_pool = self.args_pool
 
+        # 加载历史模型
+        if self.level == 0:
+            self.core_algorithm.load_weights_from_file()
+
         ############################################################################################################
         # 下面创建meta algorithm
         ############################################################################################################
@@ -202,7 +210,7 @@ class MGRL:
         )
 
         # 创建meta algorithm info
-        self.meta_info = RLIOInfo(
+        self.algo_info = RLIOInfo(
             obs_info=obs_info.shape_dict,
             obs_type_info=obs_info.type_dict,
             actor_out_info=actor_out_info,
@@ -257,7 +265,16 @@ class MGRL:
         self.actor_ratio = tf.constant(meta_parameter.actor_ratio, dtype=tf.float32)
         self.critic_ratio = tf.constant(meta_parameter.critic_ratio, dtype=tf.float32)
 
+        # 获取recoder
+        self.recoder = self.core_algorithm.recoder
+
         self.create_data_pool()
+
+        # 配置run函数以后将接入默认2.1版本
+        if mpi_comm is None:
+            self.run = self._run_
+        else:
+            self.run = self._run_mpi_
 
         atexit.register(self.close)
 
@@ -283,50 +300,6 @@ class MGRL:
 
         # store mask to buffer
         self.data_pool.data_pool['mask'].store(mask, index)
-
-    def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True):
-        """
-
-        Get corresponding data from data dict.
-
-        Args:
-            data_dict (dict): data dict.
-            names (tuple): name of data.
-            prefix (str): prefix of data name.
-            tf_tensor (bool): if return tf tensor.
-        Returns:
-            corresponding data. list or tuple.
-        """
-
-        data = []
-
-        for name in names:
-            name = prefix + name
-            buffer = data_dict[name]
-            if tf_tensor:
-                buffer = tf.cast(buffer, dtype=tf.float32)
-            data.append(buffer)
-
-        return data
-
-    def get_all_data(self):
-        """
-        TODO: v2.1版本中将此函数扩展为标准接口，逐步改进， data_pool作为输入之类的
-
-        该函数会自动搜寻所有pool中的数据，并且匹配格式，返回一个dict
-        """
-        return_dict = {}
-
-        for key, unit in self.data_pool.data_pool.items():
-            return_dict[key] = unit.buffer
-
-        if self.meta_parameter_names is not None:
-            for key in self.meta_parameter_names:
-                value = self.args_pool.get_param(key)
-                return_dict[key] = np.ones_like(return_dict['total_reward']) * value
-                return_dict['next_' + key] = np.ones_like(return_dict['total_reward']) * value
-
-        return return_dict
 
     @staticmethod
     def check_parameter(parameters, sample_thread_num):
@@ -359,11 +332,14 @@ class MGRL:
 
         self.buffer_size = self.each_thread_size * self.sample_thread_num
 
-    def optimize(self):
+    def optimize(self, epoch: int):
         """
         2.1版本中这个为run会调用的函数，这个函数是所有run的接口
         """
         info = self._optimize_()
+
+        self.recoder.record(info, epoch, prefix='meta')
+        self.recoder.record(self.meta_parameters, epoch, prefix='meta')
 
         print("------{}------".format('meta loop'))
         for key, value in info.items():
@@ -385,8 +361,16 @@ class MGRL:
 
         actor_obs = self.get_corresponding_data(data_dict, self.actor.input_name)
 
+        for key, value in self.meta_parameters.items():
+            data_dict[key] = value
+
         # 获取total reward
-        total_reward = data_dict['total_reward']
+        reward_input_dict = {}
+        if self.meta_reward_flag:
+            for key in self.support_env.reward_fn_input:
+                reward_input_dict[key] = data_dict[key]
+        else:
+            reward_input_dict['rewards'] = data_dict['total_reward']
 
         # 获取mask
         masks = data_dict['mask']
@@ -398,7 +382,10 @@ class MGRL:
         old_prob = data_dict['prob']
 
         # 转换成tf tensor
-        rewards = tf.cast(total_reward, dtype=tf.float32)
+        for key, value in reward_input_dict.items():
+            if isinstance(value, np.ndarray):
+                reward_input_dict[key] = tf.cast(value, dtype=tf.float32)
+        # rewards = tf.cast(total_reward, dtype=tf.float32)
         masks = tf.cast(masks, dtype=tf.float32)
         actions = tf.cast(actions, dtype=tf.float32)
         old_prob = tf.convert_to_tensor(old_prob, dtype=tf.float32)
@@ -419,7 +406,13 @@ class MGRL:
                             self.buffer_size)
 
             # GAE的输入
-            batch_rewards = rewards[start_index:end_index]
+            batch_reward_input_dict = {}
+            for key, value in reward_input_dict.items():
+                if isinstance(value, tf.Tensor):
+                    batch_reward_input_dict[key] = value[start_index:end_index]
+                else:
+                    batch_reward_input_dict[key] = value
+            # batch_rewards = rewards[start_index:end_index]
             batch_values = values[start_index:end_index]
             batch_next_values = next_values[start_index:end_index]
             batch_masks = masks[start_index:end_index]
@@ -436,7 +429,7 @@ class MGRL:
 
             start_index = end_index
             dic = self.train(
-                batch_rewards=batch_rewards,
+                batch_rewards=batch_reward_input_dict,
                 batch_values=batch_values,
                 batch_next_values=batch_next_values,
                 batch_masks=batch_masks,
@@ -445,45 +438,6 @@ class MGRL:
                 batch_old_log_prob=batch_old_log_prob,
                 batch_critic_obs=batch_critic_obs,
             )
-
-            # with tf.GradientTape(persistent=True) as tape:
-            #     tape.watch(self.meta_parameters.values())
-            #
-            #     gae, target = self.core_algorithm.calculate_GAEV2(
-            #         rewards=batch_rewards,
-            #         values=batch_values,
-            #         next_values=batch_next_values,
-            #         masks=batch_masks,
-            #         gamma=self.meta_parameters['gamma'],
-            #         lamda=self.meta_parameters['lambada'],
-            #     )
-            #
-            #     # 计算actor loss
-            #     actor_loss = self.core_algorithm.compute_actor_loss(
-            #         actor_obs=batch_actor_obs,
-            #         advantage=gae,
-            #         action=batch_actions,
-            #         old_log_prob=batch_old_log_prob,
-            #         epsilon=self.core_algorithm.hyper_parameters.epsilon,
-            #         entropy_coefficient=self.core_algorithm.hyper_parameters.entropy_coeff,
-            #     )
-            #
-            #     # 计算critic loss
-            #     critic_loss = self.core_algorithm.compute_critic_loss(
-            #         critic_obs=batch_critic_obs,
-            #         target=target,
-            #     )
-            #
-            #     # 计算loss
-            #     loss = self.actor_ratio * actor_loss + self.critic_ratio * critic_loss
-            #
-            # # 计算梯度
-            # meta_grad = tape.gradient(loss, self.meta_parameters.values())
-            # critic_grad = tape.gradient(critic_loss, self.critic.trainable_variables)
-            #
-            # # 更新梯度
-            # self.meta_optimizer.apply_gradients(zip(meta_grad, self.meta_parameters.values()))
-            # self.core_algorithm.critic_optimizer.apply_gradients(zip(critic_grad, self.critic.trainable_variables))
 
         return dic
 
@@ -496,12 +450,19 @@ class MGRL:
               batch_actions,
               batch_old_log_prob,
               batch_critic_obs):
-        with tf.GradientTape(persistent=True) as tape:
+        with tf.GradientTape() as tape:
             tape.watch(self.meta_parameters.values())
             tape.watch(self.critic.trainable_variables)
 
+            if self.meta_reward_flag:
+                real_reward = self.support_env.get_reward(**batch_rewards)
+            else:
+                real_reward = batch_rewards['rewards']
+
+            # real_reward = self.support_env.get_reward(batch_rewards, self.meta_parameters['ratio'], self.meta_parameters['bias'])
+
             gae, target = self.core_algorithm.calculate_GAEV2(
-                rewards=batch_rewards,
+                rewards=real_reward,
                 values=batch_values,
                 next_values=batch_next_values,
                 masks=batch_masks,
@@ -530,28 +491,87 @@ class MGRL:
 
             # 计算梯度
         meta_grad = tape.gradient(loss, self.meta_parameters.values())
-        critic_grad = tape.gradient(critic_loss, self.critic.trainable_variables)
+        # critic_grad = tape.gradient(critic_loss, self.critic.trainable_variables)
         # print('meta_grad', meta_grad)
         # 更新梯度
         self.meta_optimizer.apply_gradients(zip(meta_grad, self.meta_parameters.values()))
-        self.core_algorithm.critic_optimizer.apply_gradients(zip(critic_grad, self.critic.trainable_variables))
+        # self.core_algorithm.critic_optimizer.apply_gradients(zip(critic_grad, self.critic.trainable_variables))
 
         return {
             'actor_loss': actor_loss.numpy(),
             'critic_loss': critic_loss.numpy(),
             'loss': loss.numpy(),
         }
-    def run(self):
+
+    def _run_(self):
         """
         单线程运行
         """
-        for _ in range(self.max_steps):
+        for i in range(self.max_steps):
             self.core_algorithm.worker.roll(self.core_algorithm.each_thread_update_interval,
                                             test_flag=False)
             self.core_algorithm.optimize()
-            self.meta_worker.roll(self, test_flag=True)
-            self.optimize()
+            self.meta_worker.roll(self, test_flag=False)
+            self.optimize(i)
             self.sync()
+
+    def _run_mpi(self):
+        """
+        多线程运行
+        """
+        for i in range(self.max_steps):
+            # 信息同步
+            if self.level == 0:
+                self.sync() # 同步meta参数
+                self.core_algorithm.sync()
+            else:
+                pass
+
+            self.mpi_comm.Barrier()
+
+            # 采样
+            if self.level == 1:
+                self.sync()
+                self.core_algorithm.sync()
+                self.core_algorithm.worker.roll(self.core_algorithm.each_thread_update_interval,
+                                                test_flag=False)
+
+            self.mpi_comm.Barrier()
+
+            if self.level == 0:
+                self.core_algorithm.optimize()
+
+            self.mpi_comm.Barrier()
+
+            # 同步模型
+            # 信息同步
+            if self.level == 0:
+                self.sync()  # 同步meta参数
+                self.core_algorithm.sync()
+            else:
+                pass
+
+            self.mpi_comm.Barrier()
+
+            if self.meta_hyperparameter.multi_thread_flag:
+                if self.level == 1:
+                    self.sync()  # 同步meta参数
+                    self.core_algorithm.sync()
+                    self.meta_worker.roll(self, test_flag=False)
+            else:
+                if self.level == 0:
+                    self.meta_worker.roll(self, test_flag=False)
+
+            self.mpi_comm.Barrier()
+            if self.level == 0:
+                self.optimize(i)
+
+            self.core_algorithm.worker.roll(self.core_algorithm.each_thread_update_interval,
+                                            test_flag=False)
+            self.core_algorithm.optimize()
+            self.meta_worker.roll(self, test_flag=False)
+            self.optimize(i)
+            # self.sync()
 
     def cal_average_batch_dict(self, data_list: list):
         """
@@ -591,41 +611,6 @@ class MGRL:
         # 同步core_algorithm参数
         self.core_algorithm.meta_sync()
 
-    def create_data_pool(self):
-        """
-        由于在2.1版本中，所有的data pool将逐渐统一这个函数，这个函数也会逐渐改进扩展。
-        """
-
-        # 添加summary信息到meta_info中
-        reward_info_dict = {}
-        for name in self.meta_info.reward_info:
-            reward_info_dict['summary_' + name] = (
-                self.each_summary_episodes * self.sample_thread_num, 1)
-
-        for name, shape in reward_info_dict.items():
-            buffer = DataUnit(
-                name=name + '_' + name,
-                shape=shape,
-                dtype=np.float32,
-                level=self.level,
-                computer_type=self._computer_type,
-            )
-            self.meta_info.add_info(
-                name=name,
-                shape=shape,
-                dtype=np.float32,
-            )
-            self.data_pool.add_unit(
-                name=name,
-                data_unit=buffer
-            )
-
-        # 无论是否使用多线程，我们都会开启共享内存池子，方便管理
-        self.data_pool.multi_init(
-            self.meta_info.data_info,
-            type='buffer'
-        )
-
     def initialize_model_weights(self, model, expand_dims=False):
         """
         该函数
@@ -637,7 +622,7 @@ class MGRL:
         input_data = []
 
         for name in input_data_name:
-            shape, _ = self.meta_info.get_data_info(name)
+            shape, _ = self.algo_info.get_data_info(name)
             data = tf.zeros(shape=shape, dtype=tf.float32)
             input_data.append(data)
         if expand_dims:

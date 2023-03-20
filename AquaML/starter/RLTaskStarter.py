@@ -128,6 +128,9 @@ class RLTaskStarter(BaseStarter):
         self.max_epochs = algo_hyperparameter.n_epochs * algo_hyperparameter.display_interval
         self.mpi_comm = mpi_comm
 
+        if self.level == 0:
+            self.algo.load_weights_from_file()
+
         # config run function
 
         if mpi_comm is None:

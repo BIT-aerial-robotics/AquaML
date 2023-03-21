@@ -3,6 +3,9 @@ In this tutorial we will learn how to use the FusionPPO algorithm to train a RL 
 
 The environment we use is the POMDP Pendulum-v1.
 """
+import os
+
+# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import sys
 sys.path.append('..')
 from AquaML.Tool import allocate_gpu
@@ -29,24 +32,26 @@ class Actor_net(tf.keras.Model):
 
         self.lstm = tf.keras.layers.LSTM(32, input_shape=(2,), return_sequences=True, return_state=True)
         # if using batch time trajectory, return state must be True
-        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64)
 
-        self.action_dense = tf.keras.layers.Dense(64, activation='relu')
-        self.action_dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_dense = tf.keras.layers.Dense(64)
+        self.action_dense2 = tf.keras.layers.Dense(64)
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
 
-        self.value_dense = tf.keras.layers.Dense(64, activation='relu')
-        self.value_dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.value_dense = tf.keras.layers.Dense(64)
+        self.value_dense2 = tf.keras.layers.Dense(64)
         self.value_layer = tf.keras.layers.Dense(1)
 
-        self.learning_rate = self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
-            initial_learning_rate=0.01,
-            decay_steps=1,
-            decay_rate=0.9,
+        self.leaky_relu = tf.keras.layers.LeakyReLU(alpha=0.2)
 
-        )
+        # self.learning_rate = self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
+        #     initial_learning_rate=0.01,
+        #     decay_steps=1,
+        #     decay_rate=0.9,
+        #
+        # )
 
-        # self.learning_rate = 2e-4
+        self.learning_rate = 2e-3
 
         self.rnn_flag = True
 
@@ -61,11 +66,17 @@ class Actor_net(tf.keras.Model):
         hidden_states = (hidden1, hidden2)
         whole_seq, last_seq, hidden_state = self.lstm(vel, hidden_states)
         x = self.dense2(whole_seq)
+        x = self.leaky_relu(x)
         action_x = self.action_dense(x)
+        action_x = self.leaky_relu(action_x)
         action_x = self.action_dense2(action_x)
+        action_x = self.leaky_relu(action_x)
         action = self.action_layer(action_x)
+
         value_x = self.value_dense(x)
+        value_x = self.leaky_relu(value_x)
         value_x = self.value_dense2(value_x)
+        value_x = self.leaky_relu(value_x)
         value = self.value_layer(value_x)
 
         return (action, value, last_seq, hidden_state)
@@ -84,12 +95,14 @@ class Critic_net(tf.keras.Model):
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
-        self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
-            initial_learning_rate=0.05,
-            decay_steps=1,
-            decay_rate=0.9,
+        # self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
+        #     initial_learning_rate=0.05,
+        #     decay_steps=1,
+        #     decay_rate=0.9,
+        #
+        # )
 
-        )
+        self.learning_rate = 2e-3
 
         self.output_name = {'value': (1,)}
 
@@ -148,7 +161,7 @@ class PendulumWrapper(RLBaseEnv):
 
         # obs = {'obs': observation}
         reward = {'total_reward': (reward + 8) / 8, 'indicate': reward}
-
+        # reward = {'total_reward': reward, 'indicate': reward}
         return obs, reward, done, info
 
     def close(self):
@@ -166,10 +179,11 @@ fusion_ppo_parameter = FusionPPO_parameter(
     update_actor_times=4,
     update_critic_times=4,
     gamma=0.99,
-    epsilon=0.2,
+    epsilon=0.1,
     lambada=0.95,
     batch_trajectory=True,
-    # batch_advantage_normalization=True,
+    entropy_coeff=0.02,
+    batch_advantage_normalization=True,
 )
 
 model_class_dict = {
@@ -182,8 +196,8 @@ starter = RLTaskStarter(
     model_class_dict=model_class_dict,
     algo=FusionPPO,
     algo_hyperparameter=fusion_ppo_parameter,
-    name='FPPO2',
-    # mpi_comm=comm,
+    name='FPPO7',
+    mpi_comm=comm,
 )
 
 starter.run()

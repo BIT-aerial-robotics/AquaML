@@ -158,9 +158,16 @@ class FusionPPO(BaseRLAlgo):
                 )
             )
 
+            # fusion_value = tf.reduce_mean(tf.square(fusion_value - target))
+
+            # if self.hyper_parameters.batch_advantage_normalization:
+            #     fusion_value_ = fusion_value - target
+            #     fusion_value_ = (fusion_value_ - tf.reduce_mean(fusion_value_)) / (tf.math.reduce_std(fusion_value_) + 1e-8)
+            #     fusion_value_loss = tf.reduce_mean(tf.square(fusion_value_))
+            # else:
             fusion_value_loss = tf.reduce_mean(tf.square(fusion_value - target))
 
-            entropy_loss = -tf.reduce_mean(log_prob)
+            entropy_loss = -tf.reduce_mean(log_prob*tf.exp(log_prob))
 
             loss = -actor_surrogate_loss + lam * fusion_value_loss - entropy_coefficient * entropy_loss
 
@@ -340,11 +347,11 @@ class FusionPPO(BaseRLAlgo):
 
                 fusion_value_critic = tf.math.reduce_mean(tf.square(fusion_value - critic_value))
 
-                # distance = tf.sqrt(critic_value_target) + tf.sqrt(fusion_value_critic)
-                distance = critic_value_target + fusion_value_critic
+                distance = tf.sqrt(critic_value_target) + tf.sqrt(fusion_value_critic)
+                # distance = critic_value_target + fusion_value_critic
 
                 lam = 1. / distance
-                lam = tf.clip_by_value(lam, 0, 0.2)
+                lam = tf.clip_by_value(lam, 0, 1)
                 # lam = 1
                 # lam = 0
 

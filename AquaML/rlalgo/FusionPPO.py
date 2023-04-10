@@ -145,6 +145,7 @@ class FusionPPO(BaseRLAlgo):
                     entropy_coefficient,
                     ):
         with tf.GradientTape() as tape:
+            tape.watch(self.get_trainable_actor)
             out = self.resample_log_prob(actor_obs, action)
             log_prob = out[0]
             fusion_value = out[self.fusion_value_idx]
@@ -161,18 +162,19 @@ class FusionPPO(BaseRLAlgo):
             # fusion_value = tf.reduce_mean(tf.square(fusion_value - target))
 
             # if self.hyper_parameters.batch_advantage_normalization:
-            #     fusion_value_ = fusion_value - target
-            #     fusion_value_ = (fusion_value_ - tf.reduce_mean(fusion_value_)) / (tf.math.reduce_std(fusion_value_) + 1e-8)
-            #     fusion_value_loss = tf.reduce_mean(tf.square(fusion_value_))
+            #     fusion_value_ = tf.square(fusion_value - target)
+            #     fusion_value_ = (fusion_value_ - tf.reduce_mean(fusion_value_)) / (
+            #                 tf.math.reduce_std(fusion_value_) + 1e-8)
+            #     fusion_value_loss = tf.reduce_mean(fusion_value_)
             # else:
             fusion_value_loss = tf.reduce_mean(tf.square(fusion_value - target))
 
-            entropy_loss = -tf.reduce_mean(log_prob*tf.exp(log_prob))
+            entropy_loss = -tf.reduce_mean(log_prob * tf.exp(log_prob))
 
             loss = -actor_surrogate_loss + lam * fusion_value_loss - entropy_coefficient * entropy_loss
 
-        actor_grad = tape.gradient(loss, self.actor.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(actor_grad, self.actor.trainable_variables))
+        actor_grad = tape.gradient(loss, self.get_trainable_actor)
+        self.actor_optimizer.apply_gradients(zip(actor_grad, self.get_trainable_actor))
 
         # with tf.GradientTape() as tape:
         #     out = self.resample_log_prob(actor_obs, action)
@@ -210,13 +212,31 @@ class FusionPPO(BaseRLAlgo):
         #     'normalized_fusion_value_loss': normalized_fusion_value_loss,
         #     'normalized_entropy_loss': normalized_entropy_loss,
         # }
-        dic = {
-            'actor_surrogate_loss': actor_surrogate_loss,
-            'actor_loss': loss,
-            'fusion_value_loss': fusion_value_loss,
-            'entropy_loss': entropy_loss,
-        }
+        if self.hyper_parameters.batch_advantage_normalization:
+            dic = {
+                'actor_surrogate_loss': actor_surrogate_loss,
+                'actor_loss': loss,
+                'fusion_value_loss': fusion_value_loss,
+                'entropy_loss': entropy_loss,
+            }
+        else:
+            dic = {
+                'actor_surrogate_loss': actor_surrogate_loss,
+                'actor_loss': loss,
+                'fusion_value_loss': fusion_value_loss,
+                'entropy_loss': entropy_loss,
+            }
+
         return dic
+
+    def compute_critic_loss(self,
+                            critic_obs: tuple,
+                            target: tf.Tensor,
+                            ):
+        v = self.critic(*critic_obs)
+        critic_loss = tf.reduce_mean(tf.square(v - target))
+
+        return critic_loss
 
     def _optimize_(self):
         data_dict = self.get_all_data
@@ -367,6 +387,7 @@ class FusionPPO(BaseRLAlgo):
                         entropy_coefficient=tf.cast(self.hyper_parameters.entropy_coeff, dtype=tf.float32),
                     )
                     actor_optimize_info_list.append(actor_optimize_info)
+
                 critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)
                 actor_optimize_info = self.cal_average_batch_dict(actor_optimize_info_list)
                 info = {**critic_optimize_info, **actor_optimize_info, 'lam': lam}

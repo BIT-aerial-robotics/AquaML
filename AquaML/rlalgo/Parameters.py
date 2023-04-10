@@ -331,3 +331,7 @@ class FusionPPO_parameter(BaseParameter):
         self.update_critic_times = update_critic_times
         self.update_actor_times = update_actor_times
         self.batch_advantage_normalization = batch_advantage_normalization
+
+        self.calculate_episodes = int(self.buffer_size / self.epoch_length)
+        self.summary_episodes = self.calculate_episodes
+

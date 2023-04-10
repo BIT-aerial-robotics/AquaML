@@ -1,11 +1,3 @@
-"""
-In this tutorial we will learn how to use the FusionPPO algorithm to train a RL agent with RNN policy.
-
-The environment we use is the POMDP Pendulum-v1.
-"""
-import os
-
-# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import sys
 sys.path.append('..')
 from AquaML.Tool import allocate_gpu
@@ -15,14 +7,16 @@ from mpi4py import MPI
 comm = MPI.COMM_WORLD
 allocate_gpu(comm)
 
+
 import tensorflow as tf
+from AquaML.rlalgo.FusionPPO import FusionPPO  # SAC algorithm
+from AquaML.rlalgo.Parameters import FusionPPO_parameter
+from AquaML.meta.MetaFusionPPO import MGRL
+from AquaML.meta.parameters import MetaGradientParameter
+import gym
 from AquaML.DataType import DataInfo
 from AquaML.BaseClass import RLBaseEnv
 import numpy as np
-import gym
-from AquaML.rlalgo.FusionPPO import FusionPPO  # FusionPPO algorithm
-from AquaML.rlalgo.Parameters import FusionPPO_parameter
-from AquaML.starter.RLTaskStarter import RLTaskStarter  # RL task starter
 
 
 class Actor_net(tf.keras.Model):
@@ -170,9 +164,11 @@ class PendulumWrapper(RLBaseEnv):
 
 env = PendulumWrapper('Pendulum-v1')
 
+support_env = PendulumWrapper('Pendulum-v1')
+
 fusion_ppo_parameter = FusionPPO_parameter(
     epoch_length=200,
-    n_epochs=4,
+    n_epochs=2000,
     total_steps=6000,
     batch_size=20,
     update_times=4,
@@ -183,21 +179,43 @@ fusion_ppo_parameter = FusionPPO_parameter(
     lambada=0.95,
     batch_trajectory=True,
     entropy_coeff=0.1,
-    batch_advantage_normalization=False,
+    batch_advantage_normalization=True,
 )
+
+
+meta_parameters = {
+    'gamma': 0.99,
+    'lambada': 0.95,
+}
+
+fusion_ppo_parameter.add_meta_parameters(meta_parameters)
 
 model_class_dict = {
     'actor': Actor_net,
     'critic': Critic_net,
 }
 
-starter = RLTaskStarter(
-    env=env,
-    model_class_dict=model_class_dict,
-    algo=FusionPPO,
-    algo_hyperparameter=fusion_ppo_parameter,
-    name='FPPO7',
-    # mpi_comm=comm,
+meta_parameters = MetaGradientParameter(
+    actor_ratio=1,
+    critic_ratio=1,
+    learning_rate=1e-3,
+    max_epochs=100,
+    max_steps=200,
+    total_steps=1000,
+    batch_size=200,
+    summary_episodes=10,
+    multi_thread_flag=False,
 )
 
-starter.run()
+meta_algo = MGRL(
+    meta_core=FusionPPO,
+    core_hyperparameter=fusion_ppo_parameter,
+    core_model_class_dict=model_class_dict,
+    core_env=env,
+    support_env=support_env,
+    meta_parameter=meta_parameters,
+    # mpi_comm=comm,
+    name='MGRL',
+)
+
+meta_algo.run()

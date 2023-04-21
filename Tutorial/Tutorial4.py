@@ -172,8 +172,8 @@ env = PendulumWrapper('Pendulum-v1')
 
 fusion_ppo_parameter = FusionPPO_parameter(
     epoch_length=200,
-    n_epochs=4,
-    total_steps=6000,
+    n_epochs=122,
+    total_steps=8000,
     batch_size=20,
     update_times=4,
     update_actor_times=4,

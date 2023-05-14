@@ -97,10 +97,10 @@ class PendulumWrapper(RLBaseEnv):
         self.ratio = 1.0
         self.bias = 0.0
 
-        self.meta_parameters = {
-            'ratio': 1.0,
-            'bias': 0.0,
-        }
+        # self.meta_parameters = {
+        #     'ratio': 1.0,
+        #     'bias': 0.0,
+        # }
 
         self._reward_info = ('total_reward', 'indicate_reward')
 
@@ -161,8 +161,8 @@ ppo_parameter = PPO_parameter(
 )
 
 meta_parameters = {
-    'gamma': 0.99,
-    'lambada': 0.95,
+    'gamma': 0.9,
+    'lambada': 0.9,
 }
 
 ppo_parameter.add_meta_parameters(meta_parameters)
@@ -178,8 +178,8 @@ meta_parameters = MetaGradientParameter(
     learning_rate=1e-3,
     max_epochs=100,
     max_steps=200,
-    total_steps=200,
-    batch_size=8,
+    total_steps=1000,
+    batch_size=128,
     summary_episodes=10,
     multi_thread_flag=False,
 )

@@ -335,3 +335,15 @@ class FusionPPO_parameter(BaseParameter):
         self.calculate_episodes = int(self.buffer_size / self.epoch_length)
         self.summary_episodes = self.calculate_episodes
 
+
+class BehaviorCloning_parameter(BaseParameter):
+    def __init__(self,
+                 epoch_length: int,
+                 n_epochs: int,
+                 buffer_size: int,
+                 batch_size: int,
+                 ):
+        super().__init__(epoch_length,
+                         n_epochs,
+                         buffer_size,
+                         batch_size, )

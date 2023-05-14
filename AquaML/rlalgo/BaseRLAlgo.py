@@ -550,6 +550,13 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         idx = (self.store_counter - 1) % self.each_thread_size
         index = self.each_thread_start_index + idx  # index in each thread
 
+        # action和obs可能会有共同元素,去除action只保留obs
+        new_action = {}
+        for key, val in action.items():
+            if key in obs:
+                pass
+            else:
+                new_action[key] = val
         # store obs to buffer
         self.data_pool.store(obs, index)
 
@@ -557,7 +564,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.data_pool.store(next_obs, index, prefix='next_')
 
         # store action to buffer
-        self.data_pool.store(action, index)
+        self.data_pool.store(new_action, index)
 
         # store reward to buffer
         self.data_pool.store(reward, index)

@@ -1,5 +1,32 @@
 # AquaML
 
+## 安装教程
+暂时不发布完整包，使用时候直接将AquaML文件夹放入项目中即可。
+
+
+必须的依赖项：
+
+1. tensorflow >= 2.0.0
+2. tensorflow-probability
+3. mpi4y
+4. gym
+
+注意：tensorflow-probability安装时需要对应tensorflow版本，例如tensorflow 2.0.0对应tensorflow-probability 0.8.0，可以参考https://github.com/tensorflow/probability/tags
+
+在选择python版本时候，在能够满足安装tensorflow-gpu和mpi4py的情况下，尽量选择最新的python版本。
+
+conda安装式例:
+      
+      
+      conda create -n AquaML python=3.8
+      conda activate AquaML
+      conda install tensorflow-gpu
+      pip install tensorflow-probability==0.12.2
+      pip install mpi4py
+      pip install gym
+
+
+
 ## 使用教程
 
 ### Meta Gradient Reinforcement learning
@@ -48,6 +75,10 @@ def get_reward(self, indicate_reward, ratio, bias):
 
 1. 当前算法属于不稳定阶段，存在一些bug，当运行多线程时候，检查cache下是否有模型文件,如果没有说明有bug。
 2. FusionPPO里面不推荐使用batch advantage normalization。
+
+## 下版本功能
+1. 添加超参数调整功能。借用MPI多线程并发能力，下一个版本能够实现类似keras tuner的超参数调整功能。
+2. 重量级别更新, 添加新的并发方式, 模型不并发,只并发环境,这个方式将提高深度模型的执行效率,并逐步支持issac gym的环境。
 
 ## 更新说明
 

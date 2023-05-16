@@ -471,7 +471,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             self.each_thread_start_index = None
             self.each_thread_update_interval = None
 
-    def optimize(self):
+    def optimize(self, verbose=True, record_flag=True):
 
         # compute current reward information
 
@@ -483,6 +483,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         total_steps = self.get_current_steps
 
         optimize_info['total_steps'] = total_steps
+        info = {**reward_info, **optimize_info}
         # print(self.hyper_parameters.gamma)
 
         if self.optimize_epoch % self.display_interval == 0:
@@ -490,27 +491,34 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
             epoch = int(self.optimize_epoch / self.display_interval)
             reward_info = self.summary_reward_info()
-            print("###############epoch: {}###############".format(epoch))
-            self.recoder.display_text(
-                reward_info
-            )
-            self.recoder.display_text(
-                optimize_info
-            )
-
-            self.recoder.record(reward_info, total_steps, prefix='reward')
-            self.recoder.record(optimize_info, self.optimize_epoch, prefix=self.name)
-            # record weight
-            for key, model in self._all_model_dict.items():
-                self.recoder.record_weight(model, total_steps, prefix=key)
-
-            info = {**reward_info, **optimize_info}
-            if epoch % self.hyper_parameters.store_model_times == 0:
-                self.recoder.recorde_history_model(
-                    self._all_model_dict,
-                    epoch,
-                    info
+            
+            
+            
+            if verbose:
+                print("###############epoch: {}###############".format(epoch))
+                self.recoder.display_text(
+                    reward_info
                 )
+                self.recoder.display_text(
+                    optimize_info
+                )
+            
+            if record_flag:
+                self.recoder.record(reward_info, total_steps, prefix='reward')
+                self.recoder.record(optimize_info, self.optimize_epoch, prefix=self.name)
+                # record weight
+                for key, model in self._all_model_dict.items():
+                    self.recoder.record_weight(model, total_steps, prefix=key)
+
+                
+                if epoch % self.hyper_parameters.store_model_times == 0:
+                    self.recoder.recorde_history_model(
+                        self._all_model_dict,
+                        epoch,
+                        info
+                    )
+        
+        return info
 
     def check(self):
         """

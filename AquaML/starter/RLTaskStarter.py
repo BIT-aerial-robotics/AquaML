@@ -7,7 +7,8 @@ import atexit
 
 # TODO: 检查任务级别
 class RLTaskStarter(BaseStarter):
-    def __init__(self, env,
+    def __init__(self, 
+                 env,
                  model_class_dict: dict,
                  algo,
                  algo_hyperparameter,
@@ -153,6 +154,8 @@ class RLTaskStarter(BaseStarter):
             # self.algo.sync()
 
         self.algo.close()
+    
+    
 
     def meta_run(self):
         # run one epoch

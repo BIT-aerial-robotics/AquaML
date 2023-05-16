@@ -383,6 +383,15 @@ class BaseParameter:
             if key in self.meta_parameters.keys():
                 self.meta_parameters[key] = value
                 setattr(self, key, value)
+                
+    def update_parameters(self, parameters: dict):
+        """
+        Update the meta parameters.
+        """
+        for key, value in parameters.items():
+            if key in self.meta_parameters.keys():
+                self.meta_parameters[key] = value
+                setattr(self, key, value)
 
     def update_meta_parameter_by_args_pool(self, args_pool):
         """

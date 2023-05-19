@@ -492,9 +492,6 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
             epoch = int(self.optimize_epoch / self.display_interval)
 
-            
-            
-            
             if verbose:
                 print("###############epoch: {}###############".format(epoch))
                 self.recoder.display_text(

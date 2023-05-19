@@ -481,6 +481,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
         self.optimize_epoch += 1
 
         total_steps = self.get_current_steps
+        reward_info = self.summary_reward_info()
 
         optimize_info['total_steps'] = total_steps
         info = {**reward_info, **optimize_info}
@@ -490,7 +491,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
             # display information
 
             epoch = int(self.optimize_epoch / self.display_interval)
-            reward_info = self.summary_reward_info()
+
             
             
             

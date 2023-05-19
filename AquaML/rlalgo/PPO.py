@@ -39,18 +39,13 @@ class PPO(BaseRLAlgo):
             total_threads (int, optional): total threads. Defaults to 1.
         """
 
-        if total_threads > 1:
-            threads = total_threads - 1
-        else:
-            threads = 1
-
         super().__init__(
             env=env,
             rl_io_info=rl_io_info,
             name=name,
             hyper_parameters=parameters,
             update_interval=parameters.update_interval,
-            calculate_episodes=parameters.calculate_episodes/ threads,
+            calculate_episodes=parameters.calculate_episodes,
             computer_type=computer_type,
             level=level,
             thread_ID=thread_id,

@@ -224,6 +224,7 @@ class PPO_parameter(BaseParameter):
                  epsilon: float = 0.2,
                  gamma: float = 0.99,
                  lambada: float = 0.95,
+                 calculate_episodes: int = 5,
                  store_model_times=5,
                  action_space_type: str = None,
                  batch_advantage_normlization: bool = False,
@@ -272,7 +273,7 @@ class PPO_parameter(BaseParameter):
         self.epsilon = epsilon
         self.update_critic_times = update_critic_times
         self.update_actor_times = update_actor_times
-        self.calculate_episodes = int(self.buffer_size / self.epoch_length)
+        self.calculate_episodes = calculate_episodes
         self.summary_episodes = self.calculate_episodes
         self.batch_trajectory = batch_trajectory
         self.batch_advantage_normlization = batch_advantage_normlization

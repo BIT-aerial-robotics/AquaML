@@ -112,10 +112,10 @@ class GymEnvWrapper(RLBaseEnv):
         return self.env_name
 
 
-def allocate_gpu(comm):
+def allocate_gpu(comm, gpu_id):
     rank = comm.Get_rank()
     if rank == 0:
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
         if len(physical_devices) > 0:
             for k in range(len(physical_devices)):

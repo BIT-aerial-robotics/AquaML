@@ -227,7 +227,7 @@ class PPO_parameter(BaseParameter):
                  calculate_episodes: int = 5,
                  store_model_times=5,
                  action_space_type: str = None,
-                 dispaly_interval: int = 1,
+                 display_interval: int = 1,
                  batch_advantage_normlization: bool = False,
                  batch_trajectory: bool = False,
                  eval_episodes=0,
@@ -278,7 +278,7 @@ class PPO_parameter(BaseParameter):
         self.summary_episodes = self.calculate_episodes
         self.batch_trajectory = batch_trajectory
         self.batch_advantage_normlization = batch_advantage_normlization
-        self.display_interval = dispaly_interval
+        self.display_interval = display_interval
         # self.learning_rate = learning_rate
         # self.update_interval = update_interval
 

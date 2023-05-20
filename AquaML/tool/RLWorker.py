@@ -83,7 +83,7 @@ class RLWorker:
         """roll the environment and get data.
         when step_count == update_interval, need to update the model
         """
-        self.reset_flag = True
+        # self.reset_flag = True
         for _ in range(update_interval):
             self.step(test_flag=test_flag)
 

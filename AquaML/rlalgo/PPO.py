@@ -46,6 +46,7 @@ class PPO(BaseRLAlgo):
             hyper_parameters=parameters,
             update_interval=parameters.update_interval,
             calculate_episodes=parameters.calculate_episodes,
+            display_interval=parameters.display_interval,
             computer_type=computer_type,
             level=level,
             thread_ID=thread_id,

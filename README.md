@@ -1,5 +1,23 @@
 # AquaML
 
+
+- [AquaML](#aquaml)
+  - [安装教程](#安装教程)
+  - [架构说明](#架构说明)
+    - [MARL框架](#marl框架)
+  - [使用教程](#使用教程)
+    - [Meta Gradient Reinforcement learning](#meta-gradient-reinforcement-learning)
+      - [环境创建创建指南](#环境创建创建指南)
+  - [Tricks](#tricks)
+    - [1. 学习率衰减](#1-学习率衰减)
+  - [提醒](#提醒)
+  - [2.1版本更新说明](#21版本更新说明)
+  - [下版本功能](#下版本功能)
+  - [更新说明](#更新说明)
+    - [v2.0.1](#v201)
+
+  
+
 ## 安装教程
 暂时不发布完整包，使用时候直接将AquaML文件夹放入项目中即可。
 
@@ -26,6 +44,21 @@ pip install tensorflow-probability==0.12.2
 pip install mpi4py
 pip install gym
 ```
+
+## 架构说明
+### MARL框架
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/MARL.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">MARL框架图</div>
+</center>
+
 
 
 
@@ -77,6 +110,11 @@ def get_reward(self, indicate_reward, ratio, bias):
 
 1. 当前算法属于不稳定阶段，存在一些bug，当运行多线程时候，检查cache下是否有模型文件,如果没有说明有bug。
 2. FusionPPO里面不推荐使用batch advantage normalization。
+   
+
+## 2.1版本更新说明
+1. 添加基础的MARL框架。
+2. 添加QMIX, MADDPG, MAPPO, COMA算法。
 
 ## 下版本功能
 1. 添加超参数调整功能。借用MPI多线程并发能力，下一个版本能够实现类似keras tuner的超参数调整功能。

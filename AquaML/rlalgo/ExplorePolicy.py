@@ -1,6 +1,53 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
+import numpy as np
 import abc
+
+
+def create_explor_policy(explore_policy_name, shape, actor_out_names):
+    if explore_policy_name == 'Gaussian':
+        policy = GaussianExplorePolicy(shape)
+    elif explore_policy_name == 'OrnsteinUhlenbeck':
+        policy = OrnsteinUhlenbeckExplorePolicy(shape)
+    elif explore_policy_name == 'NoExplore':
+        policy = VoidExplorePolicy(shape)
+    elif explore_policy_name == 'Categorical':
+        policy = CategoricalExplorePolicy(shape)
+    else:
+        raise NotImplementedError(f'{explore_policy_name} is not implemented.')
+
+    create_info = policy.create_info(actor_out_names)
+
+    infos = []
+
+    for name, info in create_info.items():
+        if name in actor_out_names:
+            pass
+        else:
+            infos.append(info)
+
+    return policy, infos
+            
+
+class OrnsteinUhlenbeckActionNoise:
+    def __init__(self, mu, sigma, theta=.15, dt=1e-2, x0=None):
+        self.x_prev = None
+        self.theta = theta
+        self.mu = mu
+        self.sigma = sigma
+        self.dt = dt
+        self.x0 = x0
+        self.reset()
+
+    def __call__(self):
+        x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * np.sqrt(
+            self.dt) * np.random.normal(size=self.mu.shape)
+        self.x_prev = x
+        return x
+
+    def reset(self):
+        self.x_prev = self.x0 if self.x0 is not None else np.zeros_like(self.mu)
+
 
 
 # TODO: 探索策略的创建需要优化
@@ -71,6 +118,21 @@ class ExplorePolicyBase(abc.ABC):
         Resample the probability of action.
         """
 
+    def reset(self):
+        """
+        如果需要重置，需要重写这个函数
+        """
+        pass
+
+
+    def create_info(self):
+        """
+        创建探索策略需要的额外输入，比如高斯策略，sigma的输入
+        """
+        dic = {}
+
+        return dic
+
 
 class GaussianExplorePolicy(ExplorePolicyBase):
     def __init__(self, shape):
@@ -102,6 +164,19 @@ class GaussianExplorePolicy(ExplorePolicyBase):
 
     def test_action(self, mu, log_std):
         return mu, tf.ones((1, *self.shape))
+    
+    def create_info(self):
+        log_std = {
+            'name': 'log_std',
+            'shape': self.shape,
+            'trainable': True,
+            'dtype': np.float32,
+        }
+
+        dict_info = {
+            'log_std': log_std,
+        }
+        return dict_info
 
 
 class VoidExplorePolicy(ExplorePolicyBase):
@@ -151,3 +226,33 @@ class CategoricalExplorePolicy(ExplorePolicyBase):
         action = tf.argmax(action, axis=-1)
 
         return action, tf.ones((1, *self.shape))
+
+
+class OrnsteinUhlenbeckExplorePolicy(ExplorePolicyBase):
+
+    """
+    该探索策略用于确定性策略。
+    """
+    def __init__(self, shape, mu=0, sigma=0.2, theta=0.15, dt=1e-2, x0=None):
+        super().__init__(shape)
+        self.input_name = ('action',)
+        self.noise = OrnsteinUhlenbeckActionNoise(mu, sigma, theta, dt, x0)
+
+    
+    def noise_and_prob(self, batch_size=1):
+        pass
+
+    def scale_out(self, action):
+        noise = self.noise()
+        action = action + noise
+        return action, tf.ones((1, *self.shape))
+        
+
+    def resample_prob(self, log_prob, action):
+        pass
+
+    def test_action(self, action):
+        return action, tf.ones((1, *self.shape))
+    
+    def reset(self):
+        self.noise.reset()

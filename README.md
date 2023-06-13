@@ -8,6 +8,8 @@
   - [使用教程](#使用教程)
     - [Meta Gradient Reinforcement learning](#meta-gradient-reinforcement-learning)
       - [环境创建创建指南](#环境创建创建指南)
+    - [Fusion Proximal Policy Optimization](#fusion-proximal-policy-optimization)
+      - [有待解决的问题（中英混合）](#有待解决的问题中英混合)
   - [Tricks](#tricks)
     - [1. 学习率衰减](#1-学习率衰减)
   - [提醒](#提醒)
@@ -45,6 +47,33 @@ pip install mpi4py
 pip install gym
 ```
 
+## 架构设计过程(For developer)
+
+不写出来在开发过程中实在太容易懵圈，也不方便后期维护，现在记录一下算法框架逐渐完善的过程。
+未来所有开发基于此套框架进行不在进行新的更新。
+
+### 主框架设计
+
+此套框架主要目的是能够兼容所有算法，并且能够直接提供超参数调整，多线程并发功能。
+
+我们将每一个运行实列称为Auqa，一个Aqua可以包含多个Aqua或者Agent， Agent是一个算法的实现，例如PPO，SAC，GAN。Agent为最小单元。多个Aqua嵌套时候，子Aqua必须包含一个Agent。Aqua内的的通信靠Comunicator模块。
+
+我们给出Aqua内部的俩种形式，如下图所示：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/Aqua.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">Aqua框架图</div>
+
+</center>
+
+理论上Auqa内部可以像树状图一样无限嵌套，但是上图两个形式最为实用， 左图可以用于运行单个算法，如GAN，同时也可以为强化学习提供多线程采样功能（注意一个agent为一个具体算法，请不要理解成多智能体，多智能体算法再这个里面算一个agent，或者将这个agent称为learning agent）。
+
 ## 架构说明
 ### MARL框架
 
@@ -63,6 +92,52 @@ pip install gym
 
 
 ## 使用教程
+
+### 如何在AquML中创建深度模型
+该框架仅仅支持使用类的方式创建网络模型，actor和critic遵守同样的创建方式，例如：
+
+```python
+
+class Model(tf.keras.Model):
+
+    def __init__(self):
+        super(Actor_net, self).__init__()
+
+        self.lstm = tf.keras.layers.LSTM(32, input_shape=(2,), return_sequences=False,return_state=True)
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
+        self.log_std = tf.keras.layers.Dense(1)
+
+        self.learning_rate = 2e-4
+
+        self.output_info = {'action': (1,), 'log_std': (1,), 'hidden1': (32,), 'hidden2': (32,)}
+
+        self.input_name = ('pos', 'hidden1', 'hidden2')
+
+        self.optimizer_info = {
+          type: 'Adam',
+          args: {
+            'learning_rate': self.learning_rate,
+          }
+        }
+
+        self.rnn_flag = True
+
+    @tf.function
+    def call(self, vel, hidden1, hidden2):
+        hidden_states = (hidden1, hidden2)
+        whole_seq, last_seq, hidden_state = self.lstm(vel, hidden_states)
+        x = self.dense1(whole_seq)
+        x = self.dense2(x)
+        action = self.action_layer(x)
+        log_std = self.log_std(x)
+
+        return (action, log_std, last_seq, hidden_state)
+
+    def reset(self):
+        pass
+```
 
 ### Meta Gradient Reinforcement learning
 
@@ -98,6 +173,12 @@ def get_reward(self, indicate_reward, ratio, bias):
 
 注意：``get_reward``输入必须和``reward_fn_input``。
 
+### Fusion Proximal Policy Optimization
+这个算法的创建是为了解决在POMDP情况下表征层错误提取信息而提出来的。
+
+#### 有待解决的问题（中英混合）
+1. During training, we can also initialise the hidden state and cell state to zero however under these conditions the pi / pi_old ratio can be quite different even under the same policy parameters. This problem gets better the bigger with longer training sequence lengths like 16 or 32 because the init state has less influence on the final state, but the inverse is also true and it gets worse for shorter sequence lengths. [Solution](https://medium.com/@ngoodger_7766/proximal-policy-optimisation-in-pytorch-with-recurrent-models-edefb8a72180#id_token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjYwODNkZDU5ODE2NzNmNjYxZmRlOWRhZTY0NmI2ZjAzODBhMDE0NWMiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYmYiOjE2ODYwNzI0NzEsImF1ZCI6IjIxNjI5NjAzNTgzNC1rMWs2cWUwNjBzMnRwMmEyamFtNGxqZGNtczAwc3R0Zy5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInN1YiI6IjExNTc1NjA4Mjg3ODIxNjQ2MjAzNCIsImVtYWlsIjoiYXF1YXRhb3Rhb0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiYXpwIjoiMjE2Mjk2MDM1ODM0LWsxazZxZTA2MHMydHAyYTJqYW00bGpkY21zMDBzdHRnLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwibmFtZSI6IuadqOa2myIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQWNIVHRkWlRuVTRXaFZBZXU0c3otNGdjU21mU1RXaDBzbUxhcEsxMVItUD1zOTYtYyIsImdpdmVuX25hbWUiOiLmtpsiLCJmYW1pbHlfbmFtZSI6IuadqCIsImlhdCI6MTY4NjA3Mjc3MSwiZXhwIjoxNjg2MDc2MzcxLCJqdGkiOiIxYzFkZWNmMGRmNDQ5NGY2ZTI3MDMxYjdhNWQyZDIzMWNhNjFhMDcxIn0.FjwTBxidO5bDQwNbJO3NWUB4TBBY8b4Y4yybSANJINaCSVqQWM_Po8a5zscCGtnyNH0SgbXdhj3-WT2cUZ6B5bZ9E0i6egh29zv0ahc9kR92adFY3OkWgzSPLmaAbjACyoAPzLs3jDar2YDYBEJTB4HBiYCEH6Xnl0loZXzck1pSdjazZcFCDdP2GDOY9DyHF2pcMk7MgmdDiS57ju5K0WUjSsOY44yQd_vQR6OqU4buhCjJJBhH4QFAvd40K9qCJUibR-v9dSo6LrUH3DtNRfwwNlW3Fia9uen6kFCNS6gKBqCqG4fg5gYbAY60lfHBZdZltzz82nTPMDZ_9u3zUg).
+
 ## Tricks
 
 该框架属于分模块设计可以很轻松的用一些技巧。
@@ -110,15 +191,24 @@ def get_reward(self, indicate_reward, ratio, bias):
 
 1. 当前算法属于不稳定阶段，存在一些bug，当运行多线程时候，检查cache下是否有模型文件,如果没有说明有bug。
 2. FusionPPO里面不推荐使用batch advantage normalization。
+
+## 当前的bug
+1. 使用BC克隆网络以后，需要初始化critic，actor训练次数为0会报错。
    
 
 ## 2.1版本更新说明
 1. 添加基础的MARL框架。
 2. 添加QMIX, MADDPG, MAPPO, COMA算法。
+3. 优化LSTM训练。
+4. 优化非定长MDP训练。
+5. 优化报错信息。
+6. 添加buffer，采样得到的数据将由此管理。
 
 ## 下版本功能
 1. 添加超参数调整功能。借用MPI多线程并发能力，下一个版本能够实现类似keras tuner的超参数调整功能。
 2. 重量级别更新, 添加新的并发方式, 模型不并发,只并发环境,这个方式将提高深度模型的执行效率,并逐步支持issac gym的环境。
+3. 循环神经网络支持不固定的长度的MDP，提供更优秀的数据集处理功能。
+4. 支持gym vector环境。
 
 ## 更新说明
 

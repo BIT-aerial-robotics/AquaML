@@ -5,9 +5,12 @@ from AquaML.DataType import DataInfo
 from AquaML.data.DataUnit import DataUnit
 
 
+
 # TODO: implement the base class when implementing the other classes
 class BaseAlgo(ABC):
-    def __init__(self):
+    def __init__(self,
+                 
+                 ):
 
         self.data_pool = None # 数据池子
         self.sample_thread_num = None # 能够使用的子线程数目

@@ -181,3 +181,7 @@ class BasePool:
 
     def set_pool_file(self, file):
         self.pool_file = file
+
+    def get_data(self, data_name: str):
+        
+        return self.get_unit_data(data_name)

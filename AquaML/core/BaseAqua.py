@@ -4,8 +4,9 @@
 '''
 
 from abc import ABC, abstractmethod
-from AquaML.common.FileSystem import DefaultFileSystem, BaseFileSystem
-from AquaML.common.Recoder import Recoder
+from AquaML.core.FileSystem import DefaultFileSystem, BaseFileSystem
+from AquaML.core.Recoder import Recoder
+from AquaML.core.Comunicator import Communicator
 
 class BaseAqua(ABC):
     """
@@ -38,22 +39,36 @@ class BaseAqua(ABC):
     """
 
     def __init__(self,
-                 name,
+                 name:str,
+                 communicator_info:dict,
                  level=0,
                  file_system:str or DefaultFileSystem='Default',
                  ):
         """
 
         Args:
-            project_name (_type_): _description_
-            level (int, optional): _description_. Defaults to 0.
+            project_name (str): 项目名称。
+            communicator_info (dict): 通信器信息。结构如下：
+                {
+                    'type': 'Default',
+                    args: {
+                        'thread_manager_info':{
+                            'type': 'single',
+                            'args': {} 
+                        }
+                }
+            level (int, optional): 线程级别。 Defaults to 0.
             file_system (str, optional): _description_. Defaults to 'Default'.
         """
-
+        ##############################
+        # 初始化基本信息
+        ##############################
         self.name = name
         self.level = level
 
+        ##############################
         # 创建文件系统
+        ##############################
         if isinstance(file_system, str):
             if file_system == 'Default':
                 self.file_system = DefaultFileSystem(name,
@@ -67,8 +82,25 @@ class BaseAqua(ABC):
 
         # 注意:所有的文件夹创建都由level 0的对象来创建
 
-        # 指定接口
+        ##############################
+        # 创建通信器
+        ##############################
 
+        # 处理args残缺部分
+        communicator_info['args']['thread_manager_info']['args']['level'] = level
+
+        communicator_type = communicator_info['type']
+        if communicator_type == 'Default':
+            self.communicator = Communicator(
+                **communicator_info['args']
+            )
+        else:
+            # not implement
+            raise ValueError(f"{communicator_type} is not implement")
+
+        ##############################
+        # 指定接口
+        ##############################
         # 存储sub Aqua agent 的dict
         self._sub_aqua_dict = {}
 

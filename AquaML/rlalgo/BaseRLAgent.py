@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from AquaML.common.NetworkTools import *
+from AquaML.core.NetworkTools import *
 from AquaML.rlalgo.ExplorePolicy import ExplorePolicyBase
 from AquaML.rlalgo.ExplorePolicy import create_explor_policy
-from AquaML.common.AgentIOInfo import AgentIOInfo
+from AquaML.core.AgentIOInfo import AgentIOInfo
 from AquaML.data.DataUnit import DataUnit
 
-
+# TODO: 需要修改非通用agent
 class BaseAgent(ABC):
     def __init__(self, name:str,
                  agent_info:AgentIOInfo,

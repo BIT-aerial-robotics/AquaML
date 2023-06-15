@@ -69,7 +69,7 @@ class DataPool(BasePool):
             else:
                 # waite for main thread to create share memory
                 import time
-                time.sleep(6)
+                # time.sleep(6)
                 self.read_shared_memory(info_dic)
 
         elif type == 'buffer':
@@ -86,8 +86,9 @@ class DataPool(BasePool):
                     self.create_share_memory()
             else:
                 import time
-                time.sleep(6)
+                # time.sleep(6)
                 self.read_shared_memory(info_dic)
+        
 
     def store(self, data_dict: dict, index: int, prefix: str = ''):
         """store data.
@@ -101,6 +102,25 @@ class DataPool(BasePool):
         """
         for name, data in data_dict.items():
             self.data_pool[prefix + name].store(data, index)
+            
+    def store_sequence(self, name: str, data: np.ndarray, start_index: int, end_index: int):
+        """store sequence data.
+
+        Args:
+            name (str): data unit name.
+            data (np.ndarray): data.
+            index (int): index.
+        """
+        self.data_pool[name].store_sequence(data, start_index, end_index)
+
+    def store_all(self, name: str, data: np.ndarray):
+        """store all data.
+
+        Args:
+            name (str): data unit name.
+            data (np.ndarray): data.
+        """
+        self.data_pool[name].store_value(data)
 
     def get_data_by_indices(self, indices, names: tuple):
         """get data by indices.

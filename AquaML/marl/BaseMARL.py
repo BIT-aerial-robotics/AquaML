@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import tensorflow as tf
-from AquaML.common.BaseAlgo import BaseAlgo
+from AquaML.core.BaseAlgo import BaseAlgo
 from AquaML.data.DataPool import DataPool
 from AquaML.DataType import DataInfo
 

@@ -1,6 +1,6 @@
 import abc
 
-from AquaML.common.BaseParameter import BaseParameter
+from AquaML.core.BaseParameter import BaseParameter
 
 
 class BaseAgentParameter(BaseParameter, abc.ABC):

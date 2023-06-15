@@ -5,7 +5,7 @@ AquaML下的多智能体强化学习算法的第一个，用于探索框架设�
 import numpy as np
 import tensorflow as tf
 
-from AquaML.common.BaseAgent import BaseAgent
+from AquaML.rlalgo.BaseAgent import BaseAgent
 from AquaML.AgentInfo import AgentInfo
 from AquaML.rlalgo.ExplorePolicy import OrnsteinUhlenbeckExplorePolicy
 

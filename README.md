@@ -52,7 +52,18 @@ pip install gym
 不写出来在开发过程中实在太容易懵圈，也不方便后期维护，现在记录一下算法框架逐渐完善的过程。
 未来所有开发基于此套框架进行不在进行新的更新。
 
-### 主框架设计
+### 给开发者建议
+
+1. 添加新模块时候，在所有基类调用请使用如下形式：
+
+```python
+name_info = {
+  type: 'Default',
+  args: {},
+}
+```
+
+### 主框架设计(Aqua模块)
 
 此套框架主要目的是能够兼容所有算法，并且能够直接提供超参数调整，多线程并发功能。
 
@@ -67,12 +78,43 @@ pip install gym
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
-    color: #999;
+    color: #999;ss
     padding: 2px;">Aqua框架图</div>
 
 </center>
 
-理论上Auqa内部可以像树状图一样无限嵌套，但是上图两个形式最为实用， 左图可以用于运行单个算法，如GAN，同时也可以为强化学习提供多线程采样功能（注意一个agent为一个具体算法，请不要理解成多智能体，多智能体算法再这个里面算一个agent，或者将这个agent称为learning agent）。
+理论上Auqa内部可以像树状图一样无限嵌套，但是上图两个形式最为实用， 左图可以用于运行单个算法，如GAN，同时也可以为强化学习提供多线程采样功能（注意一个agent为一个具体算法，请不要理解成多智能体，多智能体算法再这个里面算一个agent，或者将这个agent称为learning agent,当然也支持你想象的agent，这种可以在联邦学习中使用）。右图可以用于调参。
+
+当前设计算法时候我们要求，主线程初始化完毕才能开始进一步初始化子线程。
+### Communicator模块
+
+Communicator将负责如下的功能：多线控制(通信，同步)，共享池的维护。
+Communicator负责处理Aqua内部的数据请求，但不负责对子模块数据mapping，这个部分将由具体算法决定.
+
+Communicator一个很重要的功能就是去同步数据和相关参数，Communicator的数据池结构图：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/Communicator create.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">Communicator框架图</div>
+</center>
+
+Comunicator创建数据字典需要两个参数：AgentIOInfo和Sync Param，具体传入形式都是通过DataInfo类传入，DataInfo类将在DataParser模块中介绍。
+
+Comunicator的设计旨在让框架拥有更好的适应性，能够适应不同的计算机框架，单机中使用Shared Memory作为数据池，多机中使用MPI进行数据传输。未来如果可以，尝试引入Ray作为数据池。
+
+### DataParser模块
+
+数据解析模块，负责将数据解析成算法需要的数据格式，在不知道数据格式，使用MPI进行大规模数据传输之前，预传输数据的大小，以及数据格式，这个模块将负责这个部分。
+
+该模块可以理解为数据协议，同时包含了Json格式的数据解析。
+
+该模块同时将提供一些数据结构，如DataInfo， DataInfo总结了当前Agent需要的数据信息，包括数据大小，数据格式，数据类型等。
 
 ## 架构说明
 ### MARL框架

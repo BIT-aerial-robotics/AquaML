@@ -180,6 +180,16 @@ class DataUnit:
         """
         self._buffer[index] = data
 
+    def store_sequence(self, data, start: int, end: int):
+        """Store data in buffer.
+
+        Args:
+            data (any): feature in the training.
+            start (int): start index.
+            end (int): end index.
+        """
+        self._buffer[start:end] = data[:]
+
     # set value. This is for args
     def set_value(self, value):
         """Set value.

@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
-from AquaML.common.BaseAgent import BaseAgent
-from AquaML.common.AgentIOInfo import AgentIOInfo
+from AquaML.rlalgo.BaseRLAgent import BaseAgent
+from AquaML.core.AgentIOInfo import AgentIOInfo
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 
 from AquaML.rlalgo.ExplorePolicy import GaussianExplorePolicy

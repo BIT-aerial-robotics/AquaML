@@ -90,6 +90,21 @@ name_info = {
 
 在Auqa中我们默认线程id为0的是组通信的主节点，主节点负责数据汇集和指挥的作用。当thread_level设置为0时，默认当前线程的Aqua为主节点，当thread_level设置为1时，当前线程的Aqua为子节点。
 
+多线程中Aqua会搜索Agent._sync_model_dict中的模型进行同步， 需要同步的模型请在此指定。
+
+模型同步机制如下图所示：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/model_sync.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;ss
+    padding: 2px;">模型同步图</div>
+<center>
+
 **接口说明**
 
 1. ``self._sub_aqua_dict`` 存储agent或者子aqua字典，用于BaseAqua后续操作注意每有一个agent和子aqua请添加至此字典中。

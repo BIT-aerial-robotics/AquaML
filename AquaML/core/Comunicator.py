@@ -82,6 +82,14 @@ class DataCollection:
 
         return return_dict
 
+    def close(self):
+        if self.data_pool is not None:
+            self.data_pool.close()
+        if self.param_pool is not None:
+            self.param_pool.close()
+        if self.indicate_pool is not None:
+            self.indicate_pool.close()
+
 
 class MultiThreadManagerBase(ABC):
 
@@ -250,6 +258,15 @@ class CommunicatorBase(ABC):
         """
         return self._collection_data_fict[agent_name].data_pool.get_numpy_dict()
 
+    def get_indicate_pool_dict(self, agent_name: str):
+        """
+        获取数据集合中的数据池。
+
+        Args:
+            agent_name (str): agent的名称。
+        """
+        return self._collection_data_fict[agent_name].indicate_pool.get_numpy_dict()
+
     def get_data(self, agent_name: str):
         """
         获取数据集合中的数据。
@@ -292,7 +309,7 @@ class CommunicatorBase(ABC):
         if pre_fix is not None:
             indicate_dict = {pre_fix + k: v for k, v in indicate_dict.items()}
 
-        self._collection_data_fict[agent_name].indicate_pool.store(indicate_dict, index-1)
+        self._collection_data_fict[agent_name].indicate_pool.store(indicate_dict, index - 1)
 
     def store_param(self, agent_name: str, param_name: str, param):
         """
@@ -316,6 +333,11 @@ class CommunicatorBase(ABC):
             agent_name (str): agent的名称。
         """
         return self._collection_data_fict[agent_name].get_data_pool_size
+
+    def close(self):
+        # self.thread_manager.close()
+        for data_collection in self._collection_data_fict.values():
+            data_collection.close()
 
 
 class Communicator(CommunicatorBase):

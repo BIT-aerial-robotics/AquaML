@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 import os
 import datetime
 
+
 class BaseFileSystem(ABC):
     """
 
@@ -52,7 +53,7 @@ class BaseFileSystem(ABC):
 
     """
 
-    def __init__(self, project_name, 
+    def __init__(self, project_name,
                  aqua_level=1,
                  thr_level=0,
                  log_name=None,
@@ -67,8 +68,6 @@ class BaseFileSystem(ABC):
         self.project_name = project_name
         self.aua_level = aqua_level
         self.thr_level = thr_level
-
-        
 
         # 分别记录cache、history_model、log的路径
         self.cache_root_path = os.path.join(project_name, 'cache')
@@ -102,11 +101,10 @@ class BaseFileSystem(ABC):
             log_name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         else:
             log_name = log_name
-        
+
         self.log_path = os.path.join(self.log_root_path, log_name)
 
-    
-    def add_cache_path(self, name:str):
+    def add_cache_path(self, name: str):
 
         """
         添加cache的路径
@@ -118,32 +116,32 @@ class BaseFileSystem(ABC):
         self.cahce_path_dict[name] = os.path.join(self.cache_root_path, name)
         self.mkdir(self.cahce_path_dict[name])
 
-    def add_history_model_path(self, name:str):
-            
-            """
+    def add_history_model_path(self, name: str):
+
+        """
             添加history_model的路径
     
             :param name: 加入的名词
             :return:
             """
-    
-            self.history_model_path_dict[name] = os.path.join(self.history_model_root_path, name)
-            self.mkdir(self.history_model_path_dict[name])
-    
-    def add_log_path(self, name:str):
-            
-            """
+
+        self.history_model_path_dict[name] = os.path.join(self.history_model_root_path, name)
+        self.mkdir(self.history_model_path_dict[name])
+
+    def add_log_path(self, name: str):
+
+        """
             添加log的路径
     
             :param name: 加入的名词
             :return:
             """
-    
-            self.log_path_dict[name] = os.path.join(self.log_root_path, name)
-            self.mkdir(self.log_path_dict[name])
-    
-    def add_new(self, name:str, filter:tuple = ('log',)):
-         
+
+        self.log_path_dict[name] = os.path.join(self.log_root_path, name)
+        self.mkdir(self.log_path_dict[name])
+
+    def add_new(self, name: str, filter: tuple = ('log',)):
+
         """
         添加新的路径
 
@@ -154,11 +152,8 @@ class BaseFileSystem(ABC):
         for key in self._add_function_dict.keys():
             if key not in filter:
                 self._add_function_dict[key](name)
-         
-         
 
-
-    def mkdir(self, path:str):
+    def mkdir(self, path: str):
         """
         创建文件夹
 
@@ -171,9 +166,8 @@ class BaseFileSystem(ABC):
         if not os.path.exists(path):
             if self.thr_level == 0:
                 os.makedirs(path)
-    
-    
-    def get_cache_path(self, name:str):
+
+    def get_cache_path(self, name: str):
         """
         获取cache的路径
 
@@ -181,8 +175,8 @@ class BaseFileSystem(ABC):
         :return: 路径
         """
         return self.cahce_path_dict[name]
-    
-    def get_history_model_path(self, name:str):
+
+    def get_history_model_path(self, name: str):
         """
         获取history_model的路径
 
@@ -190,8 +184,8 @@ class BaseFileSystem(ABC):
         :return: 路径
         """
         return self.history_model_path_dict[name]
-    
-    def get_log_path(self, name:str):
+
+    def get_log_path(self, name: str):
         """
         获取log的路径
 
@@ -210,10 +204,8 @@ class BaseFileSystem(ABC):
         """
         return self.log_path
 
-    
-
 
 class DefaultFileSystem(BaseFileSystem):
-  
-  def __init__(self, project_name, aqua_level=1):
-      super().__init__(project_name, aqua_level)
+
+    def __init__(self, project_name, aqua_level=1):
+        super().__init__(project_name, aqua_level)

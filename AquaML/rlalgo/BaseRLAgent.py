@@ -36,6 +36,7 @@ class BaseRLAgent(BaseAgent, ABC):
         ##############################
         # 基础变量
         ##############################
+
         self.name = name
         self.agent_params = agent_params
         self.level = level
@@ -59,6 +60,11 @@ class BaseRLAgent(BaseAgent, ABC):
 
         # 初始化agent之后需要指定的变量
         self.agent_info = None
+
+        # 实现操作接口
+
+        # sync model
+        self._sync_model_dict = {}  # 同步模型字典
 
         # parame_dict
         self._param_dict = {}  # 全局同步参数字典
@@ -480,9 +486,15 @@ class BaseRLAgent(BaseAgent, ABC):
     def get_param_dict(self):
         return self._param_dict
 
+    @property
+    def get_sync_model_dict(self):
+        return self._sync_model_dict
+
     @staticmethod
     @abstractmethod
     def get_algo_name():
         """
         获取算法名称。
         """
+    def __del__(self):
+        pass

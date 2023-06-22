@@ -92,7 +92,7 @@ class PendulumWrapper(RLBaseEnv):
             dtypes=np.float32
         )
 
-        self._reward_info = ['total_reward', 'indicator']
+        self._reward_info = ['total_reward', 'indicate_reward']
 
     def reset(self):
         observation = self.env.reset()
@@ -116,7 +116,7 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': (reward + 8) / 8, 'indicator': reward}
+        reward = {'total_reward': (reward + 8) / 8, 'indicate_reward': reward}
 
         return obs, reward, done, info
 

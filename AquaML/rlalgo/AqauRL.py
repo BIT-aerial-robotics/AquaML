@@ -455,6 +455,7 @@ class AquaRL(BaseAqua):
         同步。
         """
         self.sync_param_pool()
+        self.sync_model_tool()
 
     def run(self):
         """
@@ -462,6 +463,8 @@ class AquaRL(BaseAqua):
         """
         # TODO: 接口不完善需要统一
         for epoch in range(self.agent_params.epochs):
+
+            self.communicator.thread_manager.Barrier()
 
             if self.sample_enable:
                 self.sync()
@@ -476,7 +479,24 @@ class AquaRL(BaseAqua):
             self.communicator.thread_manager.Barrier()
 
             if self.sample_enable:
+                self.sync()
                 if (epoch+1) % self.agent_params.eval_interval == 0:
+                    print('####################{}####################'.format(epoch+1))
                     self.evaluate()
                     # 汇总数据
-                    print(self.summary_reward_collector.get_data())
+                    summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
+
+                    # 计算平均值
+                    new_summery_dict = {}
+                    for key, value in summery_dict.items():
+                        if 'reward' in key:
+                            if 'max' in key:
+                                new_summery_dict[key] = np.max(value)
+                            elif 'min' in key:
+                                new_summery_dict[key] = np.min(value)
+                            else:
+                                new_summery_dict[key] = np.mean(value)
+
+                    # 记录数据
+                    for key, value in new_summery_dict.items():
+                        print(key, value)

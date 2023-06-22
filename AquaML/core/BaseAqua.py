@@ -8,6 +8,8 @@ from AquaML.core.FileSystem import DefaultFileSystem, BaseFileSystem
 from AquaML.core.Recoder import Recoder
 from AquaML.core.Comunicator import Communicator
 
+import atexit
+
 
 class BaseAqua(ABC):
     """
@@ -102,6 +104,8 @@ class BaseAqua(ABC):
         # 存储sub Aqua agent 的dict
         self._sub_aqua_dict = {}
 
+        atexit.register(self.__del__)
+
     def check(self):
         """
         检查Aqua的状态，是否可以启动
@@ -184,3 +188,39 @@ class BaseAqua(ABC):
                         )
 
                         getattr(agent, param_name).set_value(var)
+
+    def sync_model_tool(self):
+        """
+        同步模型工具
+        """
+
+        for agent_name, agent in self._sub_aqua_dict.items():
+            if isinstance(agent, BaseAqua):
+                agent.sync_model_tool()
+            else:
+                # 主线程操作
+                sync_model_dict = agent.get_sync_model_dict
+
+                if self.level == 0:
+
+                    for model_name, value in sync_model_dict.items():
+                        sync_file_name = self.file_system.get_cache_path(agent_name) + '/' + model_name + '.h5'
+                        value.save_weights(sync_file_name)
+
+                # 其他线程操作
+                else:
+
+                    for model_name, value in sync_model_dict.items():
+                        sync_file_name = self.file_system.get_cache_path(agent_name) + '/' + model_name + '.h5'
+                        value.load_weights(sync_file_name)
+
+    def __del__(self):
+        """
+        释放资源
+        """
+        for _, value in self._sub_aqua_dict.items():
+            value.__del__()
+
+        self.communicator.close()
+
+        print('Aqua is closed and all resources are released')

@@ -83,6 +83,11 @@ class PPOAgent(BaseRLAgent):
             data_names=self.actor.output_info.keys(),
         )
 
+        # 初始化模型同步器
+        self._sync_model_dict = {
+            'actor': self.actor,
+        }
+
     def train_critic(self,
                      critic_inputs: tuple,
                      target: tf.Tensor,

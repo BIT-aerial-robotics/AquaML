@@ -69,7 +69,7 @@ class DataPool(BasePool):
             else:
                 # waite for main thread to create share memory
                 import time
-                # time.sleep(6)
+                time.sleep(6)
                 self.read_shared_memory(info_dic)
 
         elif type == 'buffer':
@@ -86,7 +86,7 @@ class DataPool(BasePool):
                     self.create_share_memory()
             else:
                 import time
-                # time.sleep(6)
+                time.sleep(6)
                 self.read_shared_memory(info_dic)
         
 
@@ -102,14 +102,15 @@ class DataPool(BasePool):
         """
         for name, data in data_dict.items():
             self.data_pool[prefix + name].store(data, index)
-            
+
     def store_sequence(self, name: str, data: np.ndarray, start_index: int, end_index: int):
         """store sequence data.
 
         Args:
             name (str): data unit name.
             data (np.ndarray): data.
-            index (int): index.
+            start_index (int): start index.
+            end_index (int): end index.
         """
         self.data_pool[name].store_sequence(data, start_index, end_index)
 

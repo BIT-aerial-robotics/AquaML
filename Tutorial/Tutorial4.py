@@ -13,7 +13,7 @@ from mpi4py import MPI
 
 # get group communicator
 comm = MPI.COMM_WORLD
-allocate_gpu(comm)
+allocate_gpu(comm, 0)
 
 import tensorflow as tf
 from AquaML.DataType import DataInfo
@@ -172,8 +172,8 @@ env = PendulumWrapper('Pendulum-v1')
 
 fusion_ppo_parameter = FusionPPO_parameter(
     epoch_length=200,
-    n_epochs=122,
-    total_steps=8000,
+    n_epochs=100,
+    total_steps=4000,
     batch_size=20,
     update_times=4,
     update_actor_times=4,
@@ -196,8 +196,8 @@ starter = RLTaskStarter(
     model_class_dict=model_class_dict,
     algo=FusionPPO,
     algo_hyperparameter=fusion_ppo_parameter,
-    name='FPPO7',
-    # mpi_comm=comm,
+    name='FPPO1',
+    mpi_comm=comm,
 )
 
 starter.run()

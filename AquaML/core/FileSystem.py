@@ -207,5 +207,5 @@ class BaseFileSystem(ABC):
 
 class DefaultFileSystem(BaseFileSystem):
 
-    def __init__(self, project_name, aqua_level=1):
-        super().__init__(project_name, aqua_level)
+    def __init__(self, project_name, thread_level, aqua_level=1):
+        super().__init__(project_name, aqua_level, thread_level)

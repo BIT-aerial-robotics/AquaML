@@ -1,6 +1,13 @@
 import sys
 
 sys.path.append('..')
+
+from AquaML.Tool import allocate_gpu
+from mpi4py import MPI
+
+# get group communicator
+comm = MPI.COMM_WORLD
+allocate_gpu(comm, 0)
 import tensorflow as tf
 from AquaML.rlalgo.PPO import PPO  # SAC algorithm
 from AquaML.rlalgo.Parameters import PPO_parameter
@@ -123,7 +130,7 @@ class PendulumWrapper(RLBaseEnv):
 env = PendulumWrapper('Pendulum-v1')
 ppo_parameter = PPO_parameter(
     epoch_length=200,
-    n_epochs=2000,
+    n_epochs=100,
     total_steps=4000,
     batch_size=128,
     update_times=2,
@@ -145,6 +152,8 @@ starter = RLTaskStarter(
     model_class_dict=model_class_dict,
     algo=PPO,
     algo_hyperparameter=ppo_parameter,
+    mpi_comm=comm,
+    name='PPO1',
 )
 
 starter.run()

@@ -41,6 +41,7 @@ class BaseAqua(ABC):
     
     """
 
+    # TODO:子线程的初始化延迟到统一到一个部分
     def __init__(self,
                  name: str,
                  communicator_info: dict,
@@ -49,7 +50,7 @@ class BaseAqua(ABC):
         """
 
         Args:
-            project_name (str): 项目名称。
+            name (str): 项目名称。
             communicator_info (dict): 通信器信息。结构如下：
                 {
                     'type': 'Default',
@@ -68,26 +69,12 @@ class BaseAqua(ABC):
         self.name = name
 
         ##############################
-        # 创建文件系统
-        ##############################
-        if isinstance(file_system, str):
-            if file_system == 'Default':
-                self.file_system = DefaultFileSystem(name,
-                                                     )
-            else:
-                raise ValueError('file_system must be a str or DefaultFileSystem')
-
-        elif issubclass(file_system, BaseFileSystem):
-            self.file_system = file_system  # 直接使用主Aqua的文件系统
-
-        # 注意:所有的文件夹创建都由level 0的对象来创建
-
-        ##############################
         # 创建通信器
         # 节点功能分配
         ##############################
 
         communicator_type = communicator_info['type']
+        communicator_info['args']['project_name'] = self.name
         if communicator_type == 'Default':
             self.communicator = Communicator(
                 **communicator_info['args']
@@ -97,6 +84,22 @@ class BaseAqua(ABC):
             raise ValueError(f"{communicator_type} is not implement")
 
         self.level = self.communicator.level
+
+        ##############################
+        # 创建文件系统
+        ##############################
+        if isinstance(file_system, str):
+            if file_system == 'Default':
+                self.file_system = DefaultFileSystem(name,
+                                                     thread_level=self.level
+                                                     )
+            else:
+                raise ValueError('file_system must be a str or DefaultFileSystem')
+
+        elif isinstance(file_system, BaseFileSystem):
+            self.file_system = file_system  # 直接使用主Aqua的文件系统
+
+        # 注意:所有的文件夹创建都由level 0的对象来创建
 
         ##############################
         # 指定接口

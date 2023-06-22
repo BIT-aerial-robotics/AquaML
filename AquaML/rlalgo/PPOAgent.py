@@ -88,6 +88,7 @@ class PPOAgent(BaseRLAgent):
             'actor': self.actor,
         }
 
+    @tf.function
     def train_critic(self,
                      critic_inputs: tuple,
                      target: tf.Tensor,
@@ -105,6 +106,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic
 
+    @tf.function
     def train_actor(self,
                     actor_inputs: tuple,
                     advantage: tf.Tensor,

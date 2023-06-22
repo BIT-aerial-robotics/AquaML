@@ -172,9 +172,9 @@ class ThreadManagerScheduler:
         self.MPI = MPIThreadManager
         self.Single = SingleThreadManager
 
-
+# TODO: 线程管理器提高到全局变量
 class CommunicatorBase(ABC):
-    def __init__(self, thread_manager_info: dict):
+    def __init__(self, thread_manager_info: dict, project_name):
         """
         通信器的基类，用于管理数据同步等操作。
 
@@ -187,6 +187,8 @@ class CommunicatorBase(ABC):
                 }
             }
         """
+        self.project_name = project_name
+
         Scheduler = ThreadManagerScheduler()
 
         self._collection_data_fict = {}
@@ -236,13 +238,13 @@ class CommunicatorBase(ABC):
 
         Args:
             name (str): 数据集合的名称。
-            data_pool_info (DataInfoorNone, optional): 数据池的信息。 Defaults to None.
-            param_pool_info (DataInfoorNone, optional): 参数池的信息。 Defaults to None.
-            indicate_pool_info (DataInfoorNone, optional)：指示池的信息。 Defaults to None.
+            data_pool_info (DataInfoor None, optional): 数据池的信息。 Defaults to None.
+            param_pool_info (DataInfoor None, optional): 参数池的信息。 Defaults to None.
+            indicate_pool_info (DataInfoor None, optional)：指示池的信息。 Defaults to None.
         """
 
         self._collection_data_fict[name] = DataCollection(
-            name=name,
+            name=self.project_name + '_' + name,
             data_pool_info=data_pool_info,
             param_pool_info=param_pool_info,
             indicate_pool_info=indicate_pool_info,
@@ -341,7 +343,8 @@ class CommunicatorBase(ABC):
 
 
 class Communicator(CommunicatorBase):
-    def __init__(self, thread_manager_info: dict, level: int = 0):
+    def __init__(self, thread_manager_info: dict, project_name:str):
         super().__init__(
             thread_manager_info=thread_manager_info,
+            project_name=project_name
         )

@@ -462,6 +462,9 @@ class AquaRL(BaseAqua):
         运行。
         """
         # TODO: 接口不完善需要统一
+        if self.optimize_enable:
+            self.sync()
+
         for epoch in range(self.agent_params.epochs):
 
             self.communicator.thread_manager.Barrier()

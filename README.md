@@ -86,6 +86,62 @@ name_info = {
 理论上Auqa内部可以像树状图一样无限嵌套，但是上图两个形式最为实用， 左图可以用于运行单个算法，如GAN，同时也可以为强化学习提供多线程采样功能（注意一个agent为一个具体算法，请不要理解成多智能体，多智能体算法再这个里面算一个agent，或者将这个agent称为learning agent,当然也支持你想象的agent，这种可以在联邦学习中使用）。右图可以用于调参。
 
 当前设计算法时候我们要求，主线程初始化完毕才能开始进一步初始化子线程。
+
+
+在Auqa中我们默认线程id为0的是组通信的主节点，主节点负责数据汇集和指挥的作用。当thread_level设置为0时，默认当前线程的Aqua为主节点，当thread_level设置为1时，当前线程的Aqua为子节点。
+
+**接口说明**
+
+1. ``self._sub_aqua_dict`` 存储agent或者子aqua字典，用于BaseAqua后续操作注意每有一个agent和子aqua请添加至此字典中。
+
+### AquaRL设计
+
+在设计AquaRL时候考虑两种并行方式，vector env 和 sub env，vector env是指多个环境并行，sub env是指多个agent并行，这两种方式都可以实现多线程采样。(目前仅支持sub模式)
+
+我们的AuqaRL框架首要解决的问题就是，无论用户的网络多么复杂，算法不需要任何改动，就能运行所有算法。另外，Actor和Critic的网络输入可以由用户自由定义。
+
+在对于Transformer、RNN这类网络时候，处理流程图如下：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/hidden_state_process.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;ss
+    padding: 2px;">Hidden state处理</div>
+
+</center>
+
+如上图所示， 左边在算法初始化的时候运行，右边在每一步运行。
+
+在AquaRL中，会优先初始化环境，然后初始化agent，在初始化agent时候，agent_info在后续操作，因此在Agent里面涉及到使用agent_info的操作，请在init函数中进行。
+
+在AquaRL中数据池不会创建和算法要求大小的数据池，共享数据池只创建和roll_out_steps*total_threads大小的数据池,在on-policy算法里面将直接使用该数据池。
+
+AquaRL将支持两种采样方式，定长和不定长采样，定长方式下将省去Evaluate阶段， 不定长需要额外的评估阶段，这些参数将在agent parameters中设置。
+
+AquaRL训练时候运行方式图如下所示：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/RL_eval_train.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;ss
+    padding: 2px;">训练运行图</div>
+
+</center>
+
+橙色的线条代表流程，蓝色的线条代表数据流向。绿色的方块表示能够在子线程运行，蓝色方块表示只能在主线程运行。右边方块外蓝色表示主子线程共同维护区域。
+
+**AquaRL Buffer**
+
+经过worker收集到的数据，将由Buffer进行处理，如进行padding，数据格式转换等操作。后续版本将逐步规定接口。
+
 ### Communicator模块
 
 Communicator将负责如下的功能：多线控制(通信，同步)，共享池的维护。
@@ -96,7 +152,7 @@ Communicator一个很重要的功能就是去同步数据和相关参数，Commu
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
-    src="src/figs/Communicator create.png">   
+    src="src/figs/Communicator_create.png">   
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
@@ -104,10 +160,30 @@ Communicator一个很重要的功能就是去同步数据和相关参数，Commu
     padding: 2px;">Communicator框架图</div>
 </center>
 
+Param_Tool存储的时算法全局统一的参数，一旦修改，所有线程都会同步修改，Data_Tool存储的时数据集，可以只修改某一部分数据，也可以修改全部数据，这个部分将由具体算法决定。Comunicator将自动的进行共享内存的分块，为每一个线程分配专属的数据块，这样可以避免多线程同时修改同一块数据，导致数据不一致的问题。
+
+此外， communicator还可以拥有的indicate pool用来现实每个线程运行情况，如在RL中这个可以是共享的reward.
+
 Comunicator创建数据字典需要两个参数：AgentIOInfo和Sync Param，具体传入形式都是通过DataInfo类传入，DataInfo类将在DataParser模块中介绍。
+
+注意每个Pool构成的集合，里面所有的数据长度都是一致的。
 
 Comunicator的设计旨在让框架拥有更好的适应性，能够适应不同的计算机框架，单机中使用Shared Memory作为数据池，多机中使用MPI进行数据传输。未来如果可以，尝试引入Ray作为数据池。
 
+param pool的同步机制如下图所示：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/sync_param.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">Param同步机制</div>
+</center>
+
+因此使用这个同步机制时候同时在被同步对象里面创建一个相同名称的变量，这个变量将被同步，这个变量的值将被同步到所有线程中。使用时直接使用这个同步对象，此外该对象请使用data unit创建。
 ### DataParser模块
 
 数据解析模块，负责将数据解析成算法需要的数据格式，在不知道数据格式，使用MPI进行大规模数据传输之前，预传输数据的大小，以及数据格式，这个模块将负责这个部分。
@@ -116,6 +192,40 @@ Comunicator的设计旨在让框架拥有更好的适应性，能够适应不同
 
 该模块同时将提供一些数据结构，如DataInfo， DataInfo总结了当前Agent需要的数据信息，包括数据大小，数据格式，数据类型等。
 
+### Agent模块
+
+**接口部分**
+1. 全局同步接口：``self._param_dict``
+创建实列：
+```python
+self._param_dict['log_std'] = {
+    'shape': [self._action_dim],
+    'type': np.float32,
+    'trainable': True,
+    'init': 0.5
+}
+```
+
+### Worker模块
+
+Worker在Auqa中用于数据收集的作用，可以直接支持多线程并发。如，在CV算法中， worker可以直接并行使用CPU为图片预处理，提高GPU使用率。
+
+Worker需要Aqua或者agent提供收集模块。
+
+Buffer内部存储的一定是按照batch_size进行存储的，因此在使用时候需要注意。
+
+一个算法里面可以使用多个buffer分别管理比如说actor，critic的数据。
+
+### Buffer模块
+
+Buffer模块用于存储数据，可以是经验池，也可以是数据池，也可以是数据集。Buffer模块将提供数据的存储，读取，以及数据的随机采样。后面随着算法的增加，将提供标准的接口。
+
+请注意Buffer模块属于迭代器，注意实现时候的迭代器协议。
+
+Buffer模块为每个模型单独创建，每个模型独立拥有，他们可以拥有自己独立的数据集，也可以共享数据集。
+
+### Register模块
+未来即将推出
 ## 架构说明
 ### MARL框架
 

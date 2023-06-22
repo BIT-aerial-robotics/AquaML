@@ -2,37 +2,82 @@ from abc import ABC, abstractmethod
 from AquaML.core.NetworkTools import *
 from AquaML.rlalgo.ExplorePolicy import ExplorePolicyBase
 from AquaML.rlalgo.ExplorePolicy import create_explor_policy
-from AquaML.core.AgentIOInfo import AgentIOInfo
+from AquaML.core.AgentIOInfo import RLAgentIOInfo
 from AquaML.data.DataUnit import DataUnit
+from AquaML.core.DataParser import DataInfo
+import numpy as np
+
+
+class BaseAgent(ABC):
+
+    @abstractmethod
+    def init(self):
+        """
+        初始化agent。
+        """
+
 
 # TODO: 需要修改非通用agent
-class BaseAgent(ABC):
-    def __init__(self, name:str,
-                 agent_info:AgentIOInfo,
+class BaseRLAgent(BaseAgent, ABC):
+    def __init__(self,
+                 name: str,
                  agent_params,
-                 level:int=0, # 控制是否创建不交互的agent
+                 level: int = 0,  # 控制是否创建不交互的agent
                  ):
         """
         Agent 基类。所有的Agent都需要继承这个类。
         actor为策略网络的class，value_fn为价值网络的class。
 
         Args:
-            actor (_type_): _description_
+            name (str): agent的名字。
+            agent_params (AgentParameter): agent的参数。
+            level (int, optional): 控制是否创建不交互的agent。Defaults to 0.
         """
+        ##############################
+        # 基础变量
+        ##############################
         self.name = name
-        self.agent_info = agent_info
         self.agent_params = agent_params
-
         self.level = level
 
-        # 网络输入数据处理信息
+        ##############################
+        # 接口变量
+        ##############################
+
+        # base里面根据配置创建的值，除特殊情况外，不允许修改
+        self._explore_dict = {}
+        self._tf_explore_dict = {}
+
         self._network_process_info = {
             'actor': {},
             'critic': {},
-        }
+        }  # 网络输入数据处理信息
 
-        self._explore_dict = {}
-        self._tf_explore_dict = {}
+        # 子类需要根据需要创建的值
+        self.actor = None
+        self.critic = None
+
+        # 初始化agent之后需要指定的变量
+        self.agent_info = None
+
+        # parame_dict
+        self._param_dict = {}  # 全局同步参数字典
+
+        # inidicate dict
+        self._indicate_dict = {}
+
+    # @abstractmethod
+    def init(self):
+        raise NotImplementedError
+
+    def set_agent_info(self, agent_info):
+        """
+        设置agent_info。
+
+        Args:
+            agent_info (dict): agent_info。
+        """
+        self.agent_info = agent_info
 
     def check(self):
         """
@@ -45,7 +90,7 @@ class BaseAgent(ABC):
         else:
             if not issubclass(self.explore_policy, ExplorePolicyBase):
                 raise TypeError(f'{self.explore_policy.__class__.__name__} is not a subclass of BaseExplorePolicy')
-    
+
     def initialize_actor(self):
         """
         用于初始化actor，比如说在rnn系统模型里面，某些输入需要额外处理维度。
@@ -72,7 +117,7 @@ class BaseAgent(ABC):
                     self.actor_expand_dims_idx.append(idx)
                 idx += 1
             self.actor_expand_dims_idx = tuple(self.actor_expand_dims_idx)
-        
+
         else:
             self._network_process_info['actor']['rnn_flag'] = False
 
@@ -92,7 +137,7 @@ class BaseAgent(ABC):
 
         if critic_rnn_flag:
             self._network_process_info['critic']['rnn_flag'] = True
-            
+
             idx = 0
             critic_input_names = self.critic.input_name
 
@@ -103,7 +148,7 @@ class BaseAgent(ABC):
                     self.critic_expand_dims_idx.append(idx)
                 idx += 1
             self.critic_expand_dims_idx = tuple(self.critic_expand_dims_idx)
-        
+
         else:
             self._network_process_info['critic']['rnn_flag'] = False
 
@@ -111,8 +156,6 @@ class BaseAgent(ABC):
             model=self.critic,
             expand_dims_idx=self.critic_expand_dims_idx,
         )
-
-        
 
     def initialize_network(self, model, expand_dims_idx=None):
         """
@@ -131,7 +174,7 @@ class BaseAgent(ABC):
 
         for name in input_data_name:
             try:
-                shape, _ = self.rl_io_info.get_data_info(name)
+                shape, _ = self.agent_info.get_data_info(name)
             except:
                 shape = (1, 1)
             data = tf.zeros(shape=shape, dtype=tf.float32)
@@ -141,7 +184,6 @@ class BaseAgent(ABC):
                 input_data[idx] = tf.expand_dims(input_data[idx], axis=1)
 
         model(*input_data)
-
 
     def copy_weights(self, source_model, target_model):
         """
@@ -155,7 +197,7 @@ class BaseAgent(ABC):
 
         for idx, weight in enumerate(source_model.get_weights()):
             new_weights.append(weight)
-            
+
         target_model.set_weights(new_weights)
 
     def soft_update(self, source_model, target_model, tau):
@@ -170,12 +212,10 @@ class BaseAgent(ABC):
 
         for idx, weight in enumerate(source_model.get_weights()):
             new_weights.append(weight * tau + target_model.get_weights()[idx] * (1 - tau))
-            
+
         target_model.set_weights(new_weights)
 
-    
     def get_action(self, obs, test_flag=False):
-
 
         input_data = []
 
@@ -196,7 +236,7 @@ class BaseAgent(ABC):
         policy_out = dict(zip(self.actor.output_info, actor_out))
 
         for name, value in self._explore_dict.items():
-            policy_out[name] = value
+            policy_out[name] = tf.cast(value.buffer, dtype=tf.float32)
 
         action, prob = self.explore_policy(policy_out, test_flag=test_flag)
 
@@ -205,15 +245,18 @@ class BaseAgent(ABC):
 
         # create return dict according to rl_io_info.actor_out_name
         return_dict = dict()
-        for name in self.rl_io_info.actor_out_name:
+        for name in self.agent_info.actor_out_name:
+            return_dict[name] = policy_out[name]
+
+        for name in self.explore_policy.get_aditional_output.keys():
             return_dict[name] = policy_out[name]
 
         return return_dict
-    
-    def create_explorer(self, explore_name, shape, ponited_value={}):
-        
+
+    def create_explorer(self, explore_name, shape, pointed_value={}):
+
         policy, infos = create_explor_policy(
-            explore_name=explore_name,
+            explore_policy_name=explore_name,
             shape=shape,
             actor_out_names=self.agent_info.actor_out_name,
         )
@@ -221,30 +264,44 @@ class BaseAgent(ABC):
         for item in infos:
             name = item['name']
 
-            self._explore_dict[name] = DataUnit(
-                name=self.name+'_'+name,
+            bu = DataUnit(
+                name=self.name + '_' + name,
                 dtype=item['dtype'],
                 shape=item['shape'],
                 level=self.level,
             )
 
-            if name in ponited_value:
-                self._explore_dict[name].set_value(ponited_value[name])
+            setattr(self, name, bu)
+
+            self._explore_dict[name] = getattr(self, name)
+
+            init_value = 0
+
+            if name in pointed_value:
+                init_value = pointed_value[name]
 
             if item['trainable']:
                 vars = tf.Variable(
-                    initial_value=self._explore_dict[name].buffer,
+                    initial_value=init_value,
                     trainable=True,
-                    name=self.name+'_'+name,
+                    name=self.name + '_' + name,
                 )
 
-                setattr(self,'tf_'+name, vars)
+                setattr(self, 'tf_' + name, vars)
 
-                self._tf_explore_dict[name] = getattr(self,'tf_'+name,)
+                self._tf_explore_dict[name] = getattr(self, 'tf_' + name, )
+
+                self._explore_dict[name].set_value(vars.numpy())
+
+                self._param_dict[name] = {
+                    'shape': item['shape'],
+                    'dtype': item['dtype'],
+                    'trainable': True,
+                    'init': init_value,
+                }
 
         self.explore_policy = policy
 
-            
     def update_explorer(self):
 
         if self.level == 0:
@@ -263,3 +320,169 @@ class BaseAgent(ABC):
         optimizer = getattr(tf.keras.optimizers, type)(**args)
 
         return optimizer
+
+    def get_collection_info(self, reward_info: tuple or list, woker_num):
+        """
+        获取网络参数信息。
+        """
+
+        policy_aditional_info = self.explore_policy.get_aditional_output
+
+        for name, value in policy_aditional_info.items():
+            self.agent_info.add_info(
+                name=name,
+                shape=value['shape'],
+                dtype=value['dtype'],
+            )
+
+        param_names = []
+        param_shapes = []
+        param_dtypes = []
+        # 会在运行中自动同步
+        for name, value in self._param_dict.items():
+            param_names.append(name)
+            param_shapes.append(value['shape'])
+            param_dtypes.append(value['dtype'])
+
+        param_info = DataInfo(
+            names=param_names,
+            shapes=param_shapes,
+            dtypes=param_dtypes,
+        )
+
+        agent_data_info = self.agent_info.get_info
+
+        # 创建summary reward indicate
+        indicate_names = []
+        indicate_shapes = []
+        indicate_dtypes = []
+
+        for name in reward_info:
+            indicate_names.append('summary_'+name)
+            indicate_dtypes.append(np.float32)
+            indicate_shapes.append((woker_num, 1))
+
+            indicate_names.append('max_summary_'+name)
+            indicate_dtypes.append(np.float32)
+            indicate_shapes.append((woker_num, 1))
+
+            indicate_names.append('min_summary_'+name)
+            indicate_dtypes.append(np.float32)
+            indicate_shapes.append((woker_num, 1))
+
+        indicate_info = DataInfo(
+            names=indicate_names,
+            shapes=indicate_shapes,
+            dtypes=indicate_dtypes,
+        )
+
+        return agent_data_info, param_info, indicate_info
+
+    def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True):
+        """
+
+        Get corresponding data from data dict.
+
+        Args:
+            data_dict (dict): data dict.
+            names (tuple): name of data.
+            prefix (str): prefix of data name.
+            tf_tensor (bool): if return tf tensor.
+        Returns:
+            corresponding data. list or tuple.
+        """
+
+        data = []
+
+        for name in names:
+            name = prefix + name
+            buffer = data_dict[name]
+            if tf_tensor:
+                buffer = tf.cast(buffer, dtype=tf.float32)
+            data.append(buffer)
+
+        return data
+
+    ############################# calculate reward information #############################
+    # calculate general advantage estimation
+    def calculate_GAE(self, rewards, values, next_values, masks, gamma, lamda):
+        """
+        calculate general advantage estimation.
+
+        Reference:
+        ----------
+        [1] Schulman J, Moritz P, Levine S, Jordan M, Abbeel P. High-dimensional continuous
+        control using generalized advantage estimation. arXiv preprint arXiv:1506.02438. 2015 Jun 8.
+
+        Args:
+            rewards (np.ndarray): rewards.
+            values (np.ndarray): values.
+            next_values (np.ndarray): next values.
+            masks (np.ndarray): dones.
+            gamma (float): discount factor.
+            lamda (float): general advantage estimation factor.
+        Returns:
+            np.ndarray: general advantage estimation.
+        """
+        gae = np.zeros_like(rewards)
+        n_steps_target = np.zeros_like(rewards)
+        cumulated_advantage = 0.0
+        length = len(rewards)
+        index = length
+
+        # td_target = rewards + gamma * next_values * masks
+        # td_delta = td_target - values
+        # advantage = compute_advantage(gamma, lamda, td_delta)
+        for i in range(length):
+            index -= 1
+            delta = rewards[index] + gamma * next_values[index] - values[index]
+            cumulated_advantage = gamma * lamda * masks[index] * cumulated_advantage + delta
+            gae[index] = cumulated_advantage
+            n_steps_target[index] = gae[index] + values[index]
+
+        # return advantage, td_target
+
+        return gae, n_steps_target
+
+    def get_batch_data(self, data_dict: dict, start_index, end_index):
+        """
+        Get batch data from data dict.
+
+        The data type stored in data_dict must be tuple or tensor or array.
+
+        Example:
+            >>> data_dict = {'obs':(np.array([1,2,3,4,5,6,7,8,9,10]),)}
+            >>> start_index = 0
+            >>> end_index = 5
+            >>> self.get_batch_data(data_dict, start_index, end_index)
+            {'obs': (array([1, 2, 3, 4, 5]),)}
+
+        Args:
+            data_dict (dict): data dict.
+            start_index (int): start index.
+            end_index (int): end index.
+        Returns:
+            batch data. dict.
+        """
+        batch_data = dict()
+        for key, values in data_dict.items():
+            if isinstance(values, tuple) or isinstance(values, list):
+                buffer = []
+                for value in values:
+                    buffer.append(value[start_index:end_index])
+                batch_data[key] = tuple(buffer)
+            else:
+                batch_data[key] = values[start_index:end_index]
+
+        return batch_data
+
+    @property
+    def get_param_dict(self):
+        return self._param_dict
+
+    @staticmethod
+    @abstractmethod
+    def get_algo_name():
+        """
+        获取算法名称。
+        """

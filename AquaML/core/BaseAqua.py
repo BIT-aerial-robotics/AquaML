@@ -8,6 +8,7 @@ from AquaML.core.FileSystem import DefaultFileSystem, BaseFileSystem
 from AquaML.core.Recoder import Recoder
 from AquaML.core.Comunicator import Communicator
 
+
 class BaseAqua(ABC):
     """
     该类是算法启动器的基类，所有算法启动器都应该继承该类。
@@ -39,10 +40,9 @@ class BaseAqua(ABC):
     """
 
     def __init__(self,
-                 name:str,
-                 communicator_info:dict,
-                 level=0,
-                 file_system:str or DefaultFileSystem='Default',
+                 name: str,
+                 communicator_info: dict,
+                 file_system: str or DefaultFileSystem = 'Default',
                  ):
         """
 
@@ -64,7 +64,6 @@ class BaseAqua(ABC):
         # 初始化基本信息
         ##############################
         self.name = name
-        self.level = level
 
         ##############################
         # 创建文件系统
@@ -72,22 +71,19 @@ class BaseAqua(ABC):
         if isinstance(file_system, str):
             if file_system == 'Default':
                 self.file_system = DefaultFileSystem(name,
-                                                     thr_level=level
                                                      )
             else:
                 raise ValueError('file_system must be a str or DefaultFileSystem')
-        
+
         elif issubclass(file_system, BaseFileSystem):
-            self.file_system = file_system # 直接使用主Aqua的文件系统
+            self.file_system = file_system  # 直接使用主Aqua的文件系统
 
         # 注意:所有的文件夹创建都由level 0的对象来创建
 
         ##############################
         # 创建通信器
+        # 节点功能分配
         ##############################
-
-        # 处理args残缺部分
-        communicator_info['args']['thread_manager_info']['args']['level'] = level
 
         communicator_type = communicator_info['type']
         if communicator_type == 'Default':
@@ -97,6 +93,8 @@ class BaseAqua(ABC):
         else:
             # not implement
             raise ValueError(f"{communicator_type} is not implement")
+
+        self.level = self.communicator.level
 
         ##############################
         # 指定接口
@@ -108,30 +106,31 @@ class BaseAqua(ABC):
         """
         检查Aqua的状态，是否可以启动
         """
-        
+
         # 检查_sub_aqua_dict
         if len(self._sub_aqua_dict) == 0:
             raise ValueError('Aqua must have at least one sub Aqua or agent')
-        
+
         # 检查名称和sub是否合法
         for _, value in self._sub_aqua_dict.items():
             if self.name + '_' not in value.name:
                 raise ValueError('sub Aqua or agent name must contain Aqua name')
 
             value.check()
-    
-    def inita_folder(self):
+
+    def init_folder(self):
         """
         初始化文件夹
         """
-        
+
         # 添加_sub_aqua_dict中的文件夹
         for _, value in self._sub_aqua_dict.items():
             self.file_system.add_new(value.name)
-            if issubclass(value, BaseAqua):
-                value.inita_folder()
-    
-    def create_recoder(self):
+            # TODO:树状图系统有问题
+            # if issubclass(value, BaseAqua):
+            #     value.init_folder()
+
+    def init_recoder(self):
         """
         创建记录器
         """
@@ -143,8 +142,45 @@ class BaseAqua(ABC):
         if self.level == 0:
             self.recoder = Recoder(
                 log_folder=log_file,
-                recoder_name=recoder_name
+                pointed_name=recoder_name
             )
         else:
             self.recoder = None
-    
+
+    def sync_param_pool(self):
+        """
+        同步参数工具
+        """
+        # TODO: check 名称一致性
+        for agent_name, agent in self._sub_aqua_dict.items():
+            if isinstance(agent, BaseAqua):
+                agent.sync_param_pool()
+            else:
+
+                for param_name, value in agent.get_param_dict.items():
+                    # 主线程操作
+                    if self.level == 0:
+
+                        # 获取tf变量
+                        tf_var = getattr(agent, 'tf_' + param_name).numpy()
+
+                        # 更新参数池
+
+                        self.communicator.store_param(
+                            agent_name=agent_name,
+                            param_name=param_name,
+                            param=tf_var,
+                        )
+
+                        # 同步该参数
+                        getattr(agent, param_name).set_value(tf_var)
+
+                    # 其他线程操作
+                    else:
+                        # 从communicator中获取参数
+                        var = self.communicator.get_param(
+                            agent_name=agent_name,
+                            param_name=param_name,
+                        )
+
+                        getattr(agent, param_name).set_value(var)

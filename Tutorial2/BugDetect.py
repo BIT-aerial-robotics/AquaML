@@ -1,14 +1,11 @@
-import sys
-
-sys.path.append('..')
-import tensorflow as tf
-from AquaML.rlalgo.PPO import PPO  # SAC algorithm
-from AquaML.rlalgo.Parameters import PPO_parameter
-from AquaML.starter.RLTaskStarter import RLTaskStarter  # RL task starter
+from AquaML.rlalgo.AqauRL import AquaRL
+from AquaML.rlalgo.AgentParameters import PPOAgentParameter
+from AquaML.rlalgo.PPOAgent import PPOAgent
+import numpy as np
 import gym
 from AquaML.DataType import DataInfo
 from AquaML.BaseClass import RLBaseEnv
-import numpy as np
+import tensorflow as tf
 
 
 class Actor_net(tf.keras.Model):
@@ -19,15 +16,18 @@ class Actor_net(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
-        self.log_std = tf.keras.layers.Dense(1)
+        # self.log_std = tf.keras.layers.Dense(1)
 
         self.learning_rate = 2e-4
 
-        self.output_info = {'action': (1,),}
+        self.output_info = {'action': (1,), }
 
         self.input_name = ('obs',)
 
-        self.optimizer = 'Adam'
+        self.optimizer_info = {
+            'type': 'Adam',
+            'args': {'learning_rate': 2e-4}
+        }
 
     @tf.function
     def call(self, obs):
@@ -51,8 +51,7 @@ class Critic_net(tf.keras.Model):
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
-        self.learning_rate = 2e-4
-        # tf.keras.optimizers.schedules.ExponentialDecay(
+        # self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
         #     initial_learning_rate=0.3,
         #     decay_steps=10,
         #     decay_rate=0.95,
@@ -63,7 +62,10 @@ class Critic_net(tf.keras.Model):
 
         self.input_name = ('obs',)
 
-        self.optimizer = 'Adam'
+        self.optimizer_info = {
+            'type': 'Adam',
+            'args': {'learning_rate': 2e-4}
+        }
 
     def call(self, obs):
         x = self.dense1(obs)
@@ -90,6 +92,8 @@ class PendulumWrapper(RLBaseEnv):
             dtypes=np.float32
         )
 
+        self._reward_info = ['total_reward', 'indicator']
+
     def reset(self):
         observation = self.env.reset()
         observation = observation.reshape(1, -1)
@@ -100,7 +104,7 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.initial_obs(obs)
 
-        return obs, True # 2.0.1 new version
+        return obs, True  # 2.0.1 new version
 
     def step(self, action_dict):
         action = action_dict['action']
@@ -112,7 +116,7 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': reward}
+        reward = {'total_reward': (reward + 8) / 8, 'indicator': reward}
 
         return obs, reward, done, info
 
@@ -121,30 +125,31 @@ class PendulumWrapper(RLBaseEnv):
 
 
 env = PendulumWrapper('Pendulum-v1')
-ppo_parameter = PPO_parameter(
-    epoch_length=200,
-    n_epochs=2000,
-    total_steps=4000,
+
+parameters = PPOAgentParameter(
+    rollout_steps=4000,
+    epochs=100,
     batch_size=128,
     update_times=2,
     update_actor_times=4,
     update_critic_times=4,
-    gamma=0.99,
-    epsilon=0.2,
-    lambada=0.95,
-    batch_advantage_normlization=True,
+    eval_episodes=20,
+    eval_interval=10,
+    eval_episode_length=200,
+    batch_advantage_normalization=True,
 )
 
-model_class_dict = {
+agent_info_dict = {
     'actor': Actor_net,
     'critic': Critic_net,
+    'agent_params': parameters,
 }
 
-starter = RLTaskStarter(
+rl = AquaRL(
     env=env,
-    model_class_dict=model_class_dict,
-    algo=PPO,
-    algo_hyperparameter=ppo_parameter,
+    agent=PPOAgent,
+    agent_info_dict=agent_info_dict,
+    name='debug'
 )
 
-starter.run()
+rl.run()

@@ -8,16 +8,33 @@ class AgentIOInfoBase(ABC):
                     agent_name:str,
                  ):
         self.agent_name = agent_name
+        self.data_info = None
 
-    @abstractmethod
+    @property
     def get_agent_name(self):
         return self.agent_name
-    
+
+    def get_data_info(self, name):
+        """Get data information.
+
+        Args:
+            name (str): name of data.
+
+        Returns:
+            tuple: shape of data. (1, feature1, feature2, ...)
+            type: type of data.
+        """
+
+        shape = self.data_info.shape_dict[name]
+        dtype = self.data_info.type_dict[name]
+
+        shape = (1, *shape[1:])
+
+        return shape, dtype
+
     @property
-    def get_data_info(self):
+    def get_info(self):
         return self.data_info
-
-
 class RLAgentIOInfo(AgentIOInfoBase):
     """
     Information of single agent input and output.
@@ -34,7 +51,7 @@ class RLAgentIOInfo(AgentIOInfoBase):
                  actor_out_info:dict,
                  reward_name:tuple,
                  buffer_size:int,
-                 critic_avalible_name:tuple or None=None,
+                 critic_avalible_name=None,
                  ):
         
         """
@@ -49,13 +66,15 @@ class RLAgentIOInfo(AgentIOInfoBase):
             actor_out_info (dict): actor output information.
             reward_info (tuple): reward information.
             buffer_size (int): buffer size.
-            critic_avalible_info (tuple or None): critic avalible information. 用于指定critic的输入，当不额外提供时默认为全部state。
+            critic_avalible_info (tuple or None): critic avalible information. 用于指定critic的输入，当不额外提供时默认为全部state，
+                                                    单智能体可以忽略此参数。多智能体中， 用于指定哪些状态属于global critic的输入。
         """
         
         super().__init__(
             agent_name=agent_name,
             )
         self.agent_name = agent_name
+        self.buffer_size = buffer_size
         
         # insert buffer size into shapes
         def insert_buffer_size(shape):
@@ -106,6 +125,7 @@ class RLAgentIOInfo(AgentIOInfoBase):
         for key in reward_name:
             data_info_dict[key] = (buffer_size, 1)
             data_type_info_dict[key] = np.float32
+        
             
         
 
@@ -116,13 +136,14 @@ class RLAgentIOInfo(AgentIOInfoBase):
         self.data_info = DataInfo(
             names=tuple(data_info_dict.keys()),
             shapes=tuple(data_info_dict.values()),
-            types=tuple(data_type_info_dict.values()),
+            dtypes=tuple(data_type_info_dict.values()),
         )
 
         # 记录关键信息的名称
         self.reward_name = reward_name
         self.actor_out_name = actor_out_info.keys()
         self.action_shape = actor_out_info['action']
+        self.obs_name = obs_info.keys()
 
 
         # 获取该agent的critic输入信息
@@ -136,3 +157,30 @@ class RLAgentIOInfo(AgentIOInfoBase):
             for name in critic_avalible_name:
                 if name not in obs_info:
                     raise ValueError("critic_avalible_name {} must be in obs_info".format(name))
+    
+    def add_info(self, name:str, shape:tuple, dtype):
+        """
+        Add information to data_info.
+        
+        添加信息到data_info。
+        
+        args:
+            name (str): information name.
+            shape (tuple): information shape.
+            dtype (type): information dtype.
+        """
+
+        def insert_buffer_size(shape):
+            shapes = []
+            shapes.append(self.buffer_size)
+
+            if isinstance(shape, tuple):
+                for val in shape:
+                    shapes.append(val)
+            else:
+                shapes.append(shape)
+
+            shapes = tuple(shapes)
+
+            return shapes
+        self.data_info.add_info(name, insert_buffer_size(shape), dtype)

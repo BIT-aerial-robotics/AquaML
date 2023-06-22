@@ -4,7 +4,7 @@ class DataInfo:
     Information of dateset or buffer.
     """
 
-    def __init__(self, names: tuple, shapes: tuple, dtypes, dataset=None):
+    def __init__(self, names: tuple or list, shapes: tuple or list, dtypes, dataset=None):
         """Data info struct.
 
         Args:
@@ -18,7 +18,7 @@ class DataInfo:
 
         self.names = names
 
-        if isinstance(dtypes, tuple):
+        if isinstance(dtypes, tuple) or isinstance(dtypes, list):
             self.type_dict = dict(zip(names, dtypes))
         else:
             self.type_dict = dict()
@@ -28,6 +28,7 @@ class DataInfo:
             self.dataset_dict = dict(zip(names, dataset))
         else:
             self.dataset_dict = None
+        
 
     def add_info(self, name: str, shape, dtype):
         """add info.
@@ -44,3 +45,9 @@ class DataInfo:
         names = list(self.names)
         names.append(name)
         self.names = tuple(names)
+    
+    @property
+    def get_total_size(self):
+        """get batch size.
+        """
+        return self.shape_dict[self.names[0]][0]

@@ -11,6 +11,7 @@ class BasePool:
         self.level = level
 
         self.pool_file = None
+        self.data_pool = dict()
 
     def create_share_memory(self):
         """create shared memory!
@@ -51,6 +52,8 @@ class BasePool:
                 dtype=data_unit.dtype,
                 nbytes=data_unit.nbytes,
             )
+
+
 
     def create_shared_memory_from_dic(self, info_dic: dict):
         """read shared memory from dic.

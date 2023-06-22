@@ -16,7 +16,7 @@ def create_explor_policy(explore_policy_name, shape, actor_out_names):
     else:
         raise NotImplementedError(f'{explore_policy_name} is not implemented.')
 
-    create_info = policy.create_info(actor_out_names)
+    create_info = policy.create_info()
 
     infos = []
 
@@ -69,6 +69,8 @@ class ExplorePolicyBase(abc.ABC):
     def __init__(self, shape):
         self.shape = shape
         self.input_name = None  # tuple
+
+        self._aditional_output = {}
 
     @abc.abstractmethod
     def noise_and_prob(self, batch_size=1):
@@ -132,6 +134,10 @@ class ExplorePolicyBase(abc.ABC):
         dic = {}
 
         return dic
+    
+    @property
+    def get_aditional_output(self):
+        return self._aditional_output
 
 
 class GaussianExplorePolicy(ExplorePolicyBase):
@@ -142,6 +148,13 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         self.dist = tfp.distributions.Normal(loc=mu, scale=sigma)
         self.input_name = ('action', 'log_std')
 
+        self._aditional_output = {
+            'prob': {
+                'shape': self.shape,
+                'dtype': np.float32,
+            }
+        }
+
     @tf.function
     def noise_and_prob(self, batch_size=1):
         noise = self.dist.sample(batch_size)
@@ -149,10 +162,20 @@ class GaussianExplorePolicy(ExplorePolicyBase):
 
         return noise, prob
 
+    def get_prob(self, action):
+        prob = self.dist.prob(action)
+        return prob
+
     def scale_out(self, mu, log_std):
         sigma = tf.exp(log_std)
         noise, prob = self.noise_and_prob()
         action = mu + sigma * noise
+
+        # action = tf.clip_by_value(action, -1, 1)
+        #
+        # noise = (action - mu) / sigma
+        #
+        # prob = self.get_prob(noise)
 
         return action, prob
 

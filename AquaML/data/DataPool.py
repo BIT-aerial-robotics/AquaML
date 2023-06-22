@@ -18,7 +18,7 @@ class DataPool(BasePool):
             level=level,
             computer_type=computer_type
         )
-        self.data_pool = dict()
+        
 
     # TODO: 多线程格式的统一
     def copy_from_exist_array(self, dataset: np.ndarray, name: str):
@@ -120,7 +120,7 @@ class DataPool(BasePool):
             name (str): data unit name.
             data (np.ndarray): data.
         """
-        self.data_pool[name].store_value(data)
+        self.data_pool[name].set_value(data)
 
     def get_data_by_indices(self, indices, names: tuple):
         """get data by indices.
@@ -136,6 +136,19 @@ class DataPool(BasePool):
 
         for name in names:
             data_dict[name] = self.data_pool[name].get_data_by_indices(indices)
+
+        return data_dict
+
+    def get_numpy_dict(self):
+        """get numpy dict.
+
+        Returns:
+            dict: data.
+        """
+        data_dict = dict()
+
+        for name, unit in self.data_pool.items():
+            data_dict[name] = unit.buffer
 
         return data_dict
 

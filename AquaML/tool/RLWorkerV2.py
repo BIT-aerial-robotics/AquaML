@@ -63,5 +63,6 @@ class RLWorker:
         roll out the environment and get data.
         when step_count == update_interval, need to update the model
         """
+
         for _ in range(self.update_interval):
             self.step(algo, test_flag=test_flag)

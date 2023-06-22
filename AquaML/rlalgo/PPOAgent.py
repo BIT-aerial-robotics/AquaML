@@ -221,27 +221,6 @@ class PPOAgent(BaseRLAgent):
             'critic_obs': critic_obs,
             'target': target,
         }
-
-        # if self.rnn_actor_flag:
-        #     if self.hyper_parameters.batch_trajectory:
-        #         train_actor_input = self.get_batch_timesteps(train_actor_input)
-        #         actor_obs = train_actor_input['actor_obs']  # input
-
-        #         hidden_lists = []
-
-        #         for key, shape in self.actor.output_info.items():
-        #             if 'hidden' in key:
-        #                 hidden = tf.zeros(shape=(actor_obs[0].shape[0], shape[0]), dtype=tf.float32)
-        #                 hidden_lists.append(hidden)
-
-        #         actor_obs = (*actor_obs[:-self.hidden_state_num], *hidden_lists)
-        #         train_actor_input['actor_obs'] = actor_obs
-
-        #     else:
-        #         for idx in self.expand_dims_idx:
-        #             actor_obs[idx] = tf.expand_dims(actor_obs[idx], axis=1)
-
-        info_list = []
         buffer_size = train_actor_input['actor_obs'][0].shape[0]
         critic_buffer_size = buffer_size
         critic_batch_steps = self.agent_params.batch_size
@@ -255,8 +234,6 @@ class PPOAgent(BaseRLAgent):
                 end_index = min(start_index + self.agent_params.batch_size,
                                 buffer_size)
                 critic_end_index = min(critic_start_index + critic_batch_steps, critic_buffer_size)
-                critic_optimize_info_list = []
-                actor_optimize_info_list = []
                 batch_train_actor_input = self.get_batch_data(train_actor_input, start_index, end_index)
                 batch_train_critic_input = self.get_batch_data(train_critic_input, critic_start_index, critic_end_index)
                 start_index = end_index
@@ -266,7 +243,7 @@ class PPOAgent(BaseRLAgent):
                         critic_inputs=batch_train_critic_input['critic_obs'],
                         target=batch_train_critic_input['target'],
                     )
-                    critic_optimize_info_list.append(critic_optimize_info)
+                    self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
 
                 for _ in range(self.agent_params.update_actor_times):
                     actor_optimize_info = self.train_actor(
@@ -277,15 +254,11 @@ class PPOAgent(BaseRLAgent):
                         clip_ratio=self.agent_params.clip_ratio,
                         entropy_coef=self.agent_params.entropy_coef,
                     )
-                    actor_optimize_info_list.append(actor_optimize_info)
-            #     critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)
-            #     actor_optimize_info = self.cal_average_batch_dict(actor_optimize_info_list)
-            #     info = {**critic_optimize_info, **actor_optimize_info}
-            #     info_list.append(info)
+                    self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
 
-            # info = self.cal_average_batch_dict(info_list)
+        summary = self.loss_tracker.get_data()
 
-            # return info
+        return summary
 
     def _resample_log_prob_no_std(self, obs, action):
 

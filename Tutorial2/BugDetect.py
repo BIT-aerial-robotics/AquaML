@@ -158,8 +158,8 @@ rl = AquaRL(
     env=env,
     agent=PPOAgent,
     agent_info_dict=agent_info_dict,
-    comm=comm,
-    name='debug5'
+    # comm=comm,
+    name='debug'
 )
 
 rl.run()

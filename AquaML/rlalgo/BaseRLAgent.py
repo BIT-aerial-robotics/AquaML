@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from AquaML.core.NetworkTools import *
 from AquaML.rlalgo.ExplorePolicy import ExplorePolicyBase
 from AquaML.rlalgo.ExplorePolicy import create_explor_policy
-from AquaML.core.AgentIOInfo import RLAgentIOInfo
+from AquaML.core.ToolKit import LossTracker
 from AquaML.data.DataUnit import DataUnit
 from AquaML.core.DataParser import DataInfo
 import numpy as np
@@ -40,6 +40,13 @@ class BaseRLAgent(BaseAgent, ABC):
         self.name = name
         self.agent_params = agent_params
         self.level = level
+
+        ##############################
+        # 插件
+        # 基础插件
+        ##############################
+
+        self.loss_tracker = LossTracker()
 
         ##############################
         # 接口变量

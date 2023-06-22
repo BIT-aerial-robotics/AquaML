@@ -1,153 +1,14 @@
 from AquaML.core.BaseAqua import BaseAqua
 from AquaML.core.AgentIOInfo import RLAgentIOInfo
 from AquaML.core.Worker import RLAgentWorker, Evaluator
+from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
 import numpy as np
 
 
-class MDPCollector:
-    """
-    ThreadCollector
-    """
-
-    def __init__(self,
-                 obs_names,
-                 action_names,
-                 reward_names,
-                 ):
-
-        self.obs_names = obs_names
-        self.action_names = action_names
-        self.reward_names = reward_names
-        self.next_obs_names = obs_names
-
-        self.obs_dict = {}
-        self.action_dict = {}
-        self.reward_dict = {}
-        self.next_obs_dict = {}
-
-        self.masks = []
-
-    def reset(self):
-        """
-        reset
-        """
-        del self.obs_dict
-        del self.action_dict
-        del self.reward_dict
-        del self.next_obs_dict
-        del self.masks
-
-        self.obs_dict = {}
-        self.action_dict = {}
-        self.reward_dict = {}
-        self.next_obs_dict = {}
-
-        self.masks = []
-
-        for name in self.obs_names:
-            self.obs_dict[name] = []
-
-        for name in self.action_names:
-            self.action_dict[name] = []
-
-        for name in self.reward_names:
-            self.reward_dict[name] = []
-
-        for name in self.next_obs_names:
-            self.next_obs_dict[name] = []
-
-    def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
-        """
-        store data
-        """
-
-        for name in self.obs_names:
-            self.obs_dict[name].append(obs[name])
-
-        for name in self.action_names:
-            self.action_dict[name].append(action[name])
-
-        for name in self.reward_names:
-            self.reward_dict[name].append(reward[name])
-
-        for name in self.next_obs_names:
-            self.next_obs_dict[name].append(next_obs[name])
-
-        self.masks.append(mask)
-
-    def get_data(self):
-        """
-        get data
-
-        返回的数据格式为
-        """
-
-        obs_dict = {}
-
-        for name in self.obs_names:
-            obs_dict[name] = np.vstack(self.obs_dict[name])
-
-        action_dict = {}
-
-        for name in self.action_names:
-            action_dict[name] = np.vstack(self.action_dict[name])
-
-        reward_dict = {}
-
-        for name in self.reward_names:
-            reward_dict[name] = np.vstack(self.reward_dict[name])
-
-        next_obs_dict = {}
-
-        for name in self.next_obs_names:
-            next_obs_dict['next_' + name] = np.vstack(self.next_obs_dict[name])
-
-        mask = np.vstack(self.masks)
-
-        return obs_dict, action_dict, reward_dict, next_obs_dict, mask
 
 
-class SummaryRewardCollector:
 
-    def __init__(self, reward_names):
-        self.reward_names = reward_names
-        self.reward_dict = {}
-        self.summary_dict = {}
 
-    def reset_step(self):
-        del self.reward_dict
-        self.reward_dict = {}
-        for name in self.reward_names:
-            self.reward_dict[name] = []
-
-    def store_data(self, reward: dict):
-        for name in self.reward_names:
-            self.reward_dict[name].append(reward[name])
-
-    def summary_episode(self):
-
-        for name in self.reward_names:
-            self.summary_dict[name].append(np.sum(self.reward_dict[name]))
-
-        self.reset_step()
-
-    def reset(self):
-        self.reset_step()
-        for name in self.reward_names:
-            self.summary_dict[name] = []
-            self.summary_dict['max_' + name] = []
-            self.summary_dict['min_' + name] = []
-
-    def get_data(self):
-
-        sunmary_dict = {}
-
-        for name in self.reward_names:
-            sunmary_dict['summary_'+name] = np.mean(self.summary_dict[name])
-            sunmary_dict['max_summary_' + name] = np.max(self.summary_dict[name])
-            sunmary_dict['min_summary_' + name] = np.min(self.summary_dict[name])
-
-        return sunmary_dict
 
 
 class AquaRL(BaseAqua):
@@ -467,6 +328,8 @@ class AquaRL(BaseAqua):
 
         for epoch in range(self.agent_params.epochs):
 
+            print('####################{}####################'.format(epoch+1))
+
             self.communicator.thread_manager.Barrier()
 
             if self.sample_enable:
@@ -476,7 +339,11 @@ class AquaRL(BaseAqua):
             self.communicator.thread_manager.Barrier()
 
             if self.optimize_enable:
-                self.agent.optimize(self.communicator)
+                loss_info = self.agent.optimize(self.communicator)
+                
+                for key, value in loss_info.items():
+                    print(key, value)
+                
                 self.sync()
 
             self.communicator.thread_manager.Barrier()
@@ -484,21 +351,22 @@ class AquaRL(BaseAqua):
             if self.sample_enable:
                 self.sync()
                 if (epoch+1) % self.agent_params.eval_interval == 0:
-                    print('####################{}####################'.format(epoch+1))
+                    
                     self.evaluate()
                     # 汇总数据
                     summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
 
                     # 计算平均值
                     new_summery_dict = {}
+                    pre_fix = 'reward/'
                     for key, value in summery_dict.items():
                         if 'reward' in key:
                             if 'max' in key:
-                                new_summery_dict[key] = np.max(value)
+                                new_summery_dict[pre_fix+key] = np.max(value)
                             elif 'min' in key:
-                                new_summery_dict[key] = np.min(value)
+                                new_summery_dict[pre_fix+key] = np.min(value)
                             else:
-                                new_summery_dict[key] = np.mean(value)
+                                new_summery_dict[pre_fix+key] = np.mean(value)
 
                     # 记录数据
                     for key, value in new_summery_dict.items():

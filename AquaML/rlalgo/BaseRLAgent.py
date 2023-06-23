@@ -374,15 +374,15 @@ class BaseRLAgent(BaseAgent, ABC):
         indicate_dtypes = []
 
         for name in reward_info:
-            indicate_names.append('summary_'+name)
+            indicate_names.append('summary_' + name)
             indicate_dtypes.append(np.float32)
             indicate_shapes.append((woker_num, 1))
 
-            indicate_names.append('max_summary_'+name)
+            indicate_names.append('summary_' + name + '_max')
             indicate_dtypes.append(np.float32)
             indicate_shapes.append((woker_num, 1))
 
-            indicate_names.append('min_summary_'+name)
+            indicate_names.append('summary_' + name + '_min')
             indicate_dtypes.append(np.float32)
             indicate_shapes.append((woker_num, 1))
 
@@ -510,5 +510,6 @@ class BaseRLAgent(BaseAgent, ABC):
         """
         获取算法名称。
         """
+
     def __del__(self):
         pass

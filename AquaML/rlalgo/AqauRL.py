@@ -398,6 +398,15 @@ class AquaRL(BaseAqua):
 
                 self.recoder.record_model_weight(self.agent.get_all_model_dict, epoch + 1)
 
+                # TODO: 统一checkpoint接口（history, best, latest）
+
+                if (epoch + 1) % self.agent_params.checkpoint_interval == 0:
+                    self.recoder.save_checkpoint(
+                        model_dict=self.agent.get_all_model_dict,
+                        epoch=epoch + 1,
+                        checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
+                    )
+
             if (epoch + 1) % self.agent_params.eval_interval == 0:
 
                 if self.sample_enable:

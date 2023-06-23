@@ -43,8 +43,8 @@ class SummaryRewardCollector:
 
         for name in self.reward_names:
             sunmary_dict['summary_' + name] = np.mean(self.summary_dict[name])
-            sunmary_dict['max_summary_' + name] = np.max(self.summary_dict[name])
-            sunmary_dict['min_summary_' + name] = np.min(self.summary_dict[name])
+            sunmary_dict['summary_' + name + '_max'] = np.max(self.summary_dict[name])
+            sunmary_dict['summary_' + name + '_min'] = np.min(self.summary_dict[name])
 
         return sunmary_dict
 
@@ -164,7 +164,7 @@ class LossTracker:
         for key, value in loss_dict.items():
 
             all_name = prefix + key
-            
+
             if all_name not in self.loss_dict:
                 self.loss_dict[all_name] = []
             self.loss_dict[all_name].append(value.numpy())

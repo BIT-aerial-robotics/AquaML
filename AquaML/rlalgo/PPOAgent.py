@@ -49,8 +49,8 @@ class PPOAgent(BaseRLAgent):
                 raise AttributeError(f'{self.critic.__class__.__name__} has no optimizer_info attribute')
 
             self._all_model_dict = {
-                'actor/': self.actor,
-                'critic/': self.critic,
+                'actor': self.actor,
+                'critic': self.critic,
             }
 
         # 创建探索策略

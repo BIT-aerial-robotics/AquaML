@@ -510,11 +510,7 @@ class BaseRLAlgo(BaseAlgo, abc.ABC):
 
                 
                 if epoch % self.hyper_parameters.store_model_times == 0:
-                    self.recoder.recorde_history_model(
-                        self._all_model_dict,
-                        epoch,
-                        info
-                    )
+                    self.recoder.save_checkpoint(self._all_model_dict, epoch, info)
         
         return info
 

@@ -13,6 +13,7 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
                  eval_interval: int,
                  eval_episodes: int,
                  eval_episode_length: int,
+                 checkpoint_interval: int,
                  explore_policy='Default',
 
                  ):
@@ -45,6 +46,8 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
         self.max_steps = max_steps
 
         self.update_times = update_times
+
+        self.checkpoint_interval = checkpoint_interval
 
     def point_adjust_parameter(self, names: list):
         """
@@ -93,6 +96,7 @@ class PPOAgentParameter(BaseAgentParameter):
                  update_critic_times: int,
                  update_actor_times: int,
                  batch_advantage_normalization: bool = True,
+                 checkpoint_interval: int = 10,
                  clip_ratio: float = 0.2,
                  entropy_coef: float = 0.01,
                  gamma: float = 0.99,
@@ -133,6 +137,7 @@ class PPOAgentParameter(BaseAgentParameter):
             eval_episodes=eval_episodes,
             max_steps=max_steps,
             update_times=update_times,
+            checkpoint_interval=checkpoint_interval,
         )
 
         self.log_std_init_value = log_std_init_value

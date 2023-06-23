@@ -1,5 +1,6 @@
 from AquaML.rlalgo.BaseRLAlgo import BaseRLAlgo
 from AquaML.DataType import RLIOInfo
+from AquaML.rlalgo.ExplorePolicy import VoidExplorePolicy
 import tensorflow as tf
 from AquaML.rlalgo.Parameters import PPO_parameter
 
@@ -93,6 +94,8 @@ class PPO(BaseRLAlgo):
 
         # create exploration policy
         self.create_explore_policy()
+        # self.explore_policy = VoidExplorePolicy(shape=self.rl_io_info.actor_out_info['action'])
+
 
         self._sync_model_dict['actor'] = self.actor
 
@@ -320,6 +323,14 @@ class PPO(BaseRLAlgo):
                         entropy_coefficient=self.hyper_parameters.entropy_coeff,
                     )
                     actor_optimize_info_list.append(actor_optimize_info)
+                # stable update_actor_times
+                if self.hyper_parameters.update_actor_times == 0:
+                    actor_optimize_info_ = {
+                            'actor_loss': tf.constant(0, dtype=tf.float32),
+                            'actor_surr_loss': tf.constant(0, dtype=tf.float32),
+                            'entropy_loss': tf.constant(0, dtype=tf.float32),
+                        }
+                    actor_optimize_info_list.append(actor_optimize_info_)
                 critic_optimize_info = self.cal_average_batch_dict(critic_optimize_info_list)
                 actor_optimize_info = self.cal_average_batch_dict(actor_optimize_info_list)
                 info = {**critic_optimize_info, **actor_optimize_info}

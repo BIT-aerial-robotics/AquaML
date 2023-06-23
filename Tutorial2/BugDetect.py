@@ -137,7 +137,7 @@ class PendulumWrapper(RLBaseEnv):
 env = PendulumWrapper('Pendulum-v1')
 
 parameters = PPOAgentParameter(
-    rollout_steps=4000,
+    rollout_steps=1000,
     epochs=100,
     batch_size=128,
     update_times=2,

@@ -5,12 +5,6 @@ from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
 import numpy as np
 
 
-
-
-
-
-
-
 class AquaRL(BaseAqua):
 
     def __init__(self,
@@ -328,8 +322,6 @@ class AquaRL(BaseAqua):
 
         for epoch in range(self.agent_params.epochs):
 
-            print('####################{}####################'.format(epoch+1))
-
             self.communicator.thread_manager.Barrier()
 
             if self.sample_enable:
@@ -339,20 +331,25 @@ class AquaRL(BaseAqua):
             self.communicator.thread_manager.Barrier()
 
             if self.optimize_enable:
+                print('####################{}####################'.format(epoch + 1))
                 loss_info = self.agent.optimize(self.communicator)
-                
+
                 for key, value in loss_info.items():
                     print(key, value)
-                
+
                 self.sync()
 
             self.communicator.thread_manager.Barrier()
 
-            if self.sample_enable:
-                self.sync()
-                if (epoch+1) % self.agent_params.eval_interval == 0:
-                    
+            if (epoch + 1) % self.agent_params.eval_interval == 0:
+
+                if self.sample_enable:
+                    self.sync()
                     self.evaluate()
+
+                self.communicator.thread_manager.Barrier()
+
+                if self.optimize_enable:
                     # 汇总数据
                     summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
 
@@ -360,14 +357,17 @@ class AquaRL(BaseAqua):
                     new_summery_dict = {}
                     pre_fix = 'reward/'
                     for key, value in summery_dict.items():
-                        if 'reward' in key:
-                            if 'max' in key:
-                                new_summery_dict[pre_fix+key] = np.max(value)
-                            elif 'min' in key:
-                                new_summery_dict[pre_fix+key] = np.min(value)
-                            else:
-                                new_summery_dict[pre_fix+key] = np.mean(value)
+                        # if 'reward' in key:
+                        if 'max' in key:
+                            new_summery_dict[pre_fix + key] = np.max(value)
+                        elif 'min' in key:
+                            new_summery_dict[pre_fix + key] = np.min(value)
+                        else:
+                            new_summery_dict[pre_fix + key] = np.mean(value)
 
                     # 记录数据
                     for key, value in new_summery_dict.items():
                         print(key, value)
+
+
+

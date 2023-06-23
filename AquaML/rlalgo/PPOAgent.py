@@ -69,7 +69,7 @@ class PPOAgent(BaseRLAgent):
         if 'log_std' in self._explore_dict:
             self.resample_prob = self._resample_log_prob_no_std
         else:
-            self.resample_prob = self._resample_action_log_std
+            self.resample_prob = self._resample_log_prob_log_std
 
         # 获取actor优化参数
         self._actor_train_vars = self.actor.trainable_variables
@@ -135,7 +135,7 @@ class PPOAgent(BaseRLAgent):
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
-            actor_loss = -actor_surrogate_loss + entropy_coef * entropy_loss
+            actor_loss = -actor_surrogate_loss - entropy_coef * entropy_loss
 
         actor_grads = tape.gradient(actor_loss, self.actor_train_vars)
         self.actor_optimizer.apply_gradients(zip(actor_grads, self.actor_train_vars))
@@ -279,9 +279,9 @@ class PPOAgent(BaseRLAgent):
         std = tf.exp(self.tf_log_std)
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
-        return (log_prob, self.tf_log_std, *out)
+        return (log_prob, self.tf_log_std, mu)
 
-    def _resample_action_log_std(self, actor_obs: tuple):
+    def _resample_log_prob_log_std(self, obs: tuple, action):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
 
@@ -296,19 +296,15 @@ class PPOAgent(BaseRLAgent):
         log_pi (tf.Tensor): log_pi
         """
 
-        out = self.actor(*actor_obs)
+        out = self.actor(*obs)
 
         mu, log_std = out[0], out[1]
 
-        noise, prob = self.explore_policy.noise_and_prob(self.agent_params.batch_size)
+        std = tf.exp(log_std)
 
-        sigma = tf.exp(log_std)
+        log_prob = self.explore_policy.resample_prob(mu, std, action)
 
-        action = mu + noise * sigma
-
-        log_prob = tf.math.log(prob)
-
-        return (log_prob, log_std, action)
+        return (log_prob, log_std, mu)
 
     @staticmethod
     def get_algo_name():

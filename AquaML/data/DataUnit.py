@@ -200,7 +200,7 @@ class DataUnit:
         if self.shape == (1,):
             self._buffer[0] = value
         else:
-            self._buffer[:] = value[:]
+            self._buffer[:] = value
 
     @property
     def __call__(self):

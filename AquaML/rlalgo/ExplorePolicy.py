@@ -126,6 +126,12 @@ class ExplorePolicyBase(abc.ABC):
         """
         pass
 
+    def get_entropy(self, *args, **kwargs):
+        """
+        获取策略的熵
+        """
+        pass
+
 
     def create_info(self):
         """
@@ -184,6 +190,11 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         dist = tfp.distributions.Normal(loc=mu, scale=std)
         log_prob = dist.log_prob(action)
         return log_prob
+
+    def get_entropy(self, mean, log_std):
+        dist = tfp.distributions.Normal(loc=mean, scale=tf.exp(log_std))
+        entropy = dist.entropy()
+        return entropy
 
     def test_action(self, mu, log_std):
         return mu, tf.ones((1, *self.shape))

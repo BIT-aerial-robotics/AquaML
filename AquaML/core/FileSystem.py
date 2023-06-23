@@ -140,7 +140,7 @@ class BaseFileSystem(ABC):
         self.log_path_dict[name] = os.path.join(self.log_root_path, name)
         self.mkdir(self.log_path_dict[name])
 
-    def add_new(self, name: str, filter: tuple = ('log',)):
+    def add_new(self, name: str, filter: tuple = ()):
 
         """
         添加新的路径

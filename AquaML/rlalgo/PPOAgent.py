@@ -121,6 +121,8 @@ class PPOAgent(BaseRLAgent):
             out = self.resample_prob(actor_inputs, action)
 
             log_prob = out[0]
+            log_std = out[1]
+            mu = out[2]
 
             ratio = tf.exp(log_prob - old_log_prob)
 
@@ -131,7 +133,7 @@ class PPOAgent(BaseRLAgent):
                 )
             )
 
-            entropy_loss = -tf.reduce_mean(log_prob)
+            entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
             actor_loss = -actor_surrogate_loss + entropy_coef * entropy_loss
 
@@ -277,7 +279,7 @@ class PPOAgent(BaseRLAgent):
         std = tf.exp(self.tf_log_std)
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
-        return (log_prob, *out)
+        return (log_prob, self.tf_log_std, *out)
 
     def _resample_action_log_std(self, actor_obs: tuple):
         """
@@ -306,7 +308,7 @@ class PPOAgent(BaseRLAgent):
 
         log_prob = tf.math.log(prob)
 
-        return (action, log_prob)
+        return (log_prob, log_std, action)
 
     @staticmethod
     def get_algo_name():

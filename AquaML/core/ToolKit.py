@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 
 # def display_dict(dic: dict):
@@ -161,9 +162,12 @@ class LossTracker:
             prefix = prefix + '/'
 
         for key, value in loss_dict.items():
-            if key not in self.loss_dict:
-                self.loss_dict[prefix +key] = []
-            self.loss_dict[prefix +key].append(value)
+
+            all_name = prefix + key
+            
+            if all_name not in self.loss_dict:
+                self.loss_dict[all_name] = []
+            self.loss_dict[all_name].append(value.numpy())
 
     def reset(self):
         self.loss_dict = {}
@@ -171,9 +175,10 @@ class LossTracker:
     def get_data(self):
         loss_dict = {}
         for key, value in self.loss_dict.items():
+            # array = deepcopy(value)
+            loss_dict[key + '_max'] = np.max(value)
+            loss_dict[key + '_min'] = np.min(value)
             loss_dict[key] = np.mean(value)
-            loss_dict[key+'_max'] = np.max(value)
-            loss_dict[key+'_min'] = np.min(value)
 
         # 获取data以后自动释放内存
         self.reset()

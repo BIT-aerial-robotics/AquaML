@@ -133,7 +133,7 @@ class PPOAgent(BaseRLAgent):
                 )
             )
 
-            entropy_loss = self.explore_policy.get_entropy(mu, log_std)
+            entropy_loss = tf.reduce_mean(self.explore_policy.get_entropy(mu, log_std))
 
             actor_loss = -actor_surrogate_loss - entropy_coef * entropy_loss
 

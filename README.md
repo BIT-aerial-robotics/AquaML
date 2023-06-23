@@ -103,7 +103,7 @@ name_info = {
     display: inline-block;
     color: #999;ss
     padding: 2px;">模型同步图</div>
-<center>
+</center>
 
 **接口说明**
 
@@ -238,6 +238,10 @@ Buffer模块用于存储数据，可以是经验池，也可以是数据池，�
 请注意Buffer模块属于迭代器，注意实现时候的迭代器协议。
 
 Buffer模块为每个模型单独创建，每个模型独立拥有，他们可以拥有自己独立的数据集，也可以共享数据集。
+
+### ToolKit模块
+
+插件模块，后面几个版本中逐步统一插件模块。
 
 ### Register模块
 未来即将推出

@@ -269,16 +269,6 @@ class CommunicatorBase(ABC):
         """
         return self._collection_data_fict[agent_name].indicate_pool.get_numpy_dict()
 
-    def get_data(self, agent_name: str):
-        """
-        获取数据集合中的数据。
-
-        Args:
-            agent_name (str): agent的名称。
-            data_name (str): 数据集合的名称。
-        """
-        return self._collection_data_fict[agent_name].get_data_pool_dict
-
     def get_param(self, agent_name: str, param_name: str):
         """
         获取数据集合中的参数。

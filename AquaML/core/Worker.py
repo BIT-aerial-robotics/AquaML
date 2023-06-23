@@ -30,7 +30,7 @@ class RLAgentWorker(BaseWorker):
         self.obs = None
         self.episode_step_count = 0
 
-    def step(self, env, agent, collector):
+    def step(self, env, agent, collector, step, rollout_steps):
         """
         采样一次数据。
         """
@@ -49,6 +49,9 @@ class RLAgentWorker(BaseWorker):
         self.episode_step_count += 1
 
         if self.episode_step_count >= self.max_steps:
+            done = True
+
+        if step >= rollout_steps:
             done = True
 
         if done:
@@ -72,11 +75,13 @@ class RLAgentWorker(BaseWorker):
         collector.reset()
         self.reset_flag = True
 
-        for _ in range(rollout_steps):
+        for step in range(rollout_steps):
             self.step(
                 env=env,
                 agent=agent,
-                collector=collector
+                collector=collector,
+                step=step,
+                rollout_steps=rollout_steps
             )
 
 

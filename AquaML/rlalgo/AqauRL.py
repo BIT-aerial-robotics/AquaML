@@ -165,6 +165,9 @@ class AquaRL(BaseAqua):
         ########################################
         self._sub_aqua_dict[self.agent.name] = self.agent
 
+        # reward统计接口
+        self._reward_names = ('total_reward', )
+
         ########################################
         # Aqua初始化
         ########################################
@@ -341,6 +344,52 @@ class AquaRL(BaseAqua):
 
             self.communicator.thread_manager.Barrier()
 
+            # 评估主线程backbone,用于统计输出，记录
+            if self.optimize_enable:
+                # 获取当前epoch reward
+                episode_summery_dict = {}
+                ep_length = []
+
+                data_dict = self.communicator.get_data_pool_dict(self.agent.name)
+
+                # 获取当前epoch reward
+                epoch_reward_dict = dict()
+
+                for name in self._reward_names:
+                    epoch_reward_dict[name] = data_dict[name]
+
+                masks = data_dict['mask']
+
+                index_done = np.where(masks == 0)[0] + 1
+
+                start_index = 0
+
+                pre_fix = 'ep_reward/'
+                for end_index in index_done:
+                    for name in self._reward_names:
+                        if pre_fix + name not in episode_summery_dict:
+                            episode_summery_dict[pre_fix + name] = []
+                        episode_summery_dict[pre_fix + name].append(
+                            np.sum(epoch_reward_dict[name][start_index:end_index]))
+
+                    ep_length.append(end_index - start_index)
+
+                    start_index = end_index
+
+                episode_summery_dict['ep_length'] = ep_length
+                # 计算平均值
+                new_episode_summery_dict = {}
+
+                for key, value in episode_summery_dict.items():
+                    new_episode_summery_dict[key] = np.mean(value)
+                    new_episode_summery_dict[key + '_max'] = np.max(value)
+                    new_episode_summery_dict[key + '_min'] = np.min(value)
+
+                new_episode_summery_dict['ep_num'] = len(ep_length)
+
+                for key, value in new_episode_summery_dict.items():
+                    print(key, value)
+
             if (epoch + 1) % self.agent_params.eval_interval == 0:
 
                 if self.sample_enable:
@@ -368,6 +417,3 @@ class AquaRL(BaseAqua):
                     # 记录数据
                     for key, value in new_summery_dict.items():
                         print(key, value)
-
-
-

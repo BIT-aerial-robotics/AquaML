@@ -148,7 +148,7 @@ class BaseAqua(ABC):
 
         if self.level == 0:
             self.recoder = Recoder(
-                log_folder=log_file,
+                # log_folder=log_file,
                 pointed_name=recoder_name
             )
         else:

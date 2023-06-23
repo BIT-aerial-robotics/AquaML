@@ -24,9 +24,9 @@ class Actor_net(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
-        self.log_std = tf.keras.layers.Dense(4)
+        self.log_std = tf.keras.layers.Dense(1)
 
-        # self.learning_rate = 2e-4
+        self.learning_rate = 2e-4
 
         self.output_info = {'action': (1,), }
 
@@ -93,13 +93,12 @@ class PendulumWrapper(RLBaseEnv):
         super().__init__()
         # TODO: update in the future
         self.env = gym.make(env_name)
-        
         self.env_name = env_name
 
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs',),
-            shapes=(24,),
+            shapes=(3,),
             dtypes=np.float32
         )
 
@@ -128,7 +127,6 @@ class PendulumWrapper(RLBaseEnv):
         obs = self.check_obs(obs, action_dict)
 
         reward = {'total_reward': (reward + 8) / 8, 'indicate_reward': reward}
-        self.env.render()
 
         return obs, reward, done, info
 
@@ -136,7 +134,7 @@ class PendulumWrapper(RLBaseEnv):
         self.env.close()
 
 
-env = PendulumWrapper("BipedalWalkerHardcore-v3")
+env = PendulumWrapper('Pendulum-v1')
 
 parameters = PPOAgentParameter(
     rollout_steps=4000,

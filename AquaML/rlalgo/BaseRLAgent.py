@@ -73,6 +73,9 @@ class BaseRLAgent(BaseAgent, ABC):
         # sync model
         self._sync_model_dict = {}  # 同步模型字典
 
+        # all model
+        self._all_model_dict = {}  # 所有模型字典
+
         # parame_dict
         self._param_dict = {}  # 全局同步参数字典
 
@@ -496,6 +499,10 @@ class BaseRLAgent(BaseAgent, ABC):
     @property
     def get_sync_model_dict(self):
         return self._sync_model_dict
+
+    @property
+    def get_all_model_dict(self):
+        return self._all_model_dict
 
     @staticmethod
     @abstractmethod

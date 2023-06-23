@@ -340,6 +340,8 @@ class AquaRL(BaseAqua):
                 for key, value in loss_info.items():
                     print(key, value)
 
+
+
                 self.sync()
 
             self.communicator.thread_manager.Barrier()
@@ -376,7 +378,7 @@ class AquaRL(BaseAqua):
 
                     start_index = end_index
 
-                episode_summery_dict['ep_length'] = ep_length
+                episode_summery_dict[pre_fix+'ep_length'] = ep_length
                 # 计算平均值
                 new_episode_summery_dict = {}
 
@@ -385,10 +387,16 @@ class AquaRL(BaseAqua):
                     new_episode_summery_dict[key + '_max'] = np.max(value)
                     new_episode_summery_dict[key + '_min'] = np.min(value)
 
-                new_episode_summery_dict['ep_num'] = len(ep_length)
+                new_episode_summery_dict[pre_fix + 'ep_num'] = len(ep_length)
 
                 for key, value in new_episode_summery_dict.items():
                     print(key, value)
+
+                self.recoder.record_scalar(new_episode_summery_dict, epoch + 1)
+
+                self.recoder.record_scalar(loss_info, epoch + 1)
+
+                self.recoder.record_model_weight(self.agent.get_all_model_dict, epoch + 1)
 
             if (epoch + 1) % self.agent_params.eval_interval == 0:
 
@@ -417,3 +425,5 @@ class AquaRL(BaseAqua):
                     # 记录数据
                     for key, value in new_summery_dict.items():
                         print(key, value)
+
+                    self.recoder.record_scalar(new_summery_dict, epoch + 1)

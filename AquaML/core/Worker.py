@@ -51,7 +51,7 @@ class RLAgentWorker(BaseWorker):
         if self.episode_step_count >= self.max_steps:
             done = True
 
-        if step >= rollout_steps:
+        if step >= rollout_steps - 1:
             done = True
 
         if done:

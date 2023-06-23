@@ -48,6 +48,11 @@ class PPOAgent(BaseRLAgent):
             else:
                 raise AttributeError(f'{self.critic.__class__.__name__} has no optimizer_info attribute')
 
+            self._all_model_dict = {
+                'actor/': self.actor,
+                'critic/': self.critic,
+            }
+
         # 创建探索策略
         if self.agent_params.explore_policy == 'Default':
             explore_name = 'Gaussian'

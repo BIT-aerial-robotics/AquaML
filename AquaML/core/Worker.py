@@ -70,6 +70,7 @@ class RLAgentWorker(BaseWorker):
     def roll(self, env, agent, rollout_steps, collector):
 
         collector.reset()
+        self.reset_flag = True
 
         for _ in range(rollout_steps):
             self.step(

@@ -7,6 +7,7 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
     def __init__(self,
                  rollout_steps: int,
                  max_steps: int,
+                 min_steps: int,
                  epochs: int,
                  batch_size: int,
                  update_times: int,
@@ -48,6 +49,8 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
         self.update_times = update_times
 
         self.checkpoint_interval = checkpoint_interval
+
+        self.min_steps = min_steps
 
     def point_adjust_parameter(self, names: list):
         """
@@ -96,6 +99,7 @@ class PPOAgentParameter(BaseAgentParameter):
                  update_critic_times: int,
                  update_actor_times: int,
                  batch_advantage_normalization: bool = True,
+                 min_steps: int = 1,
                  checkpoint_interval: int = 10,
                  clip_ratio: float = 0.2,
                  entropy_coef: float = 0.01,
@@ -138,6 +142,7 @@ class PPOAgentParameter(BaseAgentParameter):
             max_steps=max_steps,
             update_times=update_times,
             checkpoint_interval=checkpoint_interval,
+            min_steps=min_steps,
         )
 
         self.log_std_init_value = log_std_init_value

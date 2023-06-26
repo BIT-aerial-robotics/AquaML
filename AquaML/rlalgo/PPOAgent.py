@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 
 from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
@@ -6,6 +7,8 @@ from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.buffer.RLBuffer import OnPolicyDefaultReplayBuffer
 
 from AquaML.core.Comunicator import Communicator
+
+from AquaML.buffer.RLBuffer import SplitTrajectoryPlugin
 
 
 class PPOAgent(BaseRLAgent):
@@ -80,12 +83,46 @@ class PPOAgent(BaseRLAgent):
         for key, value in self._tf_explore_dict.items():
             self._actor_train_vars += [value]
 
-        # 创建buffer
+        ########################################
+        # 创建buffer,及其计算插件
+        ########################################
 
+        # actor部分
         self.actor_buffer = OnPolicyDefaultReplayBuffer(
-            capacity=self.agent_info.buffer_size,
-            data_names=self.actor.output_info.keys(),
+            concat_flag=True,
         )
+
+        self.actor_plugings_dict = {}
+
+        if self.agent_params.min_steps <= 1:
+            filter_name = None
+            filter_args = {}
+        else:
+            filter_name = 'len'
+            filter_args = {
+                'len_threshold': self.agent_params.min_steps
+            }
+
+        split_trajectory_plugin = SplitTrajectoryPlugin(
+            filter_name=filter_name,
+            filter_args=filter_args,
+        )
+
+        self.actor_plugings_dict['split_trajectory'] = split_trajectory_plugin
+
+        # critic部分
+        self.critic_buffer = OnPolicyDefaultReplayBuffer(
+            concat_flag=True,
+        )
+
+        self.critic_plugings_dict = {}
+
+        split_trajectory_plugin = SplitTrajectoryPlugin(
+            filter_name=filter_name,
+            filter_args=filter_args,
+        )
+
+        self.critic_plugings_dict['split_trajectory'] = split_trajectory_plugin
 
         # 初始化模型同步器
         self._sync_model_dict = {
@@ -168,12 +205,12 @@ class PPOAgent(BaseRLAgent):
         # 获取所有的数据
         data_dict = communicator.get_data_pool_dict(self.name)
 
-        critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_name)
+        critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_name, tf_tensor=False)
         next_critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_name,
-                                                      prefix='next_')
+                                                      prefix='next_', tf_tensor=False)
 
         # get actor obs
-        actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name)
+        actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, tf_tensor=False)
         # next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, prefix='next_')
 
         # get total reward
@@ -205,16 +242,16 @@ class PPOAgent(BaseRLAgent):
                                                )
 
         # convert to tensor
-        advantage = tf.convert_to_tensor(advantage, dtype=tf.float32)
-        target = tf.convert_to_tensor(target, dtype=tf.float32)
+        # advantage = tf.convert_to_tensor(advantage, dtype=tf.float32)
+        # target = tf.convert_to_tensor(target, dtype=tf.float32)
         # rewards = tf.convert_to_tensor(rewards, dtype=tf.float32)
         # masks = tf.convert_to_tensor(masks, dtype=tf.float32)
-        old_prob = tf.convert_to_tensor(old_prob, dtype=tf.float32)
-        old_log_prob = tf.math.log(old_prob)
-        actions = tf.convert_to_tensor(actions, dtype=tf.float32)
+        # old_prob = tf.convert_to_tensor(old_prob, dtype=tf.float32)
+        old_log_prob = tf.math.log(old_prob).numpy()
+        # actions = tf.convert_to_tensor(actions, dtype=tf.float32)
 
         if self.agent_params.batch_advantage_normalization:
-            advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
+            advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8)
 
         train_actor_input = {
             'actor_obs': actor_obs,
@@ -227,36 +264,29 @@ class PPOAgent(BaseRLAgent):
             'critic_obs': critic_obs,
             'target': target,
         }
-        buffer_size = train_actor_input['actor_obs'][0].shape[0]
-        critic_buffer_size = buffer_size
-        critic_batch_steps = self.agent_params.batch_size
+
+        self.actor_buffer.add_sample(train_actor_input, masks, self.actor_plugings_dict)
+        self.critic_buffer.add_sample(train_critic_input, masks, self.critic_plugings_dict)
 
         for _ in range(self.agent_params.update_times):
-            # fusion ppo firstly update critic
-            start_index = 0
-            end_index = 0
-            critic_start_index = 0
-            while end_index < buffer_size:
-                end_index = min(start_index + self.agent_params.batch_size,
-                                buffer_size)
-                critic_end_index = min(critic_start_index + critic_batch_steps, critic_buffer_size)
-                batch_train_actor_input = self.get_batch_data(train_actor_input, start_index, end_index)
-                batch_train_critic_input = self.get_batch_data(train_critic_input, critic_start_index, critic_end_index)
-                start_index = end_index
-                critic_start_index = critic_end_index
+
+            for batch_actor_input, batch_critic_input in zip(
+                    self.actor_buffer.sample_batch(self.agent_params.batch_size),
+                    self.critic_buffer.sample_batch(self.agent_params.batch_size)):
+
                 for _ in range(self.agent_params.update_critic_times):
                     critic_optimize_info = self.train_critic(
-                        critic_inputs=batch_train_critic_input['critic_obs'],
-                        target=batch_train_critic_input['target'],
+                        critic_inputs=batch_critic_input['critic_obs'],
+                        target=batch_critic_input['target'],
                     )
                     self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
 
                 for _ in range(self.agent_params.update_actor_times):
                     actor_optimize_info = self.train_actor(
-                        actor_inputs=batch_train_actor_input['actor_obs'],
-                        advantage=batch_train_actor_input['advantage'],
-                        old_log_prob=batch_train_actor_input['old_log_prob'],
-                        action=batch_train_actor_input['action'],
+                        actor_inputs=batch_actor_input['actor_obs'],
+                        advantage=batch_actor_input['advantage'],
+                        old_log_prob=batch_actor_input['old_log_prob'],
+                        action=batch_actor_input['action'],
                         clip_ratio=self.agent_params.clip_ratio,
                         entropy_coef=self.agent_params.entropy_coef,
                     )

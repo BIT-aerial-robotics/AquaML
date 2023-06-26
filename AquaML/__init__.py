@@ -1,3 +1,5 @@
+
+
 MAIN_THREAD = 1
 SUB_THREAD = 2
 
@@ -17,4 +19,7 @@ NO_SHARE_MEMORY = 0
 CREATE_SHARE_MEMORY = 1
 LOAD_SHARE_MEMORY = 2
 
-
+################### Aqua Reinforcement Learning ###################
+from AquaML.buffer.RLBuffer import TrajectoryFilterRegister, RLBufferPluginRegister
+traj_filter_register = TrajectoryFilterRegister()
+rl_buffer_plugin_register = RLBufferPluginRegister()

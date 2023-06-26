@@ -13,6 +13,8 @@ def create_explor_policy(explore_policy_name, shape, actor_out_names):
         policy = VoidExplorePolicy(shape)
     elif explore_policy_name == 'Categorical':
         policy = CategoricalExplorePolicy(shape)
+    elif explore_policy_name == 'Void':
+        policy = VoidExplorePolicy(shape)
     else:
         raise NotImplementedError(f'{explore_policy_name} is not implemented.')
 
@@ -217,6 +219,12 @@ class VoidExplorePolicy(ExplorePolicyBase):
     def __init__(self, shape):
         super().__init__(shape)
         self.input_name = ('action',)
+        self._aditional_output = {
+            'prob': {
+                'shape': self.shape,
+                'dtype': np.float32,
+            }
+        }
 
     @tf.function
     def noise_and_prob(self, batch_size=1):
@@ -230,6 +238,9 @@ class VoidExplorePolicy(ExplorePolicyBase):
 
     def test_action(self, mu):
         return mu, tf.ones((1, *self.shape))
+
+    def get_entropy(self, mean, log_std):
+        return 1
 
 
 # 离散探索策略

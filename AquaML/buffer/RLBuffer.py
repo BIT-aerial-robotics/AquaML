@@ -211,6 +211,8 @@ class SplitTrajectoryPlugin(RLBufferPluginBase):
 
         len_episodes = []
 
+        current_episode = 0
+
         ret_dict = {}
 
         for start_index, end_index in zip(start, terminal):
@@ -230,8 +232,9 @@ class SplitTrajectoryPlugin(RLBufferPluginBase):
                     ret_dict[name].append(var)
                 
                 len_episodes.append(len_episode)
-                new_start.append(start_index)
-                new_terminal.append(end_index)
+                new_start.append(current_episode)
+                new_terminal.append(current_episode)
+                current_episode += 1
         
         if self.concat:
             for name, var in ret_dict.items():
@@ -251,6 +254,91 @@ class SplitTrajectoryPlugin(RLBufferPluginBase):
     
 
         return ret_dict, new_key_data_dict
+
+class PaddingPlugin(RLBufferPluginBase):
+
+    def __init__(self,
+                 max_steps,
+                 concat: bool = False,
+                 ):
+
+        super().__init__()
+        self.max_steps = max_steps
+        self.concat = concat
+
+        ###############################################
+        # 处理接口部分
+        ###############################################
+        self.name = "padding"
+        self._additional_param["max_steps"] = max_steps
+
+        # 需要额外处理的数据
+        self._key_data_info.append("len_episodes")
+        self._key_data_info.append("start_index")
+        self._key_data_info.append("end_index")
+
+        # pre plugin
+        self._pre_plugin.append("split_trajectory")
+    
+    def _process(self, data_set_dict: dict,key_data_dict:dict):
+        
+        # 获取数据
+        data_set_dict = data_set_dict.copy()
+        len_episodes = key_data_dict["len_episodes"].copy()
+        start_index = key_data_dict["start_index"].copy()
+        end_index = key_data_dict["end_index"].copy()
+
+        # 拆分轨迹
+        ret_dict = {}
+
+        grad_masks = []
+
+
+        for start, end, len_episode in zip(start_index, end_index, len_episodes):
+            for name, var in data_set_dict.items():
+                
+                if isinstance(var, np.ndarray):
+                    episodes = var[start:end]
+                elif isinstance(var, list):
+                    episodes = var[start]
+                else:
+                    raise TypeError("data type not support")
+
+                if len_episode < self.max_steps:
+                    padding = np.zeros((self.max_steps - len_episode, *episodes.shape[1:]))
+                    episodes = np.concatenate([episodes, padding], axis=0)
+                
+                if name not in ret_dict:
+                    ret_dict[name] = []
+                ret_dict[name].append(episodes)
+
+                grad_enabled = np.ones((len_episode, 1))
+                grad_disabled = np.zeros((self.max_steps - len_episode, 1))
+                grad_mask = np.concatenate([grad_enabled, grad_disabled], axis=0)
+
+                grad_masks.append(grad_mask)
+        
+        if self.concat:
+            for name, var in ret_dict.items():
+                ret_dict[name] = np.concatenate(var, axis=0)
+            
+            grad_masks = np.concatenate(grad_masks, axis=0)
+            
+            start_index = np.ones((len(len_episodes), 1))*self.max_steps
+            end_index = np.cumsum(start_index).tolist()
+            start_index = np.append(np.array(0), end_index[:-1]).tolist()
+
+        else:
+            start_index = np.arange(len(len_episodes)).tolist()
+            end_index = np.arange(len(len_episodes)).tolist()      
+
+        new_key_data_dict = {}
+        new_key_data_dict["start_index"] = start_index
+        new_key_data_dict["end_index"] = end_index
+        new_key_data_dict["grad_masks"] = grad_masks
+
+        return ret_dict, new_key_data_dict     
+            
             
 class RLBufferPluginRegister:
     """

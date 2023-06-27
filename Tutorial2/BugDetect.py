@@ -2,10 +2,10 @@ import sys
 
 sys.path.append('..')
 from AquaML.Tool import allocate_gpu
-from mpi4py import MPI
-
-comm = MPI.COMM_WORLD
-allocate_gpu(comm, 0)
+# from mpi4py import MPI
+#
+# comm = MPI.COMM_WORLD
+# allocate_gpu(comm, 0)
 from AquaML.rlalgo.AqauRL import AquaRL
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.rlalgo.PPOAgent import PPOAgent
@@ -34,7 +34,10 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4}
+            'args': {'learning_rate': 2e-4,
+                     'epsilon': 1e-5,
+                     'clipnorm': 0.5,
+                     },
         }
 
     @tf.function
@@ -73,7 +76,10 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4}
+            'args': {'learning_rate': 2e-4,
+                     'epsilon': 1e-5,
+                     'clipnorm': 0.5,
+                     }
         }
 
     @tf.function
@@ -98,7 +104,7 @@ class PendulumWrapper(RLBaseEnv):
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs',),
-            shapes=(3,),
+            shapes=(24,),
             dtypes=np.float32
         )
 
@@ -106,7 +112,8 @@ class PendulumWrapper(RLBaseEnv):
 
     def reset(self):
         observation = self.env.reset()
-        observation = observation.reshape(1, -1)
+        observation = observation[0].reshape(1, -1)
+        # observation = observation.
 
         # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
 
@@ -118,15 +125,15 @@ class PendulumWrapper(RLBaseEnv):
 
     def step(self, action_dict):
         action = action_dict['action']
-        action *= 2
-        observation, reward, done, info = self.env.step(action)
+        # action *= 2
+        observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
         obs = {'obs': observation}
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': (reward + 8) / 8, 'indicate_reward': reward}
+        reward = {'total_reward': reward}
 
         return obs, reward, done, info
 
@@ -134,13 +141,14 @@ class PendulumWrapper(RLBaseEnv):
         self.env.close()
 
 
-env = PendulumWrapper('Pendulum-v1')
+env = PendulumWrapper("BipedalWalker-v3")
 
 parameters = PPOAgentParameter(
     rollout_steps=1000,
     epochs=100,
     batch_size=512,
     update_times=2,
+    max_steps=1000,
     update_actor_times=4,
     update_critic_times=4,
     eval_episodes=20,
@@ -149,7 +157,7 @@ parameters = PPOAgentParameter(
     entropy_coef=0.1,
     batch_advantage_normalization=True,
     checkpoint_interval=10,
-    min_steps=400,
+    min_steps=200,
 )
 
 agent_info_dict = {

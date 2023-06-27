@@ -110,6 +110,11 @@ class PPOAgent(BaseRLAgent):
 
         self.actor_plugings_dict['split_trajectory'] = split_trajectory_plugin
 
+        # Normalization, 用于对数据进行归一化
+        if self.agent_params.batch_advantage_normalization:
+            # normaliation tuple
+            self._normalization_tuple = self._normalization_tuple.append('advantage')
+
         # critic部分
         self.critic_buffer = OnPolicyDefaultReplayBuffer(
             concat_flag=True,
@@ -250,8 +255,9 @@ class PPOAgent(BaseRLAgent):
         old_log_prob = tf.math.log(old_prob).numpy()
         # actions = tf.convert_to_tensor(actions, dtype=tf.float32)
 
-        if self.agent_params.batch_advantage_normalization:
-            advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8)
+        # TOD: 再minibatch中进行advantage normalization
+        # if self.agent_params.batch_advantage_normalization:
+        #     advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8)
 
         train_actor_input = {
             'actor_obs': actor_obs,

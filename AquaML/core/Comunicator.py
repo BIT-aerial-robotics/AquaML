@@ -1,4 +1,4 @@
-from mpi4py import MPI
+# from mpi4py import MPI
 from abc import ABC, abstractmethod
 from AquaML.data.DataPool import DataPool
 from AquaML.core.DataParser import DataInfo
@@ -118,7 +118,7 @@ class MPIThreadManager(MultiThreadManagerBase):
     MPI多线程管理器,支持Group通信。
     """
 
-    def __init__(self, comm: MPI.Comm):
+    def __init__(self, comm):
         self.comm = comm
         self.thread_id = comm.Get_rank()
         self.total_threads = comm.Get_size()

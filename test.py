@@ -1,10 +1,7 @@
-from AquaML.data.DataUnit import DataUnit
+import tensorflow as tf
 
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
-b = DataUnit('test')
+optimizer.learning_rate = 0.01
 
-b.read_shared_memory((4,1))
-
-print(b.buffer)
-
-b.close()
+print(optimizer.learning_rate)

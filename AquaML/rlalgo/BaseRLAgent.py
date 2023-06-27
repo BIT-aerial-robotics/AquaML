@@ -82,6 +82,8 @@ class BaseRLAgent(BaseAgent, ABC):
         # inidicate dict
         self._indicate_dict = {}
 
+        self._normalization_tuple = []
+
     # @abstractmethod
     def init(self):
         raise NotImplementedError

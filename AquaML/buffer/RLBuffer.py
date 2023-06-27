@@ -113,7 +113,8 @@ class RLBufferPluginBase(ABC):
                 raise ValueError("plugin need key_data: {}".format(key_data_name))
 
         # process
-        processed_data_set_dict, processed_key_data_dict, buffer_size = self._process(data_set_dict, key_data_dict, concat)
+        processed_data_set_dict, processed_key_data_dict, buffer_size = self._process(data_set_dict, key_data_dict,
+                                                                                      concat)
 
         return processed_data_set_dict, processed_key_data_dict, buffer_size
 
@@ -443,6 +444,9 @@ class RLBufferPluginRegister:
         return getattr(self, name + 'Plugin')
 
 
+# class Batch
+
+
 class OnPolicyDefaultReplayBuffer:
     """
     RL 第一个经验池，只是单纯的存储经验，对LSTM输入进行部分处理后续将增加更强的经验池。
@@ -451,12 +455,14 @@ class OnPolicyDefaultReplayBuffer:
 
     """
 
-    def __init__(self, concat_flag):
+    def __init__(self, concat_flag, batch_normalization: list = []):
         self.data = {}
 
         self.concat_flag = concat_flag
 
         self.buffer_size = 0
+
+        self.batch_normalization = batch_normalization
 
     def add_sample(self, data_set: dict, masks: np.ndarray, plugin_dict: dict = {}):
         """
@@ -489,7 +495,8 @@ class OnPolicyDefaultReplayBuffer:
 
         for plugin_name, plugin in plugin_dict.items():
             log.append(plugin.get_name)
-            processed_data_set, processed_key_data_dict, buffer_size = plugin(data_set, log, key_data_dict, concat=concat_flag)
+            processed_data_set, processed_key_data_dict, buffer_size = plugin(data_set, log, key_data_dict,
+                                                                              concat=concat_flag)
             key_data_dict.update(processed_key_data_dict)
             data_set.update(processed_data_set)
 
@@ -525,6 +532,10 @@ class OnPolicyDefaultReplayBuffer:
                     batch[key] = tuple(buffer)
                 else:
                     batch[key] = tf.cast(val[batch_indices], tf.float32)
+
+            # TODO: 创建batch_normalization插件提供基础的batch_normalization功能
+            for key in self.batch_normalization:
+                batch[key] = (batch[key] - tf.reduce_mean(batch[key])) / (tf.math.reduce_std(batch[key]) + 1e-8)
 
             yield batch
 

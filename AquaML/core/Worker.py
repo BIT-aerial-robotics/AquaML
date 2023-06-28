@@ -156,10 +156,7 @@ class RLVectorEnvWorker(BaseWorker):
         # 参数设置
         self.max_steps = max_steps
 
-        # 运行过程参数
-        self.reset_flag = True
-        self.obs = None
-        self.episode_step_count = 0
+    
     
     def step(self, envs, agent, collector, step, rollout_steps):
         pass

@@ -7,7 +7,7 @@ class DataInfo:
     Information of dateset or buffer.
     """
 
-    def __init__(self, names: tuple, shapes: tuple, dtypes, dataset=None):
+    def __init__(self, names: tuple or list, shapes: tuple or list, dtypes, dataset=None):
         """Data info struct.
 
         Args:

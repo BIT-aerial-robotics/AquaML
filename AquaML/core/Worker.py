@@ -16,6 +16,8 @@ class BaseWorker(ABC):
 class RLAgentWorker(BaseWorker):
     """
     单智能体强化学习数据采样器。
+
+    多线程的时候每个线程自动拥有一个agent。
     """
 
     def __init__(self,
@@ -138,3 +140,9 @@ class Evaluator(BaseWorker):
                 )
 
             collector.summary_episode()
+
+
+class RLVectorEnvWorker(BaseWorker):
+    """
+    vectorized environment worker.
+    """

@@ -1,7 +1,5 @@
-import tensorflow as tf
+import numpy as np
 
-optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+a = np.arange(12)
 
-optimizer.learning_rate = 0.01
-
-print(optimizer.learning_rate)
+print(a.reshape((4,-1)))

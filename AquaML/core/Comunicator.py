@@ -259,6 +259,16 @@ class CommunicatorBase(ABC):
             agent_name (str): agent的名称。
         """
         return self._collection_data_fict[agent_name].data_pool.get_numpy_dict()
+    
+    def get_pointed_data_pool(self, agent_name: str, data_name: str, start_index: int, end_index: int):
+
+        return self._collection_data_fict[agent_name].data_pool.get_unit(data_name)[start_index:end_index]
+    
+    def get_pointed_data_pool_dict(self, agent_name: str, data_name: list, start_index: int, end_index: int):
+        ret_dict = {}
+        for name in data_name:
+            ret_dict[name] = self._collection_data_fict[agent_name].data_pool.get_unit(name)[start_index:end_index]
+        return ret_dict
 
     def get_indicate_pool_dict(self, agent_name: str):
         """

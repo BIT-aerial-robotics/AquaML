@@ -145,4 +145,21 @@ class Evaluator(BaseWorker):
 class RLVectorEnvWorker(BaseWorker):
     """
     vectorized environment worker.
+
+    The agent only runs in main process.
     """
+
+    def __init__(self,
+                 max_steps,
+                 ):
+
+        # 参数设置
+        self.max_steps = max_steps
+
+        # 运行过程参数
+        self.reset_flag = True
+        self.obs = None
+        self.episode_step_count = 0
+    
+    def step(self, envs, agent, collector, step, rollout_steps):
+        pass

@@ -116,3 +116,16 @@ class RLBaseEnv(ABC):
 
 
 
+class RLBaseVerctorEnv(ABC):
+    """
+
+    This is the base class of vector environment.
+    """
+
+    def __init__(self,env, num_envs):
+
+        # instanclize the env
+        
+        
+        if not isinstance(env, RLBaseEnv):
+            raise TypeError("can not recognize env type")

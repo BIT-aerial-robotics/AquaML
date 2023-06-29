@@ -10,6 +10,8 @@ from AquaML.core.Comunicator import Communicator
 
 from AquaML.buffer.RLBuffer import SplitTrajectoryPlugin
 
+from AquaML.core.RLToolKit import RLStandardDataSet
+
 
 class PPOAgent(BaseRLAgent):
 
@@ -301,6 +303,12 @@ class PPOAgent(BaseRLAgent):
         summary = self.loss_tracker.get_data()
 
         return summary
+
+    def _optimize(self, data_set:RLStandardDataSet):
+        
+        # 检查当前是否为主线程
+        if self.level != 0:
+            raise RuntimeError('Only main agent can optimize')
 
     def _resample_log_prob_no_std(self, obs, action):
 

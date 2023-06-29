@@ -161,6 +161,9 @@ AquaRL训练时候运行方式图如下所示：
 
 橙色的线条代表流程，蓝色的线条代表数据流向。绿色的方块表示能够在子线程运行，蓝色方块表示只能在主线程运行。右边方块外蓝色表示主子线程共同维护区域。
 
+#### 数据格式说明(2023.6.29)
+所有计算插件（除去最后存储进入buffer部分），将统一为（env_num, roll_out_steps, *）的格式，其中*代表用户自定义的数据格式，所有插件都按照一个环境对应一个计算方式，请将代码计算discount reward写成插件，将由AquaRL自动调用。
+
 **AquaRL Buffer**
 
 经过worker收集到的数据，将由Buffer进行处理，如进行padding，数据格式转换等操作。后续版本将逐步规定接口。
@@ -207,6 +210,10 @@ param pool的同步机制如下图所示：
 </center>
 
 因此使用这个同步机制时候同时在被同步对象里面创建一个相同名称的变量，这个变量将被同步，这个变量的值将被同步到所有线程中。使用时直接使用这个同步对象，此外该对象请使用data unit创建。
+
+#### 2023.6.28更新
+
+重新定义Communicator功能，去除数据池功能，更确切的功能是作为数据中转站的作用，将数据从一个线程传输到另一个线程，同时可以进行数据的同步。
 ### DataParser模块
 
 数据解析模块，负责将数据解析成算法需要的数据格式，在不知道数据格式，使用MPI进行大规模数据传输之前，预传输数据的大小，以及数据格式，这个模块将负责这个部分。
@@ -239,11 +246,25 @@ Buffer内部存储的一定是按照batch_size进行存储的，因此在使用�
 
 一个算法里面可以使用多个buffer分别管理比如说actor，critic的数据。
 
+两种Worker架构如图所示：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/worker.png">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">Worker框架图</div>
+</center>
 #### VectorWorker
 
 本框架VectorWorker将同时支持单线程和多线程，多线程并发采用MPI方式，MPI能够方便未来扩展到HPC集群中。
 
 再多线程里面一个vector worker可以运行多个env。
+
+VectorWorker使用的环境是VectorEnv，VectorEnv是一个环境的集合，每个环境可以拥有不同的环境参数，但是必须是同一种环境。
 
 ### Buffer模块
 

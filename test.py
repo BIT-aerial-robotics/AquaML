@@ -1,5 +1,5 @@
 import numpy as np
 
-a = np.arange(12)
+a = np.arange(4*6*3)
 
-print(a.reshape((4,-1)))
+print(a.reshape((4, 6, 3)))

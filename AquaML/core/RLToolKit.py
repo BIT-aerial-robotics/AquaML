@@ -1,6 +1,195 @@
 from abc import ABC, abstractmethod
+from typing import Any
 import numpy as np
 from AquaML.core.DataParser import DataInfo
+
+class RLStandardDataSet:
+    """
+    RLStandardDataSet. 
+
+    The data set for RL algorithm. All the RL buffer plugin 
+    should return this type of data set.
+    """
+
+    def __init__(self,
+                 rollout_steps,
+                 num_envs,
+                 ) -> None:
+        self.rollout_steps = rollout_steps
+        self.num_envs = num_envs
+
+        # self.data_dict = {}
+    
+    def __call__(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: np.ndarray):
+
+        # check the data type
+        self.check_dict(obs, 'obs')
+        self.check_dict(action, 'action')
+        self.check_dict(reward, 'reward')
+        self.check_dict(next_obs, 'next_obs')
+        self.check_data(mask, 'mask')
+
+        self.obs_names = obs.keys()
+        self.action_names = action.keys()
+        self.reward_names = reward.keys()
+        self.next_obs_names = next_obs.keys()
+
+        for name in self.obs_names:
+            setattr(self, name, obs[name])
+        
+        for name in self.action_names:
+            setattr(self, name, action[name])
+        
+        for name in self.reward_names:
+            setattr(self, name, reward[name])
+        
+        for name in self.next_obs_names:
+            setattr(self, name, next_obs[name])
+        
+        self.mask = mask
+    
+    def add_data(self, data: Any, name: str):
+        """
+        add data to the data set.
+
+        check and add the data to the data set.
+        """
+            
+        self.check_data(data, name)
+        setattr(self, name, data)
+
+    def check_dict(self, dic: dict, name: str):
+        """
+        check the dict.
+
+        the element in the dict should be np.ndarray. And the shape should be:
+        (num_envs, rollout_steps, ...)
+        """
+
+        for key in dic.keys():
+            if not isinstance(dic[key], np.ndarray):
+                raise TypeError(f'The type of {name} should be np.ndarray, but got {type(dic[key])}.')
+
+            if dic[key].shape != (self.num_envs, self.rollout_steps, *dic[key].shape[2:]):
+                raise ValueError(f'The shape of {name} should be (num_envs, rollout_steps, ...), but got {dic[key].shape}.')
+    
+    def check_data(self, data, name: str):
+        """
+        check the data.
+
+        the data should be np.ndarray. And the shape should be:
+        (num_envs, rollout_steps, ...)
+        """
+
+        if isinstance(data, np.ndarray):
+            if data.shape != (self.num_envs, self.rollout_steps, *data.shape[2:]):
+                raise ValueError(f'The shape of {name} should be (num_envs, rollout_steps, ...), but got {data.shape}.')
+        elif isinstance(data, dict):
+            self.check_dict(data, name)
+        else:
+            raise TypeError(f'The type of {name} should be np.ndarray or dict, but got {type(data)}.')
+        
+class MDPCollector:
+    """
+    ThreadCollector
+    """
+
+    def __init__(self,
+                 obs_names,
+                 action_names,
+                 reward_names,
+                 ):
+
+        self.obs_names = obs_names
+        self.action_names = action_names
+        self.reward_names = reward_names
+        self.next_obs_names = obs_names
+
+        self.obs_dict = {}
+        self.action_dict = {}
+        self.reward_dict = {}
+        self.next_obs_dict = {}
+
+        self.masks = []
+
+    def reset(self):
+        """
+        reset
+        """
+        del self.obs_dict
+        del self.action_dict
+        del self.reward_dict
+        del self.next_obs_dict
+        del self.masks
+
+        self.obs_dict = {}
+        self.action_dict = {}
+        self.reward_dict = {}
+        self.next_obs_dict = {}
+
+        self.masks = []
+
+        for name in self.obs_names:
+            self.obs_dict[name] = []
+
+        for name in self.action_names:
+            self.action_dict[name] = []
+
+        for name in self.reward_names:
+            self.reward_dict[name] = []
+
+        for name in self.next_obs_names:
+            self.next_obs_dict[name] = []
+
+    def store_data(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: int):
+        """
+        store data
+        """
+
+        for name in self.obs_names:
+            self.obs_dict[name].append(obs[name])
+
+        for name in self.action_names:
+            self.action_dict[name].append(action[name])
+
+        for name in self.reward_names:
+            self.reward_dict[name].append(reward[name])
+
+        for name in self.next_obs_names:
+            self.next_obs_dict[name].append(next_obs[name])
+
+        self.masks.append(mask)
+
+    def get_data(self):
+        """
+        get data
+
+        返回的数据格式为
+        """
+
+        obs_dict = {}
+
+        for name in self.obs_names:
+            obs_dict[name] = np.vstack(self.obs_dict[name])
+
+        action_dict = {}
+
+        for name in self.action_names:
+            action_dict[name] = np.vstack(self.action_dict[name])
+
+        reward_dict = {}
+
+        for name in self.reward_names:
+            reward_dict[name] = np.vstack(self.reward_dict[name])
+
+        next_obs_dict = {}
+
+        for name in self.next_obs_names:
+            next_obs_dict['next_' + name] = np.vstack(self.next_obs_dict[name])
+
+        mask = np.vstack(self.masks)
+
+        return obs_dict, action_dict, reward_dict, next_obs_dict, mask
 
 
 class VecMDPCollector:
@@ -60,16 +249,16 @@ class VecMDPCollector:
         """
 
         for name in self.obs_names:
-            self.obs_dict[name].append(obs[name])
+            self.obs_dict[name].append(np.expand_dims(obs[name], axis=0))
 
         for name in self.action_names:
-            self.action_dict[name].append(action[name])
+            self.action_dict[name].append(np.expand_dims(action[name], axis=0))
 
         for name in self.reward_names:
-            self.reward_dict[name].append(reward[name])
+            self.reward_dict[name].append(np.expand_dims(reward[name], axis=0))
 
         for name in self.next_obs_names:
-            self.next_obs_dict[name].append(next_obs[name])
+            self.next_obs_dict[name].append(np.expand_dims(next_obs[name], axis=0))
 
         self.masks.append(mask)
 
@@ -329,7 +518,7 @@ class RLBaseEnv(ABC):
         """
 
     @property
-    def reward_info(self):
+    def reward_info(self)->tuple or list:
         return self._reward_info
 
     @property
@@ -337,6 +526,10 @@ class RLBaseEnv(ABC):
         if self._obs_info is None:
             raise ValueError("obs_info is not specified.")
         return self._obs_info
+
+    @property
+    def num_envs(self):
+        return 1
 
     def initial_obs(self, obs):
         for key, shape in self.action_state_info.items():
@@ -348,7 +541,7 @@ class RLBaseEnv(ABC):
             obs[key] = action_dict[key]
         return obs
 
-    def set_action_state_info(self, actor_out_info: dict, actor_input_name: tuple):
+    def set_action_state_info(self, actor_out_info: dict, actor_input_name: tuple)->None:
         """
         set action state info.
         Judge the input is as well as the output of actor network.
@@ -360,7 +553,7 @@ class RLBaseEnv(ABC):
                 self._obs_info.add_info(key, shape, np.float32)
 
     @property
-    def get_env_info(self):
+    def get_env_info(self)->dict:
         """
         get env info.
         """
@@ -382,7 +575,7 @@ class RLBaseEnv(ABC):
         """
 
 
-class RLVerctorEnv:
+class RLVectorEnv:
     """
 
     This is the base class of vector environment.
@@ -516,11 +709,18 @@ class RLVerctorEnv:
                 for env in self._envs:
                     env.set_action_state_info(actor_out_info, actor_input_name)
 
-                self.action_state_info[key] = (self._num_envs, *shape)
-                self._obs_info.add_info(key, (self._num_envs, *shape), np.float32)
+                self.action_state_info[key] = shape
+                self._obs_info.add_info(key, shape, np.float32)
+
+    def close(self):
+        """
+        close the environment.
+        """
+        for env in self._envs:
+            env.close()
 
     @property
-    def reward_info(self):
+    def reward_info(self)->tuple or list:
         return self._reward_info
 
     @property

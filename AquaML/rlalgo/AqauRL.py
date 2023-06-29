@@ -1,7 +1,9 @@
 from AquaML.core.BaseAqua import BaseAqua
 from AquaML.core.AgentIOInfo import RLAgentIOInfo
-from AquaML.core.Worker import RLAgentWorker, Evaluator
+from AquaML.core.Worker import RLAgentWorker, Evaluator, RLVectorEnvWorker
+from AquaML.core.RLToolKit import RLVectorEnv, RLBaseEnv
 from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
+from AquaML.core.RLToolKit import RLStandardDataSet
 import numpy as np
 
 
@@ -12,6 +14,7 @@ class AquaRL(BaseAqua):
                  env,
                  agent,
                  agent_info_dict: dict,
+                 eval_env=None,
                  comm=None,
                  ):
         """
@@ -19,7 +22,7 @@ class AquaRL(BaseAqua):
 
         Args:
             name (str): 项目名称。
-            env: 环境。
+            env: 环境。两种类型：VecEnv和BaseEnv。
             agent (class): 未实例化的agent类。
             agent_info_dict (dict): agent参数。如使用PPO agent时候, 可以如下设置:
                 agent_info_dict = {'actor': actor_model, 
@@ -27,6 +30,7 @@ class AquaRL(BaseAqua):
                                 'agent_params': agent_params,
                                 } 
                 如无特殊需求，agent's name可以使用算法默认值。
+            eval_env (BaseEnv, optional): 评估环境。默认为None。在使用VectorEnv时候，eval_env必须存在。
         """
 
         ########################################
@@ -67,6 +71,19 @@ class AquaRL(BaseAqua):
 
         self.env = env
 
+        if eval_env is not None:
+            self.eval_env = eval_env
+        else:
+            self.eval_env = env
+
+        # 判断env的类型
+        if isinstance(env, RLVectorEnv):
+            self.env_type = 'Vec'
+        elif isinstance(env, RLBaseEnv):
+            self.env_type = 'Base'
+        else:
+            raise TypeError('Env type error!')
+
         ########################################
         # 初始化agent
         ########################################
@@ -90,8 +107,11 @@ class AquaRL(BaseAqua):
         else:
             self.worker_thread = 1
 
+        # 获取总的环境数
+        self._total_envs = self.env.num_envs * self.worker_thread
+
         # 计算Roll一次所有线程产生的样本量
-        self._total_steps = self.agent_params.rollout_steps * self.worker_thread
+        self._total_steps = self.agent_params.rollout_steps * self._total_envs
 
         ########################################
         # 初始化env
@@ -161,12 +181,12 @@ class AquaRL(BaseAqua):
         )
 
         ########################################
-        # Aqaa接口设置
+        # Aqua接口设置
         ########################################
         self._sub_aqua_dict[self.agent.name] = self.agent
 
         # reward统计接口
-        self._reward_names = ('total_reward', )
+        self._reward_names = ('total_reward',)
 
         ########################################
         # Aqua初始化
@@ -177,15 +197,6 @@ class AquaRL(BaseAqua):
 
         # recoder初始化
         self.init_recoder()
-
-        # 创建worker和evaluator
-
-        # TODO:这俩个worker貌似定义不是很合理
-        self.worker = RLAgentWorker(
-            max_steps=self.agent_params.max_steps,
-        )
-
-        self.evaluator = Evaluator()
 
         # 初始化线程级别collector后端
         self.mdp_collector = MDPCollector(
@@ -209,13 +220,43 @@ class AquaRL(BaseAqua):
             else:
                 self.optimize_enable = False
                 self.sample_enable = True
+            # 创建worker和evaluator
 
-    def obtain_data(self):
+        # TODO:这俩个worker貌似定义不是很合理
+        if self.env_type == 'Vec':
+            self.worker = RLVectorEnvWorker(
+                max_steps=self.agent_params.max_steps,
+                communicator=self.communicator,
+                optimize_enable=self.optimize_enable,
+                sample_enable=self.sample_enable,
+                vec_env=self.env,
+                action_names=self.agent.get_action_names,
+                obs_names=self.env.obs_info.keys(),
+                reward_names=self.env.reward_info,
+
+            )
+        else:
+            self.worker = RLAgentWorker(
+                max_steps=self.agent_params.max_steps,
+                env=self.env,
+                obs_names=self.env.obs_info.keys(),
+                action_names=self.agent.get_action_names,
+                reward_names=self.env.reward_info,
+                communicator=self.communicator,
+                optimize_enable=self.optimize_enable,
+                sample_enable=self.sample_enable,
+            )
+
+        self.evaluator = Evaluator()
+
+    def sampling(self):
+        pass
+
+    def _obtain_data(self):
         """
         获取数据。
         """
         self.worker.roll(
-            env=self.env,
             agent=self.agent,
             rollout_steps=self.agent_params.rollout_steps,
             collector=self.mdp_collector,
@@ -277,6 +318,20 @@ class AquaRL(BaseAqua):
             start_index=star_index,
             end_index=end_index,
         )
+
+    def _obtain_env_vec(self):
+        """
+        获取数据。
+        """
+        self.worker.roll(
+            agent=self.agent,
+            rollout_steps=self.agent_params.rollout_steps,
+        )
+
+        # 获取数据，这里可以加入数据处理backend,主线程
+        if self.optimize_enable:
+            data = self.worker.get_data()
+    
 
     def evaluate(self):
         """
@@ -340,8 +395,6 @@ class AquaRL(BaseAqua):
                 for key, value in loss_info.items():
                     print(key, value)
 
-
-
                 self.sync()
 
             self.communicator.thread_manager.Barrier()
@@ -378,7 +431,7 @@ class AquaRL(BaseAqua):
 
                     start_index = end_index
 
-                episode_summery_dict[pre_fix+'ep_length'] = ep_length
+                episode_summery_dict[pre_fix + 'ep_length'] = ep_length
                 # 计算平均值
                 new_episode_summery_dict = {}
 

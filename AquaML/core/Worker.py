@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from AquaML.core.RLToolKit import VecCollector, VecMDPCollector
+from AquaML.core.RLToolKit import VecCollector, VecMDPCollector, RLStandardDataSet
+from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
+import numpy as np
 
 
 class BaseWorker(ABC):
@@ -23,17 +25,42 @@ class RLAgentWorker(BaseWorker):
 
     def __init__(self,
                  max_steps,
+                 env,
+                 obs_names,
+                 action_names,
+                 reward_names,
+                 communicator,
+                 sample_enable,
+                 optimize_enable,
                  ):
-
+        self.env = env
         # 参数设置
         self.max_steps = max_steps
+
+        self.communicator = communicator
+
+        self.obs_names = obs_names
+        self.action_names = action_names
+        self.reward_names = reward_names
+
+        # mdp collector
+        self.collector = MDPCollector(
+            obs_names=obs_names,
+            action_names=action_names,
+            reward_names=reward_names,
+        )
+
+        self.sample_enable = sample_enable
+        self.optimize_enable = optimize_enable
 
         # 运行过程参数
         self.reset_flag = True
         self.obs = None
         self.episode_step_count = 0
 
-    def step(self, env, agent, collector, step, rollout_steps):
+        # self.obs = None
+
+    def step(self, env, agent, step, rollout_steps):
         """
         采样一次数据。
         """
@@ -63,7 +90,7 @@ class RLAgentWorker(BaseWorker):
         else:
             mask = 1
 
-        collector.store_data(
+        self.collector.store_data(
             obs=self.obs,
             action=action_dict,
             reward=reward,
@@ -73,19 +100,100 @@ class RLAgentWorker(BaseWorker):
 
         self.obs = obs_
 
-    def roll(self, env, agent, rollout_steps, collector):
+    def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
 
-        collector.reset()
-        self.reset_flag = True
+        if self.sample_enable:
+            self.collector.reset()
 
-        for step in range(rollout_steps):
-            self.step(
-                env=env,
-                agent=agent,
-                collector=collector,
-                step=step,
-                rollout_steps=rollout_steps
+            for step in range(rollout_steps):
+                self.step(
+                    env=self.env,
+                    agent=agent,
+                    step=step,
+                    rollout_steps=rollout_steps
             )
+                
+            obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.collector.get_data()
+
+            start_index = self.communicator.data_pool_start_index
+            end_index = start_index + rollout_steps
+
+            # 去除action中hidden state
+            new_action_dict = {}
+            for key, value in action_dict.items():
+                if 'hidden_' not in key:
+                    new_action_dict[key] = value
+            
+            # 推送数据
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=obs_dict,
+                start_index=start_index,
+                end_index=end_index,
+            )
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=action_dict,
+                start_index=start_index,
+                end_index=end_index,
+            )
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=reward_dict,
+                start_index=start_index,
+                end_index=end_index,
+            )
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=next_obs_dict,
+                start_index=start_index,
+                end_index=end_index,
+            )
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=mask,
+                start_index=start_index,
+                end_index=end_index,
+            )
+        
+        self.communicator.Barrier()
+        if self.optimize_enable:
+            # 获取所有数据并且按照规定格式整理
+            num_envs = self.communicator.num_envs
+
+            buffer = self.communicator.get_data_pool_dict(agent.name)
+
+            obs_dict = {}
+            action_dict = {}
+            reward_dict = {}
+            next_obs_dict = {}
+
+            for key in self.obs_names:
+                obs_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps ,-1))
+                next_obs_dict['next_' + key] = np.reshape(buffer['next_'+key], (num_envs, rollout_steps ,-1))
+            
+            for key in self.action_names:
+                action_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps ,-1))
+            
+            for key in self.reward_names:
+                reward_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps ,-1))
+
+            mask = np.reshape(buffer['mask'], (num_envs, rollout_steps ,-1))
+
+            std_data_set(
+                obs=obs_dict,
+                action=action_dict,
+                reward=reward_dict,
+                next_obs=next_obs_dict,
+                mask=mask,
+            )
+
+
+        
 
 
 class Evaluator(BaseWorker):
@@ -293,7 +401,7 @@ class RLVectorEnvWorker(BaseWorker):
 
             self.obs = next_obs
 
-    def roll(self, agent, rollout_steps):
+    def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
         self.vec_MDP_collector.reset()
         if self.initial_flag:
             self.initial_flag = False
@@ -322,3 +430,15 @@ class RLVectorEnvWorker(BaseWorker):
 
         for _ in range(rollout_steps):
             self.step(agent)
+        
+        if self.optimize_enable:
+            obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.vec_MDP_collector.get_data()
+
+            std_data_set(
+                obs=obs_dict,
+                action=action_dict,
+                reward=reward_dict,
+                next_obs=next_obs_dict,
+                mask=mask
+            )
+            

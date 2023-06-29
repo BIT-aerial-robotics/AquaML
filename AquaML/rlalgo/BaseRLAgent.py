@@ -271,6 +271,18 @@ class BaseRLAgent(BaseAgent, ABC):
 
         return return_dict
 
+    @property
+    def get_action_names(self):
+        names = []
+
+        for key in self.actor.output_info.keys():
+            names.append(key)
+
+        for key in self.explore_policy.get_aditional_output.keys():
+            names.append(key)
+
+        return names
+
     def create_explorer(self, explore_name, shape, pointed_value={}):
 
         policy, infos = create_explor_policy(

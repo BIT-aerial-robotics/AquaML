@@ -162,7 +162,7 @@ AquaRL训练时候运行方式图如下所示：
 橙色的线条代表流程，蓝色的线条代表数据流向。绿色的方块表示能够在子线程运行，蓝色方块表示只能在主线程运行。右边方块外蓝色表示主子线程共同维护区域。
 
 #### 数据格式说明(2023.6.29)
-所有计算插件（除去最后存储进入buffer部分），将统一为（env_num, roll_out_steps, *）的格式，其中*代表用户自定义的数据格式，所有插件都按照一个环境对应一个计算方式，请将代码计算discount reward写成插件，将由AquaRL自动调用。
+RL采集到的数据集都按照如下格式进行存储：（num_envs, rollout_steps, num_features）, SplitTrajectory模块会自动将其分成episode，如果需要对episode进行处理的请在该模块插入相应的插件。该模块放在AquaML.buffer.RLPrePlugin中。该模块的输出统一为：
 
 **AquaRL Buffer**
 

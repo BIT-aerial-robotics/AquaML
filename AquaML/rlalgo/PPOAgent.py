@@ -3,14 +3,9 @@ import tensorflow as tf
 
 from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
-
-from AquaML.buffer.RLBuffer import OnPolicyDefaultReplayBuffer
-
 from AquaML.core.Comunicator import Communicator
-
-from AquaML.buffer.RLBuffer import SplitTrajectoryPlugin
-
 from AquaML.core.RLToolKit import RLStandardDataSet
+from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
 
 
 class PPOAgent(BaseRLAgent):
@@ -29,6 +24,7 @@ class PPOAgent(BaseRLAgent):
             level=level,
         )
 
+        self._episode_tool = None
         self.actor = actor()
 
         self.critic = critic()
@@ -58,6 +54,44 @@ class PPOAgent(BaseRLAgent):
                 'critic': self.critic,
             }
 
+            ########################################
+            # 创建buffer,及其计算插件
+            ########################################
+            self.actor_plugings_dict = {}
+
+            if self.agent_params.min_steps <= 1:
+                filter_name = None
+                filter_args = {}
+            else:
+                filter_name = 'len'
+                filter_args = {
+                    'len_threshold': self.agent_params.min_steps
+                }
+
+            # 创建episode处理工具
+            self._episode_tool = SplitTrajectory(
+                filter_name=filter_name,
+                filter_args=filter_args,
+            )
+
+            # 为tool添加处理插件
+            adv_td_error = GAEComputer(
+                gamma=self.agent_params.gamma,
+                lamda=self.agent_params.lamda
+            )
+
+            value_dfn = ValueFunctionComputer(
+                self.critic
+            )
+
+            self._episode_tool.add_plugin(
+                value_dfn,
+            )
+
+            self._episode_tool.add_plugin(
+                adv_td_error
+            )
+
         # 创建探索策略
         if self.agent_params.explore_policy == 'Default':
             explore_name = 'Gaussian'
@@ -84,52 +118,6 @@ class PPOAgent(BaseRLAgent):
         self._actor_train_vars = self.actor.trainable_variables
         for key, value in self._tf_explore_dict.items():
             self._actor_train_vars += [value]
-
-        ########################################
-        # 创建buffer,及其计算插件
-        ########################################
-
-        # actor部分
-        self.actor_buffer = OnPolicyDefaultReplayBuffer(
-            concat_flag=True,
-        )
-
-        self.actor_plugings_dict = {}
-
-        if self.agent_params.min_steps <= 1:
-            filter_name = None
-            filter_args = {}
-        else:
-            filter_name = 'len'
-            filter_args = {
-                'len_threshold': self.agent_params.min_steps
-            }
-
-        split_trajectory_plugin = SplitTrajectoryPlugin(
-            filter_name=filter_name,
-            filter_args=filter_args,
-        )
-
-        self.actor_plugings_dict['split_trajectory'] = split_trajectory_plugin
-
-        # Normalization, 用于对数据进行归一化
-        if self.agent_params.batch_advantage_normalization:
-            # normaliation tuple
-            self._normalization_tuple = self._normalization_tuple.append('advantage')
-
-        # critic部分
-        self.critic_buffer = OnPolicyDefaultReplayBuffer(
-            concat_flag=True,
-        )
-
-        self.critic_plugings_dict = {}
-
-        split_trajectory_plugin = SplitTrajectoryPlugin(
-            filter_name=filter_name,
-            filter_args=filter_args,
-        )
-
-        self.critic_plugings_dict['split_trajectory'] = split_trajectory_plugin
 
         # 初始化模型同步器
         self._sync_model_dict = {
@@ -163,6 +151,7 @@ class PPOAgent(BaseRLAgent):
                     clip_ratio: float,
                     entropy_coef: float,
                     ):
+        old_log_prob = tf.math.log(old_log_prob)
         with tf.GradientTape() as tape:
             tape.watch(self.actor_train_vars)
 
@@ -200,101 +189,43 @@ class PPOAgent(BaseRLAgent):
     def actor_train_vars(self):
         return self._actor_train_vars
 
-    # TODO:需要规定好接口
-    def optimize(self, communicator: Communicator):
+    def optimize(self, data_set: RLStandardDataSet):
 
         # 检查当前是否为主线程
         if self.level != 0:
             raise RuntimeError('Only main agent can optimize')
 
-        buffer_size = communicator.get_data_pool_size(self.name)
-
-        # 获取所有的数据
-        data_dict = communicator.get_data_pool_dict(self.name)
-
-        critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_name, tf_tensor=False)
-        next_critic_obs = self.get_corresponding_data(data_dict=data_dict, names=self.critic.input_name,
-                                                      prefix='next_', tf_tensor=False)
-
-        # get actor obs
-        actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, tf_tensor=False)
-        # next_actor_obs = self.get_corresponding_data(data_dict=data_dict, names=self.actor.input_name, prefix='next_')
-
-        # get total reward
-        rewards = data_dict['total_reward']
-
-        # get old prob
-        old_prob = data_dict['prob']
-
-        # get mask
-        masks = data_dict['mask']
-
-        # get action
-        actions = data_dict['action']
-
-        if 'value' in self.actor.output_info:
-            values = data_dict['value']
-            next_values = data_dict['next_value']
-        else:
-            values = self.critic(*critic_obs).numpy()
-            next_values = self.critic(*next_critic_obs).numpy()
-
-        # get target and advantage
-        advantage, target = self.calculate_GAE(rewards=rewards,
-                                               values=values,
-                                               next_values=next_values,
-                                               masks=masks,
-                                               gamma=self.agent_params.gamma,
-                                               lamda=self.agent_params.lamda,
-                                               )
-
-        # convert to tensor
-        # advantage = tf.convert_to_tensor(advantage, dtype=tf.float32)
-        # target = tf.convert_to_tensor(target, dtype=tf.float32)
-        # rewards = tf.convert_to_tensor(rewards, dtype=tf.float32)
-        # masks = tf.convert_to_tensor(masks, dtype=tf.float32)
-        # old_prob = tf.convert_to_tensor(old_prob, dtype=tf.float32)
-        old_log_prob = tf.math.log(old_prob).numpy()
-        # actions = tf.convert_to_tensor(actions, dtype=tf.float32)
-
-        # TOD: 再minibatch中进行advantage normalization
-        # if self.agent_params.batch_advantage_normalization:
-        #     advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8)
-
-        train_actor_input = {
-            'actor_obs': actor_obs,
-            'advantage': advantage,
-            'old_log_prob': old_log_prob,
-            'action': actions,
-        }
-
-        train_critic_input = {
-            'critic_obs': critic_obs,
-            'target': target,
-        }
-
-        self.actor_buffer.add_sample(train_actor_input, masks, self.actor_plugings_dict)
-        self.critic_buffer.add_sample(train_critic_input, masks, self.critic_plugings_dict)
+        train_data, reward_info = self._episode_tool(data_set)
 
         for _ in range(self.agent_params.update_times):
+            for batch_data in train_data(self.agent_params.batch_size):
+                actor_input_obs = []
+                critic_input_obs = []
 
-            for batch_actor_input, batch_critic_input in zip(
-                    self.actor_buffer.sample_batch(self.agent_params.batch_size),
-                    self.critic_buffer.sample_batch(self.agent_params.batch_size)):
+                for name in self.actor.input_name:
+                    actor_input_obs.append(batch_data[name])
+
+                for name in self.critic.input_name:
+                    critic_input_obs.append(batch_data[name])
+
+                advantage = batch_data['advantage']
+
+                if self.agent_params.batch_advantage_normalization:
+                    advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
 
                 for _ in range(self.agent_params.update_critic_times):
                     critic_optimize_info = self.train_critic(
-                        critic_inputs=batch_critic_input['critic_obs'],
-                        target=batch_critic_input['target'],
+                        critic_inputs=critic_input_obs,
+                        target=batch_data['target'],
                     )
                     self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
 
                 for _ in range(self.agent_params.update_actor_times):
                     actor_optimize_info = self.train_actor(
-                        actor_inputs=batch_actor_input['actor_obs'],
-                        advantage=batch_actor_input['advantage'],
-                        old_log_prob=batch_actor_input['old_log_prob'],
-                        action=batch_actor_input['action'],
+                        actor_inputs=actor_input_obs,
+                        advantage=advantage,
+                        old_log_prob=batch_data['prob'],
+                        action=batch_data['action'],
                         clip_ratio=self.agent_params.clip_ratio,
                         entropy_coef=self.agent_params.entropy_coef,
                     )
@@ -302,13 +233,7 @@ class PPOAgent(BaseRLAgent):
 
         summary = self.loss_tracker.get_data()
 
-        return summary
-
-    def _optimize(self, data_set:RLStandardDataSet):
-        
-        # 检查当前是否为主线程
-        if self.level != 0:
-            raise RuntimeError('Only main agent can optimize')
+        return summary, reward_info
 
     def _resample_log_prob_no_std(self, obs, action):
 

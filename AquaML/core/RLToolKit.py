@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 from AquaML.core.DataParser import DataInfo
 
+
 class RLStandardDataSet:
     """
     RLStandardDataSet. 
@@ -18,8 +19,8 @@ class RLStandardDataSet:
         self.rollout_steps = rollout_steps
         self.num_envs = num_envs
 
-        # self.data_dict = {}
-    
+        self._buffer_dict = {}
+
     def __call__(self, obs: dict, action: dict, reward: dict, next_obs: dict, mask: np.ndarray):
 
         # check the data type
@@ -36,25 +37,49 @@ class RLStandardDataSet:
 
         for name in self.obs_names:
             setattr(self, name, obs[name])
-        
+            self._buffer_dict[name] = getattr(self, name)
+
         for name in self.action_names:
             setattr(self, name, action[name])
-        
+            self._buffer_dict[name] = getattr(self, name)
+
         for name in self.reward_names:
             setattr(self, name, reward[name])
-        
+            self._buffer_dict[name] = getattr(self, name)
+
         for name in self.next_obs_names:
             setattr(self, name, next_obs[name])
-        
+            self._buffer_dict[name] = getattr(self, name)
+
         self.mask = mask
-    
+        self._buffer_dict['mask'] = self.mask
+
+    def get_env_data(self):
+        """
+        get the data of each env.
+
+        return a generator, the element of the generator is a dict, 
+        the key is the name of the data, the value is the data.
+
+        Return:
+            env_data: a dict, the key is the name of the data, the value is the data. 
+            And the shape of the data is (rollout_steps, ...)
+
+        """
+
+        for i in range(self.num_envs):
+            env_data = {}
+            for name in self._buffer_dict.keys():
+                env_data[name] = self._buffer_dict[name][i]
+            yield env_data
+
     def add_data(self, data: Any, name: str):
         """
         add data to the data set.
 
         check and add the data to the data set.
         """
-            
+
         self.check_data(data, name)
         setattr(self, name, data)
 
@@ -71,8 +96,9 @@ class RLStandardDataSet:
                 raise TypeError(f'The type of {name} should be np.ndarray, but got {type(dic[key])}.')
 
             if dic[key].shape != (self.num_envs, self.rollout_steps, *dic[key].shape[2:]):
-                raise ValueError(f'The shape of {name} should be (num_envs, rollout_steps, ...), but got {dic[key].shape}.')
-    
+                raise ValueError(
+                    f'The shape of {name} should be (num_envs, rollout_steps, ...), but got {dic[key].shape}.')
+
     def check_data(self, data, name: str):
         """
         check the data.
@@ -88,7 +114,8 @@ class RLStandardDataSet:
             self.check_dict(data, name)
         else:
             raise TypeError(f'The type of {name} should be np.ndarray or dict, but got {type(data)}.')
-        
+
+
 class MDPCollector:
     """
     ThreadCollector
@@ -249,18 +276,18 @@ class VecMDPCollector:
         """
 
         for name in self.obs_names:
-            self.obs_dict[name].append(np.expand_dims(obs[name], axis=0))
+            self.obs_dict[name].append(np.expand_dims(obs[name], axis=1))
 
         for name in self.action_names:
-            self.action_dict[name].append(np.expand_dims(action[name], axis=0))
+            self.action_dict[name].append(np.expand_dims(action[name], axis=1))
 
         for name in self.reward_names:
-            self.reward_dict[name].append(np.expand_dims(reward[name], axis=0))
+            self.reward_dict[name].append(np.expand_dims(reward[name], axis=1))
 
         for name in self.next_obs_names:
-            self.next_obs_dict[name].append(np.expand_dims(next_obs[name], axis=0))
+            self.next_obs_dict[name].append(np.expand_dims(next_obs[name], axis=1))
 
-        self.masks.append(mask)
+        self.masks.append(np.expand_dims(mask, axis=1))
 
     def get_data(self):
         """
@@ -444,6 +471,7 @@ class RLBaseEnv(ABC):
     """
 
     def __init__(self):
+        self.steps = 0
         self._reward_info = ('total_reward',)  # reward info is a tuple
         self._obs_info = None  # DataInfo
         self.action_state_info = {}  # default is empty dict
@@ -491,23 +519,31 @@ class RLBaseEnv(ABC):
         info (dict or None): info of environment.
         """
 
-    def step_vector(self, action_dict: dict):
+    def step_vector(self, action_dict: dict, max_step: int = 1000000):
         """
         Step the environment.
         
         Args:
-            action (optional): action of environment.
+            action_dict (dict): action of environment.
+            max_step (int): max step of environment.
         Return: 
         observation (dict): observation of environment.
         reward(dict): reward of environment.
         done (bool): done flag of environment.
         info (dict or None): info of environment.
+
         """
 
         obs, reward, done, info = self.step(action_dict)
 
+        self.steps += 1
+
+        if self.steps >= max_step:
+            done = True
+
         if done:
             obs, flag = self.reset()
+            self.steps = 0
 
         return obs, reward, done, info
 
@@ -518,7 +554,7 @@ class RLBaseEnv(ABC):
         """
 
     @property
-    def reward_info(self)->tuple or list:
+    def reward_info(self) -> tuple or list:
         return self._reward_info
 
     @property
@@ -541,7 +577,7 @@ class RLBaseEnv(ABC):
             obs[key] = action_dict[key]
         return obs
 
-    def set_action_state_info(self, actor_out_info: dict, actor_input_name: tuple)->None:
+    def set_action_state_info(self, actor_out_info: dict, actor_input_name: tuple) -> None:
         """
         set action state info.
         Judge the input is as well as the output of actor network.
@@ -553,7 +589,7 @@ class RLBaseEnv(ABC):
                 self._obs_info.add_info(key, shape, np.float32)
 
     @property
-    def get_env_info(self)->dict:
+    def get_env_info(self) -> dict:
         """
         get env info.
         """
@@ -612,9 +648,6 @@ class RLVectorEnv:
         for i in range(num_envs):
             self._envs.append(env(**envs_args_tuple[i]))
 
-        if not isinstance(env, RLBaseEnv):
-            raise TypeError("can not recognize env type")
-
         ########################################
         # vectorized env info
         ########################################
@@ -622,6 +655,9 @@ class RLVectorEnv:
         _reward_info = {}
 
         env_1 = self._envs[0]
+
+        if not isinstance(env_1, RLBaseEnv):
+            raise TypeError("can not recognize env type")
 
         # get vectorized reward info
         # for key in env_1.reward_info:
@@ -662,6 +698,11 @@ class RLVectorEnv:
 
         self.last_obs = None
 
+        self._max_steps = 100000
+
+    def set_max_steps(self, max_steps):
+        self._max_steps = max_steps
+
     def step(self, actions: dict):
         """
         Step the environment.
@@ -678,10 +719,10 @@ class RLVectorEnv:
             sub_action_dict = {}
             for key, value in actions.items():
                 sub_action_dict[key] = value[i, :]
-            sub_obs, sub_rew, sub_done, sub_info = self._envs[i].step(sub_action_dict)
+            sub_obs, sub_rew, sub_done, sub_info = self._envs[i].step_vector(sub_action_dict, self._max_steps)
             vec_collector.append(sub_obs, sub_rew, 1 - sub_done)
 
-        obs, rew, done = vec_collector.get_data(expand_dim=True)
+        obs, rew, done = vec_collector.get_data(expand_dim=False)
 
         return obs, rew, done
 
@@ -697,8 +738,7 @@ class RLVectorEnv:
             sub_obs, flag = self._envs[i].reset()
             vec_collector.inital_appand(sub_obs)
 
-        obs = vec_collector.get_data(expand_dim=False)
-
+        obs = vec_collector.get_initial_data(expand_dim=False)
 
         return obs
 
@@ -720,7 +760,7 @@ class RLVectorEnv:
             env.close()
 
     @property
-    def reward_info(self)->tuple or list:
+    def reward_info(self) -> tuple or list:
         return self._reward_info
 
     @property

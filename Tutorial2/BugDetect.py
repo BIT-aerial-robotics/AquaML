@@ -12,7 +12,8 @@ from AquaML.rlalgo.PPOAgent import PPOAgent
 import numpy as np
 import gym
 from AquaML.DataType import DataInfo
-from AquaML.BaseClass import RLBaseEnv
+from AquaML.core.RLToolKit import RLBaseEnv
+from AquaML.core.RLToolKit import RLVectorEnv
 import tensorflow as tf
 
 
@@ -70,7 +71,7 @@ class Critic_net(tf.keras.Model):
         #
         # )
 
-        self.output_name = {'value': (1,)}
+        self.output_info = {'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -95,7 +96,7 @@ class Critic_net(tf.keras.Model):
 
 
 class PendulumWrapper(RLBaseEnv):
-    def __init__(self, env_name: str):
+    def __init__(self, env_name="Pendulum-v1"):
         super().__init__()
         # TODO: update in the future
         self.env = gym.make(env_name)
@@ -104,7 +105,7 @@ class PendulumWrapper(RLBaseEnv):
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs',),
-            shapes=(24,),
+            shapes=(3,),
             dtypes=np.float32
         )
 
@@ -125,7 +126,7 @@ class PendulumWrapper(RLBaseEnv):
 
     def step(self, action_dict):
         action = action_dict['action']
-        # action *= 2
+        action *= 2
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
@@ -133,7 +134,7 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': reward}
+        reward = {'total_reward': (reward+8)/8, 'indicate_reward': reward}
 
         return obs, reward, done, info
 
@@ -141,14 +142,15 @@ class PendulumWrapper(RLBaseEnv):
         self.env.close()
 
 
-env = PendulumWrapper("BipedalWalker-v3")
+eval_env = PendulumWrapper()
 
+vec_env = RLVectorEnv(PendulumWrapper, 4)
 parameters = PPOAgentParameter(
     rollout_steps=1000,
     epochs=100,
-    batch_size=512,
+    batch_size=128,
     update_times=2,
-    max_steps=1000,
+    max_steps=200,
     update_actor_times=4,
     update_critic_times=4,
     eval_episodes=20,
@@ -167,9 +169,10 @@ agent_info_dict = {
 }
 
 rl = AquaRL(
-    env=env,
+    env=vec_env,
     agent=PPOAgent,
     agent_info_dict=agent_info_dict,
+    eval_env=eval_env,
     # comm=comm,
     name='debug'
 )

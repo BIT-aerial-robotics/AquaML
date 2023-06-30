@@ -1,3 +1,7 @@
+import numpy as np
+import tensorflow as tf
+
+
 class DataInfo:
     """
     Information of dateset or buffer.
@@ -52,3 +56,53 @@ class DataInfo:
 
     def keys(self):
         return self.names
+
+
+class DataSet:
+
+    def __init__(self,
+                 data_dict: dict,
+                 ):
+        """
+        Args:
+            data_dict (dict): data dict.
+        """
+        self.data_dict = data_dict
+        names = tuple(self.data_dict.keys())
+        # self.batch_size = 32
+
+        self.buffer_size = self.data_dict[names[0]].shape[0]
+
+    def slice_data(self, start: int, end: int):
+        """slice data.
+
+        Args:
+            start (int): start index.
+            end (int): end index.
+        """
+        new_data_dict = {}
+        for key in self.data_dict.keys():
+            new_data_dict[key] = self.data_dict[key][start:end]
+
+        return DataSet(new_data_dict)
+
+    def __call__(self, batch_size: int):
+        """
+        sample data
+        """
+
+        indices = np.random.permutation(self.buffer_size)
+
+        start_index = 0
+
+        while start_index < self.buffer_size:
+            end_index = min(start_index + batch_size, self.buffer_size)
+            batch_indices = indices[start_index:end_index]
+
+            batch = {}
+            for key, val in self.data_dict.items():
+                batch[key] = tf.cast(val[batch_indices], tf.float32)
+
+            yield batch
+
+            start_index = end_index

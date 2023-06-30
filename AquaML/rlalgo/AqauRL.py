@@ -76,13 +76,7 @@ class AquaRL(BaseAqua):
         else:
             self.eval_env = env
 
-        # 判断env的类型
-        if isinstance(env, RLVectorEnv):
-            self.env_type = 'Vec'
-        elif isinstance(env, RLBaseEnv):
-            self.env_type = 'Base'
-        else:
-            raise TypeError('Env type error!')
+
 
         ########################################
         # 初始化agent
@@ -113,9 +107,24 @@ class AquaRL(BaseAqua):
         # 计算Roll一次所有线程产生的样本量
         self._total_steps = self.agent_params.rollout_steps * self._total_envs
 
+
+
         ########################################
         # 初始化env
         ########################################
+
+        # 判断env的类型,及其参数配置
+        if isinstance(env, RLVectorEnv):
+            self.env_type = 'Vec'
+            self.env.set_max_steps(self.agent_params.max_steps)
+
+            self._communicator_buffer_size = self._total_envs
+        elif isinstance(env, RLBaseEnv):
+            self.env_type = 'Base'
+
+            self._communicator_buffer_size = self._total_steps
+        else:
+            raise TypeError('Env type error!')
 
         # 初始化transformer和RNN信息
 
@@ -135,7 +144,7 @@ class AquaRL(BaseAqua):
             obs_type_info=obs_info.type_dict,
             actor_out_info=actor_out_info,
             reward_name=env.reward_info,
-            buffer_size=self._total_steps,
+            buffer_size=self._communicator_buffer_size,
         )
 
         self.agent.set_agent_info(agent_io_info)
@@ -231,15 +240,15 @@ class AquaRL(BaseAqua):
                 sample_enable=self.sample_enable,
                 vec_env=self.env,
                 action_names=self.agent.get_action_names,
-                obs_names=self.env.obs_info.keys(),
+                obs_names=self.env.obs_info.names,
                 reward_names=self.env.reward_info,
-
+                agent_name=self.agent.name,
             )
         else:
             self.worker = RLAgentWorker(
                 max_steps=self.agent_params.max_steps,
                 env=self.env,
-                obs_names=self.env.obs_info.keys(),
+                obs_names=self.env.obs_info.names,
                 action_names=self.agent.get_action_names,
                 reward_names=self.env.reward_info,
                 communicator=self.communicator,
@@ -250,95 +259,26 @@ class AquaRL(BaseAqua):
         self.evaluator = Evaluator()
 
     def sampling(self):
-        pass
 
-    def _obtain_data(self):
-        """
-        获取数据。
-        """
+        std_data_set = RLStandardDataSet(
+            rollout_steps=self.agent_params.rollout_steps,
+            num_envs=self._total_envs,
+        )
+
         self.worker.roll(
             agent=self.agent,
             rollout_steps=self.agent_params.rollout_steps,
-            collector=self.mdp_collector,
+            std_data_set=std_data_set,
         )
 
-        ########################################
-        # 将数据推送至data pool
-        ########################################
-
-        # 获取数据，这里可以加入数据处理backend
-
-        obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.mdp_collector.get_data()
-
-        # 去除action中hidden state
-        new_action_dict = {}
-        for key, value in action_dict.items():
-            if 'hidden_' not in key:
-                new_action_dict[key] = value
-
-        # 获取起始index
-        star_index = self.communicator.data_pool_start_index
-
-        length = action_dict['action'].shape[0]
-
-        end_index = star_index + length
-
-        # 推送数据
-        self.communicator.store_data_dict(
-            agent_name=self.agent.name,
-            data_dict=obs_dict,
-            start_index=star_index,
-            end_index=end_index,
-        )
-
-        self.communicator.store_data_dict(
-            agent_name=self.agent.name,
-            data_dict=new_action_dict,
-            start_index=star_index,
-            end_index=end_index,
-        )
-
-        self.communicator.store_data_dict(
-            agent_name=self.agent.name,
-            data_dict=reward_dict,
-            start_index=star_index,
-            end_index=end_index,
-        )
-
-        self.communicator.store_data_dict(
-            agent_name=self.agent.name,
-            data_dict=next_obs_dict,
-            start_index=star_index,
-            end_index=end_index,
-        )
-
-        self.communicator.store_data_dict(
-            agent_name=self.agent.name,
-            data_dict={'mask': mask},
-            start_index=star_index,
-            end_index=end_index,
-        )
-
-    def _obtain_env_vec(self):
-        """
-        获取数据。
-        """
-        self.worker.roll(
-            agent=self.agent,
-            rollout_steps=self.agent_params.rollout_steps,
-        )
-
-        # 获取数据，这里可以加入数据处理backend,主线程
-        if self.optimize_enable:
-            data = self.worker.get_data()
-    
+        return std_data_set
 
     def evaluate(self):
         """
         评估。
         """
         self.evaluator.roll(
-            env=self.env,
+            env=self.eval_env,
             agent=self.agent,
             episode_length=self.agent_params.eval_episode_length,
             episodes=self.agent_params.eval_episodes,
@@ -376,89 +316,30 @@ class AquaRL(BaseAqua):
         """
         # TODO: 接口不完善需要统一
         if self.optimize_enable:
-            self.sync()
+            if self.env_type != 'Vec':
+                self.sync()
+            # self.sync()
 
         for epoch in range(self.agent_params.epochs):
 
             self.communicator.thread_manager.Barrier()
 
-            if self.sample_enable:
-                self.sync()
-                self.obtain_data()
-
-            self.communicator.thread_manager.Barrier()
+            std_data_set = self.sampling()
 
             if self.optimize_enable:
                 print('####################{}####################'.format(epoch + 1))
-                loss_info = self.agent.optimize(self.communicator)
+                loss_info, reward_info = self.agent.optimize(std_data_set)
 
                 for key, value in loss_info.items():
                     print(key, value)
 
-                self.sync()
-
-            self.communicator.thread_manager.Barrier()
-
-            # 评估主线程backbone,用于统计输出，记录
-            if self.optimize_enable:
-                # 获取当前epoch reward
-                episode_summery_dict = {}
-                ep_length = []
-
-                data_dict = self.communicator.get_data_pool_dict(self.agent.name)
-
-                # 获取当前epoch reward
-                epoch_reward_dict = dict()
-
-                for name in self._reward_names:
-                    epoch_reward_dict[name] = data_dict[name]
-
-                masks = data_dict['mask']
-
-                index_done = np.where(masks == 0)[0] + 1
-
-                start_index = 0
-
-                pre_fix = 'ep_reward/'
-                for end_index in index_done:
-                    for name in self._reward_names:
-                        if pre_fix + name not in episode_summery_dict:
-                            episode_summery_dict[pre_fix + name] = []
-                        episode_summery_dict[pre_fix + name].append(
-                            np.sum(epoch_reward_dict[name][start_index:end_index]))
-
-                    ep_length.append(end_index - start_index)
-
-                    start_index = end_index
-
-                episode_summery_dict[pre_fix + 'ep_length'] = ep_length
-                # 计算平均值
-                new_episode_summery_dict = {}
-
-                for key, value in episode_summery_dict.items():
-                    new_episode_summery_dict[key] = np.mean(value)
-                    new_episode_summery_dict[key + '_max'] = np.max(value)
-                    new_episode_summery_dict[key + '_min'] = np.min(value)
-
-                new_episode_summery_dict[pre_fix + 'ep_num'] = len(ep_length)
-
-                for key, value in new_episode_summery_dict.items():
+                for key, value in reward_info.items():
                     print(key, value)
 
-                self.recoder.record_scalar(new_episode_summery_dict, epoch + 1)
+                if self.env_type != 'Vec':
+                    self.sync()
 
-                self.recoder.record_scalar(loss_info, epoch + 1)
-
-                self.recoder.record_model_weight(self.agent.get_all_model_dict, epoch + 1)
-
-                # TODO: 统一checkpoint接口（history, best, latest）
-
-                if (epoch + 1) % self.agent_params.checkpoint_interval == 0:
-                    self.recoder.save_checkpoint(
-                        model_dict=self.agent.get_all_model_dict,
-                        epoch=epoch + 1,
-                        checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
-                    )
+            self.communicator.thread_manager.Barrier()
 
             if (epoch + 1) % self.agent_params.eval_interval == 0:
 

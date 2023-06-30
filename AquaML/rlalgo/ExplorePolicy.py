@@ -176,7 +176,8 @@ class GaussianExplorePolicy(ExplorePolicyBase):
 
     def scale_out(self, mu, log_std):
         sigma = tf.exp(log_std)
-        noise, prob = self.noise_and_prob()
+        batch_size = mu.shape[0]
+        noise, prob = self.noise_and_prob(batch_size)
         action = mu + sigma * noise
 
         # action = tf.clip_by_value(action, -1, 1)

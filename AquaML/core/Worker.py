@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from AquaML.core.RLToolKit import VecCollector, VecMDPCollector, RLStandardDataSet
 from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
 import numpy as np
-
+from copy import deepcopy
 
 class BaseWorker(ABC):
     """
@@ -81,9 +81,6 @@ class RLAgentWorker(BaseWorker):
         if self.episode_step_count >= self.max_steps:
             done = True
 
-        if step >= rollout_steps - 1:
-            done = True
-
         if done:
             self.reset_flag = True
             mask = 0
@@ -155,15 +152,15 @@ class RLAgentWorker(BaseWorker):
 
             self.communicator.store_data_dict(
                 agent_name=agent.name,
-                data_dict=mask,
+                data_dict={'mask': mask},
                 start_index=start_index,
                 end_index=end_index,
             )
         
-        self.communicator.Barrier()
+        self.communicator.thread_manager.Barrier()
         if self.optimize_enable:
             # 获取所有数据并且按照规定格式整理
-            num_envs = self.communicator.num_envs
+            num_envs = std_data_set.num_envs
 
             buffer = self.communicator.get_data_pool_dict(agent.name)
 
@@ -266,6 +263,7 @@ class RLVectorEnvWorker(BaseWorker):
                  optimize_enable,
                  sample_enable,
                  vec_env,
+                 agent_name: str,
                  action_names: list or tuple,
                  obs_names: list or tuple,
                  reward_names: list or tuple
@@ -291,7 +289,7 @@ class RLVectorEnvWorker(BaseWorker):
         if self.thread_level == 0:
             # main process
             self.start_index = 0
-            self.end_index = self.communicator.get_data_pool_size()
+            self.end_index = self.communicator.get_data_pool_size(agent_name)
 
         else:
             # sub process
@@ -392,14 +390,14 @@ class RLVectorEnvWorker(BaseWorker):
             )
 
             self.vec_MDP_collector.store_data(
-                obs=self.obs,
-                action=actions,
-                reward=reward,
-                next_obs=next_obs,
-                mask=mask
+                obs=deepcopy(self.obs),
+                action=deepcopy(actions),
+                reward=deepcopy(reward),
+                next_obs=deepcopy(next_obs),
+                mask=deepcopy(mask['mask'])
             )
 
-            self.obs = next_obs
+            self.obs = deepcopy(next_obs)
 
     def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
         self.vec_MDP_collector.reset()

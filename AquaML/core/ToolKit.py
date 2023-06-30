@@ -1,5 +1,7 @@
 import numpy as np
 from copy import deepcopy
+from AquaML.core.DataParser import DataSet
+import tensorflow as tf
 
 
 # def display_dict(dic: dict):
@@ -167,7 +169,10 @@ class LossTracker:
 
             if all_name not in self.loss_dict:
                 self.loss_dict[all_name] = []
-            self.loss_dict[all_name].append(value.numpy())
+            if isinstance(value, tf.Tensor):
+                self.loss_dict[all_name].append(value.numpy())
+            else:
+                self.loss_dict[all_name].append(value)
 
     def reset(self):
         self.loss_dict = {}
@@ -183,3 +188,30 @@ class LossTracker:
         # 获取data以后自动释放内存
         self.reset()
         return loss_dict
+
+class DataSetTracker:
+    """
+    用于追踪多线程或者需要分段处理数据，最后将数据进行汇总为标准训练集
+    """
+    def __init__(self):
+        self.data_dict = {}
+
+    def add_data(self, data_dict: dict, prefix: str = ''):
+
+        if len(prefix) > 0:
+            prefix = prefix + '/'
+
+        for key, value in data_dict.items():
+
+            all_name = prefix + key
+
+            if all_name not in self.data_dict:
+                self.data_dict[all_name] = []
+            self.data_dict[all_name].append(value)
+
+    def gett_data(self):
+        data_dict = {}
+        for key, value in self.data_dict.items():
+            data_dict[key] = np.vstack(value)
+
+        return data_dict

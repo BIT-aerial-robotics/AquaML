@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from AquaML.data.DataPool import DataPool
 from AquaML.core.DataParser import DataInfo
+import tensorflow as tf
 
 
 class DataCollection:
@@ -172,6 +173,7 @@ class ThreadManagerScheduler:
         self.MPI = MPIThreadManager
         self.Single = SingleThreadManager
 
+
 # TODO: 线程管理器提高到全局变量
 class CommunicatorBase(ABC):
     def __init__(self, thread_manager_info: dict, project_name):
@@ -206,6 +208,9 @@ class CommunicatorBase(ABC):
 
         self.indicate_pool_start_index = 0
         self.indicate_pool_end_index = 0
+
+    def Barrier(self):
+        self.thread_manager.Barrier()
 
     def compute_start_end_index(self, data_pool_size: int, indicate_pool_size: int, worker_threads: int,
                                 worker_id: int):
@@ -259,15 +264,16 @@ class CommunicatorBase(ABC):
             agent_name (str): agent的名称。
         """
         return self._collection_data_fict[agent_name].data_pool.get_numpy_dict()
-    
+
     def get_pointed_data_pool(self, agent_name: str, data_name: str, start_index: int, end_index: int):
 
         return self._collection_data_fict[agent_name].data_pool.get_unit(data_name)[start_index:end_index]
-    
+
     def get_pointed_data_pool_dict(self, agent_name: str, data_name: list, start_index: int, end_index: int):
         ret_dict = {}
         for name in data_name:
-            ret_dict[name] = self._collection_data_fict[agent_name].data_pool.get_unit(name)[start_index:end_index]
+            ret_dict[name] = self._collection_data_fict[agent_name].data_pool.get_unit(name).buffer[
+                             start_index:end_index]
         return ret_dict
 
     def get_indicate_pool_dict(self, agent_name: str):
@@ -302,8 +308,10 @@ class CommunicatorBase(ABC):
         self._collection_data_fict[agent_name].data_pool.store_sequence(data_name, data, start_index, end_index)
 
     def store_data_dict(self, agent_name: str, data_dict: dict, start_index, end_index):
-
+        #
         for data_name, data in data_dict.items():
+            # if isinstance(data, tf.Tensor):
+            #     data = data.numpy()
             self.store_data(agent_name, data_name, data, start_index, end_index)
 
     def store_indicate_dict(self, agent_name: str, indicate_dict: dict, index, pre_fix=None):
@@ -343,7 +351,7 @@ class CommunicatorBase(ABC):
 
 
 class Communicator(CommunicatorBase):
-    def __init__(self, thread_manager_info: dict, project_name:str):
+    def __init__(self, thread_manager_info: dict, project_name: str):
         super().__init__(
             thread_manager_info=thread_manager_info,
             project_name=project_name

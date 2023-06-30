@@ -330,14 +330,15 @@ class AquaRL(BaseAqua):
                 print('####################{}####################'.format(epoch + 1))
                 loss_info, reward_info = self.agent.optimize(std_data_set)
 
+                del std_data_set
+
                 for key, value in loss_info.items():
                     print(key, value)
 
                 for key, value in reward_info.items():
                     print(key, value)
 
-                if self.env_type != 'Vec':
-                    self.sync()
+                self.sync()
 
             self.communicator.thread_manager.Barrier()
 

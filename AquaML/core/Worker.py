@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from AquaML.core.RLToolKit import VecCollector, VecMDPCollector, RLStandardDataSet
 from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
 import numpy as np
-from copy import deepcopy
+from copy import deepcopy, copy
+
 
 class BaseWorker(ABC):
     """
@@ -108,8 +109,8 @@ class RLAgentWorker(BaseWorker):
                     agent=agent,
                     step=step,
                     rollout_steps=rollout_steps
-            )
-                
+                )
+
             obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.collector.get_data()
 
             start_index = self.communicator.data_pool_start_index
@@ -120,7 +121,7 @@ class RLAgentWorker(BaseWorker):
             for key, value in action_dict.items():
                 if 'hidden_' not in key:
                     new_action_dict[key] = value
-            
+
             # 推送数据
             self.communicator.store_data_dict(
                 agent_name=agent.name,
@@ -156,7 +157,7 @@ class RLAgentWorker(BaseWorker):
                 start_index=start_index,
                 end_index=end_index,
             )
-        
+
         self.communicator.thread_manager.Barrier()
         if self.optimize_enable:
             # 获取所有数据并且按照规定格式整理
@@ -170,16 +171,16 @@ class RLAgentWorker(BaseWorker):
             next_obs_dict = {}
 
             for key in self.obs_names:
-                obs_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps ,-1))
-                next_obs_dict['next_' + key] = np.reshape(buffer['next_'+key], (num_envs, rollout_steps ,-1))
-            
-            for key in self.action_names:
-                action_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps ,-1))
-            
-            for key in self.reward_names:
-                reward_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps ,-1))
+                obs_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps, -1))
+                next_obs_dict['next_' + key] = np.reshape(buffer['next_' + key], (num_envs, rollout_steps, -1))
 
-            mask = np.reshape(buffer['mask'], (num_envs, rollout_steps ,-1))
+            for key in self.action_names:
+                action_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps, -1))
+
+            for key in self.reward_names:
+                reward_dict[key] = np.reshape(buffer[key], (num_envs, rollout_steps, -1))
+
+            mask = np.reshape(buffer['mask'], (num_envs, rollout_steps, -1))
 
             std_data_set(
                 obs=obs_dict,
@@ -188,9 +189,6 @@ class RLAgentWorker(BaseWorker):
                 next_obs=next_obs_dict,
                 mask=mask,
             )
-
-
-        
 
 
 class Evaluator(BaseWorker):
@@ -307,7 +305,6 @@ class RLVectorEnvWorker(BaseWorker):
     def step(self, agent):
 
         if self.optimize_enable:
-
             # format of data: (mxn, ...)
             # m: number of threads, n: number envs in each thread
 
@@ -417,18 +414,20 @@ class RLVectorEnvWorker(BaseWorker):
             self.communicator.Barrier()
 
             if self.optimize_enable:
-                self.obs = self.communicator.get_pointed_data_pool_dict(
+                obs = self.communicator.get_pointed_data_pool_dict(
                     agent_name=agent.name,
                     data_name=self.obs_names,
                     start_index=self.start_index,
                     end_index=self.end_index
                 )
 
+                self.obs = deepcopy(obs)
+
         self.communicator.Barrier()
 
         for _ in range(rollout_steps):
             self.step(agent)
-        
+
         if self.optimize_enable:
             obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.vec_MDP_collector.get_data()
 
@@ -439,4 +438,3 @@ class RLVectorEnvWorker(BaseWorker):
                 next_obs=next_obs_dict,
                 mask=mask
             )
-            

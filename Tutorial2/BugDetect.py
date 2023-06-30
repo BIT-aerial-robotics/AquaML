@@ -134,7 +134,7 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': (reward+8)/8, 'indicate_reward': reward}
+        reward = {'total_reward': reward, 'indicate_reward': reward}
 
         return obs, reward, done, info
 
@@ -148,11 +148,11 @@ vec_env = RLVectorEnv(PendulumWrapper, 4)
 parameters = PPOAgentParameter(
     rollout_steps=1000,
     epochs=100,
-    batch_size=128,
-    update_times=2,
+    batch_size=64,
+    update_times=4,
     max_steps=200,
-    update_actor_times=4,
-    update_critic_times=4,
+    update_actor_times=1,
+    update_critic_times=1,
     eval_episodes=20,
     eval_interval=10,
     eval_episode_length=200,

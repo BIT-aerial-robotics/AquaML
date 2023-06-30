@@ -233,6 +233,8 @@ class PPOAgent(BaseRLAgent):
 
         summary = self.loss_tracker.get_data()
 
+        del data_set
+
         return summary, reward_info
 
     def _resample_log_prob_no_std(self, obs, action):

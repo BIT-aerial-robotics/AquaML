@@ -22,10 +22,10 @@ class Actor_net(tf.keras.Model):
     def __init__(self):
         super(Actor_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu',kernel_initializer=tf.keras.initializers.orthogonal())
-        self.dense2 = tf.keras.layers.Dense(64, activation='relu',kernel_initializer=tf.keras.initializers.orthogonal())
-        self.action_layer = tf.keras.layers.Dense(1, activation='tanh',kernel_initializer=tf.keras.initializers.orthogonal())
-        self.log_std = tf.keras.layers.Dense(1, activation='tanh',kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
+        # self.log_std = tf.keras.layers.Dense(1, activation='tanh')
 
         # self.learning_rate = 2e-5
 
@@ -36,8 +36,8 @@ class Actor_net(tf.keras.Model):
         self.optimizer_info = {
             'type': 'Adam',
             'args': {'learning_rate': 2e-3,
-                     'epsilon': 1e-5,
-                     'clipnorm': 0.5,
+                     # 'epsilon': 1e-5,
+                     # 'clipnorm': 0.5,
                      },
         }
 
@@ -78,8 +78,8 @@ class Critic_net(tf.keras.Model):
         self.optimizer_info = {
             'type': 'Adam',
             'args': {'learning_rate': 2e-3,
-                     'epsilon': 1e-5,
-                     'clipnorm': 0.5,
+                     # 'epsilon': 1e-5,
+                     # 'clipnorm': 0.5,
                      }
         }
 
@@ -159,16 +159,16 @@ eval_env = PendulumWrapper()
 vec_env = RLVectorEnv(PendulumWrapper, 20)
 parameters = PPOAgentParameter(
     rollout_steps=200,
-    epochs=100,
-    batch_size=256,
+    epochs=200,
+    batch_size=2000,
     update_times=4,
     max_steps=200,
     update_actor_times=1,
-    update_critic_times=4,
+    update_critic_times=2,
     eval_episodes=20,
     eval_interval=10,
     eval_episode_length=200,
-    entropy_coef=0.1,
+    entropy_coef=0.01,
     batch_advantage_normalization=True,
     checkpoint_interval=10,
     min_steps=200,
@@ -184,7 +184,7 @@ rl = AquaRL(
     env=vec_env,
     agent=PPOAgent,
     agent_info_dict=agent_info_dict,
-    # eval_env=eval_env,
+    eval_env=eval_env,
     # comm=comm,
     name='debug'
 )

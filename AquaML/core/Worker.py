@@ -3,7 +3,7 @@ from AquaML.core.RLToolKit import VecCollector, VecMDPCollector, RLStandardDataS
 from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
 import numpy as np
 from copy import deepcopy, copy
-
+import tensorflow as tf
 
 class BaseWorker(ABC):
     """
@@ -312,33 +312,152 @@ class RLVectorEnvWorker(BaseWorker):
 
     def step(self, agent):
 
-        actions = agent.get_action(self.obs)
+        if self.optimize_enable:
+            # format of data: (mxn, ...)
+            # m: number of threads, n: number envs in each thread
 
-        next_obs, reward, done, computing_obs = self.vec_env.step(actions)
+            actions = agent.get_action(self.obs)
 
-        self.vec_MDP_collector.store_data(
-            obs=deepcopy(self.obs),
-            action=deepcopy(actions),
-            reward=deepcopy(reward),
-            next_obs=deepcopy(next_obs),
-            mask=deepcopy(done)
-        )
+            # print(actions['action'][0])
 
-        self.obs = deepcopy(computing_obs)
+            # push to data pool
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=actions,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+        self.communicator.Barrier()
+
+        if self.sample_enable:
+            # TODO: 这里的代码需要优化
+            # get action from data pool
+            actions_ = self.communicator.get_pointed_data_pool_dict(
+                agent_name=agent.name,
+                data_name=self.action_names,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            # print(actions['action'][0])
+
+            # step
+            next_obs, reward, done, computing_obs = self.vec_env.step(deepcopy(actions_))
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=computing_obs,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=next_obs,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict=reward,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            self.communicator.store_data_dict(
+                agent_name=agent.name,
+                data_dict={'mask': done},
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+        self.communicator.Barrier()
+
+        if self.optimize_enable:
+            # store data to MDP collector
+            next_obs_ = self.communicator.get_pointed_data_pool_dict(
+                agent_name=agent.name,
+                data_name=self.next_obs_names,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            computing_obs_ = self.communicator.get_pointed_data_pool_dict(
+                agent_name=agent.name,
+                data_name=self.obs_names,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            reward_ = self.communicator.get_pointed_data_pool_dict(
+                agent_name=agent.name,
+                data_name=self.reward_names,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            mask = self.communicator.get_pointed_data_pool_dict(
+                agent_name=agent.name,
+                data_name=['mask'],
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            actions_ = self.communicator.get_pointed_data_pool_dict(
+                agent_name=agent.name,
+                data_name=self.action_names,
+                start_index=self.start_index,
+                end_index=self.end_index
+            )
+
+            self.vec_MDP_collector.store_data(
+                obs=deepcopy(self.obs),
+                action=deepcopy(actions_),
+                reward=deepcopy(reward_),
+                next_obs=deepcopy(next_obs_),
+                mask=deepcopy(mask['mask'])
+         )
+
+            self.obs = deepcopy(computing_obs_)
 
     def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
         self.vec_MDP_collector.reset()
+
         if self.initial_flag:
             self.initial_flag = False
-            obs = self.vec_env.reset()
-            self.obs = deepcopy(obs)
+            if self.sample_enable:
+                obs = self.vec_env.reset()
+
+                # push to data pool
+                self.communicator.store_data_dict(
+                    agent_name=agent.name,
+                    data_dict=obs,
+                    start_index=self.start_index,
+                    end_index=self.end_index
+                )
+
+                self.communicator.Barrier()
+
+                if self.optimize_enable:
+                    obs = self.communicator.get_pointed_data_pool_dict(
+                        agent_name=agent.name,
+                        data_name=self.obs_names,
+                        start_index=self.start_index,
+                        end_index=self.end_index
+                    )
+
+                    self.obs = deepcopy(obs)
+        self.communicator.Barrier()
 
         for _ in range(rollout_steps):
             self.step(agent)
 
-        obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.vec_MDP_collector.get_data()
+        if self.optimize_enable:
+            obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.vec_MDP_collector.get_data()
 
-        std_data_set(
+            std_data_set(
                 obs=obs_dict,
                 action=action_dict,
                 reward=reward_dict,

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 import numpy as np
 from AquaML.core.DataParser import DataInfo
+import copy
 
 
 class RLStandardDataSet:
@@ -226,13 +227,14 @@ class VecMDPCollector:
 
     def __init__(self,
                  obs_names,
+                 next_obs_names,
                  action_names,
                  reward_names,
                  ):
         self.obs_names = obs_names
         self.action_names = action_names
         self.reward_names = reward_names
-        self.next_obs_names = obs_names
+        self.next_obs_names = next_obs_names
 
         self.obs_dict = {}
         self.action_dict = {}
@@ -299,24 +301,24 @@ class VecMDPCollector:
         obs_dict = {}
 
         for name in self.obs_names:
-            obs_dict[name] = np.hstack(self.obs_dict[name])
+            obs_dict[name] = np.concatenate(self.obs_dict[name], axis=1)
 
         action_dict = {}
 
         for name in self.action_names:
-            action_dict[name] = np.hstack(self.action_dict[name])
+            action_dict[name] = np.concatenate(self.action_dict[name], axis=1)
 
         reward_dict = {}
 
         for name in self.reward_names:
-            reward_dict[name] = np.hstack(self.reward_dict[name])
+            reward_dict[name] = np.concatenate(self.reward_dict[name], axis=1)
 
         next_obs_dict = {}
 
         for name in self.next_obs_names:
-            next_obs_dict['next_' + name] = np.hstack(self.next_obs_dict[name])
+            next_obs_dict[name] = np.concatenate(self.next_obs_dict[name], axis=1)
 
-        mask = np.hstack(self.masks)
+        mask = np.concatenate(self.masks, axis=1)
 
         return obs_dict, action_dict, reward_dict, next_obs_dict, mask
 
@@ -328,10 +330,11 @@ class VecCollector:
 
     def __init__(self):
         self.obs_dict = {}
+        self.compute_obs_dict = {}
         self.reward_dict = {}
         self.masks = []
 
-    def append(self, obs, reward, mask):
+    def append(self, next_obs, reward, mask, computing_obs):
         """
         Append data to collector.
 
@@ -344,10 +347,16 @@ class VecCollector:
             reward (dict): reward.
             mask (int): mask.
         """
-        for name in obs.keys():
-            if name not in self.obs_dict.keys():
-                self.obs_dict[name] = []
-            self.obs_dict[name].append(obs[name])
+        for name in next_obs.keys():
+            all_name = 'next_' + name
+            if all_name not in self.obs_dict.keys():
+                self.obs_dict[all_name] = []
+            self.obs_dict[all_name].append(next_obs[name])
+
+        for name in computing_obs.keys():
+            if name not in self.compute_obs_dict.keys():
+                self.compute_obs_dict[name] = []
+            self.compute_obs_dict[name].append(computing_obs[name])
 
         for name in reward.keys():
             if name not in self.reward_dict.keys():
@@ -374,6 +383,7 @@ class VecCollector:
         """
         obs = {}
         reward = {}
+        compute_obs = {}
 
         for name in self.obs_dict.keys():
             obs[name] = np.vstack(self.obs_dict[name])
@@ -385,9 +395,14 @@ class VecCollector:
             if expand_dim:
                 reward[name] = np.expand_dims(reward[name], axis=0)
 
+        for name in self.compute_obs_dict.keys():
+            compute_obs[name] = np.vstack(self.compute_obs_dict[name])
+            if expand_dim:
+                compute_obs[name] = np.expand_dims(compute_obs[name], axis=0)
+
         mask = np.vstack(self.masks)
 
-        return obs, reward, mask
+        return obs, reward, mask, compute_obs
 
     def get_data_h(self, expand_dim=False):
         """
@@ -479,7 +494,9 @@ class RLBaseEnv(ABC):
         self.meta_parameters = {}  # meta参数接口
         self.reward_fn_input = []  # 计算reward需要哪些参数, 使用meta时候声明
 
-        self.last_done = True
+        self.done = True
+
+        self.id = None
 
     @abstractmethod
     def reset(self) -> tuple:
@@ -533,19 +550,22 @@ class RLBaseEnv(ABC):
         info (dict or None): info of environment.
 
         """
-
-        obs, reward, done, info = self.step(action_dict)
-
         self.steps += 1
+        next_obs, reward, done, info = self.step(action_dict)
 
         if self.steps >= max_step:
             done = True
 
         if done:
-            obs, flag = self.reset()
             self.steps = 0
+            obs, flag = self.reset()
+            computing_obs = obs
+        else:
+            computing_obs = next_obs
 
-        return obs, reward, done, info
+        # next_obs['step'] = self.steps
+
+        return next_obs, reward, done, computing_obs
 
     @abstractmethod
     def close(self):
@@ -601,6 +621,9 @@ class RLBaseEnv(ABC):
 
         return info
 
+    def set_id(self, id):
+        self.id = id
+
     def get_reward(self):
         """
         该函数用于计算reward，用于meta中得到reward，如果不需要使用，不用理会。
@@ -609,6 +632,12 @@ class RLBaseEnv(ABC):
 
         我们建议support env和core env使用不同reward函数，但是拥有一套meta参数。
         """
+
+    def seed(self, seed):
+        """
+        设置随机种子
+        """
+        raise NotImplementedError
 
 
 class RLVectorEnv:
@@ -646,7 +675,9 @@ class RLVectorEnv:
                 raise TypeError("envs_args must be list or dict")
 
         for i in range(num_envs):
-            self._envs.append(env(**envs_args_tuple[i]))
+            env_ = env(**envs_args_tuple[i])
+            env_.set_id(i)
+            self._envs.append(env_)
 
         ########################################
         # vectorized env info
@@ -719,12 +750,13 @@ class RLVectorEnv:
             sub_action_dict = {}
             for key, value in actions.items():
                 sub_action_dict[key] = value[i, :]
-            sub_obs, sub_rew, sub_done, sub_info = self._envs[i].step_vector(sub_action_dict, self._max_steps)
-            vec_collector.append(sub_obs, sub_rew, 1 - sub_done)
 
-        obs, rew, done = vec_collector.get_data(expand_dim=False)
+            sub_next_obs, sub_rew, sub_done, computing_obs = self._envs[i].step_vector(sub_action_dict, self._max_steps)
+            vec_collector.append(sub_next_obs, sub_rew, 1 - sub_done, computing_obs)
 
-        return obs, rew, done
+        obs, rew, done, compute_obs = vec_collector.get_data(expand_dim=False)
+
+        return obs, rew, done, compute_obs
 
     def reset(self):
         """

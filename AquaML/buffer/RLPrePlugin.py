@@ -89,6 +89,10 @@ class GAEComputer(PluginBase):
         next_values = data['next_value']
         rewards = data['total_reward']
 
+        last_value = next_values[-1]
+
+        mask = data['mask']
+
         gae = np.zeros_like(rewards)
         n_steps_target = np.zeros_like(rewards)
         cumulated_advantage = 0.0
@@ -97,8 +101,15 @@ class GAEComputer(PluginBase):
 
         for i in range(length):
             index -= 1
-            delta = rewards[index] + self.gamma * next_values[index] - values[index]
-            cumulated_advantage = self.gamma * self.lamda * cumulated_advantage + delta
+            if index == length - 1:
+                next_value = last_value
+                done = mask_end
+            else:
+                next_value = values[index + 1]
+                done = mask[index]
+
+            delta = rewards[index] + self.gamma * next_value*done - values[index]
+            cumulated_advantage = self.gamma * self.lamda * cumulated_advantage*done + delta
             gae[index] = cumulated_advantage
             n_steps_target[index] = gae[index] + values[index]
 
@@ -153,6 +164,8 @@ class SplitTrajectory:
                     'total_reward': np.sum(episode_traj['total_reward']),
                     'length': episode_length,
                 }
+                if 'indicate' in episode_traj:
+                    reward['indicate'] = np.sum(episode_traj['indicate'])
                 reward_tracker.add_data(reward, 'episode')
 
                 if end_mask == 1:

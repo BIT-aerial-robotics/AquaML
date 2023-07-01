@@ -22,12 +22,12 @@ class Actor_net(tf.keras.Model):
     def __init__(self):
         super(Actor_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
-        self.log_std = tf.keras.layers.Dense(1)
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu',kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu',kernel_initializer=tf.keras.initializers.orthogonal())
+        self.action_layer = tf.keras.layers.Dense(1, activation='tanh',kernel_initializer=tf.keras.initializers.orthogonal())
+        self.log_std = tf.keras.layers.Dense(1, activation='tanh',kernel_initializer=tf.keras.initializers.orthogonal())
 
-        self.learning_rate = 2e-4
+        # self.learning_rate = 2e-5
 
         self.output_info = {'action': (1,), }
 
@@ -35,7 +35,7 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4,
+            'args': {'learning_rate': 2e-3,
                      'epsilon': 1e-5,
                      'clipnorm': 0.5,
                      },
@@ -46,7 +46,7 @@ class Actor_net(tf.keras.Model):
         x = self.dense1(obs)
         x = self.dense2(x)
         action = self.action_layer(x)
-        # log_std = self.log_std(x)
+        # log_std = self.log_std(x)*10
 
         return (action,)
 
@@ -77,7 +77,7 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4,
+            'args': {'learning_rate': 2e-3,
                      'epsilon': 1e-5,
                      'clipnorm': 0.5,
                      }
@@ -99,60 +99,72 @@ class PendulumWrapper(RLBaseEnv):
     def __init__(self, env_name="Pendulum-v1"):
         super().__init__()
         # TODO: update in the future
+        self.step_s = 0
         self.env = gym.make(env_name)
         self.env_name = env_name
 
         # our frame work support POMDP env
         self._obs_info = DataInfo(
-            names=('obs',),
-            shapes=(3,),
+            names=('obs', 'id', 'step',),
+            shapes=((3,), (1,), (1,)),
             dtypes=np.float32
         )
 
-        self._reward_info = ['total_reward', 'indicate_reward']
+        self._reward_info = ['total_reward', 'indicate']
 
     def reset(self):
         observation = self.env.reset()
         observation = observation[0].reshape(1, -1)
+
+        self.step_s = 0
         # observation = observation.
 
         # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
 
-        obs = {'obs': observation}
+        obs = {'obs': observation, 'id': self.id, 'step': self.step_s}
 
         obs = self.initial_obs(obs)
 
         return obs, True  # 2.0.1 new version
 
     def step(self, action_dict):
+        self.step_s += 1
         action = action_dict['action']
+        if isinstance(action, tf.Tensor):
+            action = action.numpy()
         action *= 2
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
-        obs = {'obs': observation}
+        obs = {'obs': observation, 'id': self.id, 'step': self.step_s}
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': reward, 'indicate_reward': reward}
+        reward = {'total_reward': (reward+8)/8, 'indicate': reward}
+
+        # if self.id == 0:
+        #     print('reward', reward)
 
         return obs, reward, done, info
 
     def close(self):
         self.env.close()
 
+    # def seed(self, seed):
+    #     gym
+
 
 eval_env = PendulumWrapper()
 
-vec_env = RLVectorEnv(PendulumWrapper, 4)
+vec_env = RLVectorEnv(PendulumWrapper, 20)
 parameters = PPOAgentParameter(
-    rollout_steps=1000,
+    rollout_steps=200,
     epochs=100,
-    batch_size=64,
+    batch_size=256,
     update_times=4,
     max_steps=200,
     update_actor_times=1,
-    update_critic_times=1,
+    update_critic_times=4,
     eval_episodes=20,
     eval_interval=10,
     eval_episode_length=200,
@@ -172,7 +184,7 @@ rl = AquaRL(
     env=vec_env,
     agent=PPOAgent,
     agent_info_dict=agent_info_dict,
-    eval_env=eval_env,
+    # eval_env=eval_env,
     # comm=comm,
     name='debug'
 )

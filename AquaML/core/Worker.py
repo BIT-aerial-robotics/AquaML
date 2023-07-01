@@ -59,19 +59,12 @@ class RLAgentWorker(BaseWorker):
         self.obs = None
         self.episode_step_count = 0
 
-        # self.obs = None
+        self.obs = None
 
     def step(self, env, agent, step, rollout_steps):
         """
         采样一次数据。
         """
-
-        if self.reset_flag:
-            self.obs, flag = env.reset()
-            self.reset_flag = False
-
-            # TODO: aditional reset 这个地方作为未来的接口
-            self.episode_step_count = 0
 
         action_dict = agent.get_action(self.obs)
 
@@ -83,10 +76,17 @@ class RLAgentWorker(BaseWorker):
             done = True
 
         if done:
-            self.reset_flag = True
             mask = 0
         else:
             mask = 1
+
+        if done:
+            computing_obs, flag = env.reset()
+
+            # TODO: aditional reset 这个地方作为未来的接口
+            self.episode_step_count = 0
+        else:
+            computing_obs = obs_
 
         self.collector.store_data(
             obs=self.obs,
@@ -96,9 +96,14 @@ class RLAgentWorker(BaseWorker):
             mask=mask
         )
 
-        self.obs = obs_
+        self.obs = computing_obs
 
     def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
+        if self.reset_flag:
+            computing_obs, flag = self.env.reset()
+            self.reset_flag = False
+            self.episode_step_count = 0
+            self.obs = computing_obs
 
         if self.sample_enable:
             self.collector.reset()
@@ -284,6 +289,8 @@ class RLVectorEnvWorker(BaseWorker):
         self.obs_names = obs_names
         self.reward_names = reward_names
 
+        self.next_obs_names = ['next_' + name for name in obs_names]
+
         if self.thread_level == 0:
             # main process
             self.start_index = 0
@@ -299,139 +306,39 @@ class RLVectorEnvWorker(BaseWorker):
         self.vec_MDP_collector = VecMDPCollector(
             obs_names=self.obs_names,
             reward_names=self.reward_names,
-            action_names=self.action_names
+            action_names=self.action_names,
+            next_obs_names=self.next_obs_names,
         )
 
     def step(self, agent):
 
-        if self.optimize_enable:
-            # format of data: (mxn, ...)
-            # m: number of threads, n: number envs in each thread
+        actions = agent.get_action(self.obs)
 
-            actions = agent.get_action(self.obs)
+        next_obs, reward, done, computing_obs = self.vec_env.step(actions)
 
-            # push to data pool
-            self.communicator.store_data_dict(
-                agent_name=agent.name,
-                data_dict=actions,
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
+        self.vec_MDP_collector.store_data(
+            obs=deepcopy(self.obs),
+            action=deepcopy(actions),
+            reward=deepcopy(reward),
+            next_obs=deepcopy(next_obs),
+            mask=deepcopy(done)
+        )
 
-        self.communicator.Barrier()
-
-        if self.sample_enable:
-            # TODO: 这里的代码需要优化
-            # get action from data pool
-            actions = self.communicator.get_pointed_data_pool_dict(
-                agent_name=agent.name,
-                data_name=self.action_names,
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-            # step
-            next_obs, reward, done = self.vec_env.step(actions)
-
-            self.communicator.store_data_dict(
-                agent_name=agent.name,
-                data_dict=next_obs,
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-            self.communicator.store_data_dict(
-                agent_name=agent.name,
-                data_dict=reward,
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-            self.communicator.store_data_dict(
-                agent_name=agent.name,
-                data_dict={'mask': done},
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-        self.communicator.Barrier()
-
-        if self.optimize_enable:
-            # store data to MDP collector
-            next_obs = self.communicator.get_pointed_data_pool_dict(
-                agent_name=agent.name,
-                data_name=self.obs_names,
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-            reward = self.communicator.get_pointed_data_pool_dict(
-                agent_name=agent.name,
-                data_name=self.reward_names,
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-            mask = self.communicator.get_pointed_data_pool_dict(
-                agent_name=agent.name,
-                data_name=['mask'],
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-            actions = self.communicator.get_pointed_data_pool_dict(
-                agent_name=agent.name,
-                data_name=self.action_names,
-                start_index=self.start_index,
-                end_index=self.end_index
-            )
-
-            self.vec_MDP_collector.store_data(
-                obs=deepcopy(self.obs),
-                action=deepcopy(actions),
-                reward=deepcopy(reward),
-                next_obs=deepcopy(next_obs),
-                mask=deepcopy(mask['mask'])
-            )
-
-            self.obs = deepcopy(next_obs)
+        self.obs = deepcopy(computing_obs)
 
     def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
         self.vec_MDP_collector.reset()
         if self.initial_flag:
             self.initial_flag = False
-            if self.sample_enable:
-                obs = self.vec_env.reset()
-
-                # push to data pool
-                self.communicator.store_data_dict(
-                    agent_name=agent.name,
-                    data_dict=obs,
-                    start_index=self.start_index,
-                    end_index=self.end_index
-                )
-
-            self.communicator.Barrier()
-
-            if self.optimize_enable:
-                obs = self.communicator.get_pointed_data_pool_dict(
-                    agent_name=agent.name,
-                    data_name=self.obs_names,
-                    start_index=self.start_index,
-                    end_index=self.end_index
-                )
-
-                self.obs = deepcopy(obs)
-
-        self.communicator.Barrier()
+            obs = self.vec_env.reset()
+            self.obs = deepcopy(obs)
 
         for _ in range(rollout_steps):
             self.step(agent)
 
-        if self.optimize_enable:
-            obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.vec_MDP_collector.get_data()
+        obs_dict, action_dict, reward_dict, next_obs_dict, mask = self.vec_MDP_collector.get_data()
 
-            std_data_set(
+        std_data_set(
                 obs=obs_dict,
                 action=action_dict,
                 reward=reward_dict,

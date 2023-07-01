@@ -315,14 +315,20 @@ class AquaRL(BaseAqua):
         运行。
         """
         # TODO: 接口不完善需要统一
-        if self.optimize_enable:
-            if self.env_type != 'Vec':
-                self.sync()
+        # if self.optimize_enable:
+            # if self.env_type != 'Vec':
+            #     self.sync()
             # self.sync()
 
         for epoch in range(self.agent_params.epochs):
 
+            if self.optimize_enable:
+                self.sync()
+
             self.communicator.thread_manager.Barrier()
+
+            if self.sample_enable:
+                self.sync()
 
             std_data_set = self.sampling()
 
@@ -342,32 +348,32 @@ class AquaRL(BaseAqua):
 
             self.communicator.thread_manager.Barrier()
 
-            if (epoch + 1) % self.agent_params.eval_interval == 0:
-
-                if self.sample_enable:
-                    self.sync()
-                    self.evaluate()
-
-                self.communicator.thread_manager.Barrier()
-
-                if self.optimize_enable:
-                    # 汇总数据
-                    summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
-
-                    # 计算平均值
-                    new_summery_dict = {}
-                    pre_fix = 'reward/'
-                    for key, value in summery_dict.items():
-                        # if 'reward' in key:
-                        if 'max' in key:
-                            new_summery_dict[pre_fix + key] = np.max(value)
-                        elif 'min' in key:
-                            new_summery_dict[pre_fix + key] = np.min(value)
-                        else:
-                            new_summery_dict[pre_fix + key] = np.mean(value)
-
-                    # 记录数据
-                    for key, value in new_summery_dict.items():
-                        print(key, value)
-
-                    self.recoder.record_scalar(new_summery_dict, epoch + 1)
+            # if (epoch + 1) % self.agent_params.eval_interval == 0:
+            #
+            #     if self.sample_enable:
+            #         self.sync()
+            #         self.evaluate()
+            #
+            #     self.communicator.thread_manager.Barrier()
+            #
+            #     if self.optimize_enable:
+            #         # 汇总数据
+            #         summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
+            #
+            #         # 计算平均值
+            #         new_summery_dict = {}
+            #         pre_fix = 'reward/'
+            #         for key, value in summery_dict.items():
+            #             # if 'reward' in key:
+            #             if 'max' in key:
+            #                 new_summery_dict[pre_fix + key] = np.max(value)
+            #             elif 'min' in key:
+            #                 new_summery_dict[pre_fix + key] = np.min(value)
+            #             else:
+            #                 new_summery_dict[pre_fix + key] = np.mean(value)
+            #
+            #         # 记录数据
+            #         for key, value in new_summery_dict.items():
+            #             print(key, value)
+            #
+            #         self.recoder.record_scalar(new_summery_dict, epoch + 1)

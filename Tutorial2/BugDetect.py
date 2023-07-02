@@ -17,6 +17,43 @@ from AquaML.core.RLToolKit import RLVectorEnv
 import tensorflow as tf
 
 
+class SharedActorCritic(tf.keras.Model):
+
+    def __init__(self):
+        super(SharedActorCritic, self).__init__()
+
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer1 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer2 = tf.keras.layers.Dense(1, activation='tanh')
+        self.value_layer1 = tf.keras.layers.Dense(64, activation='relu')
+        self.value_layer2 = tf.keras.layers.Dense(1, activation='linear')
+        # self.log_std = tf.keras.layers.Dense(1, activation='tanh')
+
+        # self.learning_rate = 2e-5
+
+        self.output_info = {'action': (1,), 'value': (1,)}
+
+        self.input_name = ('obs',)
+
+        self.optimizer_info = {
+            'type': 'Adam',
+            'args': {'learning_rate': 2e-3,
+                     # 'epsilon': 1e-5,
+                     # 'clipnorm': 0.5,
+                     },
+        }
+
+    def call(self, inputs, training=None, mask=None):
+        x = self.dense1(inputs)
+        x = self.dense2(x)
+        action_1 = self.action_layer1(x)
+        action = self.action_layer2(action_1)
+        value_1 = self.value_layer1(x)
+        value = self.value_layer2(value_1)
+        return (action, value,)
+
+
 class Actor_net(tf.keras.Model):
 
     def __init__(self):
@@ -161,22 +198,21 @@ parameters = PPOAgentParameter(
     rollout_steps=200,
     epochs=200,
     batch_size=2000,
-    update_times=8,
+    update_times=4,
     max_steps=200,
     update_actor_times=1,
     update_critic_times=2,
     eval_episodes=20,
     eval_interval=10000,
     eval_episode_length=200,
-    entropy_coef=0.01,
+    entropy_coef=0.1,
     batch_advantage_normalization=True,
     checkpoint_interval=10,
     min_steps=200,
 )
 
 agent_info_dict = {
-    'actor': Actor_net,
-    'critic': Critic_net,
+    'actor': SharedActorCritic,
     'agent_params': parameters,
 }
 

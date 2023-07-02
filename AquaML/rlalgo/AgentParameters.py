@@ -99,6 +99,7 @@ class PPOAgentParameter(BaseAgentParameter):
                  update_critic_times: int,
                  update_actor_times: int,
                  batch_advantage_normalization: bool = True,
+                 vf_coef: float = 0.5,
                  min_steps: int = 1,
                  checkpoint_interval: int = 10,
                  clip_ratio: float = 0.2,
@@ -159,3 +160,5 @@ class PPOAgentParameter(BaseAgentParameter):
         self.entropy_coef = entropy_coef
 
         self.batch_advantage_normalization = batch_advantage_normalization
+
+        self.vf_coef = vf_coef

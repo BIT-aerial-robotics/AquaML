@@ -61,9 +61,11 @@ class ValueFunctionComputer(PluginBase):
             for name in input_name:
                 next_input.append(data['next_' + name][-1].reshape((1, -1)))
 
-            end_value = self.value_model(*next_input).numpy()
+            output2 = self.value_model(*next_input)
 
-            end_value = np.squeeze(end_value)
+            value2 = dict(zip(output_names, output2))['value'].numpy()
+
+            end_value = np.squeeze(value2)
 
             # end_value = np.squeeze(self.value_model(*next_input).numpy())
 
@@ -160,13 +162,7 @@ class SplitTrajectory:
                     episode_traj[key] = value[start_idx:terminal_idx]
 
                 episode_length = terminal_idx - start_idx
-                reward = {
-                    'total_reward': np.sum(episode_traj['total_reward']),
-                    'length': episode_length,
-                }
-                if 'indicate' in episode_traj:
-                    reward['indicate'] = np.sum(episode_traj['indicate'])
-                reward_tracker.add_data(reward, 'episode')
+
 
                 if end_mask == 1:
                     store_flag = True
@@ -178,7 +174,15 @@ class SplitTrajectory:
                     # 插件处理部分
                     for plugin in self._plugin_list:
                         processed_data = plugin(episode_traj, end_mask)
+
                         episode_traj.update(processed_data)
+                        reward = {
+                            'total_reward': np.sum(episode_traj['total_reward']),
+                            'length': episode_length,
+                        }
+                        if 'indicate' in episode_traj:
+                            reward['indicate'] = np.sum(episode_traj['indicate'])
+                        reward_tracker.add_data(reward, 'episode')
 
                     data_set_tracker.add_data(episode_traj)
 

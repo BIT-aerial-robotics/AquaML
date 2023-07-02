@@ -13,9 +13,10 @@ class PPOAgent(BaseRLAgent):
     def __init__(self,
                  name: str,
                  actor,
-                 critic,
+
                  agent_params: PPOAgentParameter,
                  level: int = 0,  # 控制是否创建不交互的agent
+                 critic=None,
                  ):
 
         super().__init__(
@@ -27,14 +28,16 @@ class PPOAgent(BaseRLAgent):
         self._episode_tool = None
         self.actor = actor()
 
-        self.critic = critic()
+        if critic is None:
+            self.critic = self.actor
+            self.model_type = 'share'
+        else:
+            self.critic = critic()
+            self.model_type = 'independent'
 
     def init(self):
         self.initialize_actor()
         if self.level == 0:
-
-            # 初始化critic网络
-            self.initialize_critic()
 
             # 创建优化器
             # 检测actor是否包含优化器参数
@@ -43,16 +46,29 @@ class PPOAgent(BaseRLAgent):
             else:
                 raise AttributeError(f'{self.actor.__class__.__name__} has no optimizer_info attribute')
 
-            # 检测critic是否包含优化器参数
-            if hasattr(self.critic, 'optimizer_info'):
-                self.critic_optimizer = self.create_optimizer(self.critic.optimizer_info)
-            else:
-                raise AttributeError(f'{self.critic.__class__.__name__} has no optimizer_info attribute')
+            # 初始化critic网络
+            if self.model_type == 'share':
+                if 'log_std' in self.actor.output_info:
+                    self.value_idx = 2
+                else:
+                    self.value_idx = 1
 
-            self._all_model_dict = {
-                'actor': self.actor,
-                'critic': self.critic,
-            }
+                self._all_model_dict = {
+                    'actor': self.actor,
+                }
+            else:
+
+                # 检测critic是否包含优化器参数
+                if hasattr(self.critic, 'optimizer_info'):
+                    self.critic_optimizer = self.create_optimizer(self.critic.optimizer_info)
+                else:
+                    raise AttributeError(f'{self.critic.__class__.__name__} has no optimizer_info attribute')
+
+                self._all_model_dict = {
+                    'actor': self.actor,
+                    'critic': self.critic,
+                }
+                self.initialize_critic()
 
             ########################################
             # 创建buffer,及其计算插件
@@ -185,6 +201,54 @@ class PPOAgent(BaseRLAgent):
 
         return dic
 
+    def train_shared(self,
+                     target: tf.Tensor,
+                     actor_inputs: list,
+                     advantage: tf.Tensor,
+                     old_log_prob: tf.Tensor,
+                     action: tf.Tensor,
+                     clip_ratio: float,
+                     entropy_coef: float,
+                     vf_coef: float,
+                     ):
+        old_log_prob = tf.math.log(old_log_prob)
+        with tf.GradientTape() as tape:
+            tape.watch(self.actor_train_vars)
+
+            out = self.resample_prob(actor_inputs, action)
+
+            log_prob = out[0]
+            log_std = out[1]
+            mu = out[2]
+            value = out[self.value_idx + 2]
+
+            ratio = tf.exp(log_prob - old_log_prob)
+
+            actor_surrogate_loss = tf.reduce_mean(
+                tf.minimum(
+                    ratio * advantage,
+                    tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
+                )
+            )
+
+            entropy_loss = tf.reduce_mean(self.explore_policy.get_entropy(mu, log_std))
+
+            value_loss = tf.reduce_mean(tf.square(target - value))
+
+            total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * value_loss
+
+        actor_grads = tape.gradient(total_loss, self.actor_train_vars)
+        self.actor_optimizer.apply_gradients(zip(actor_grads, self.actor_train_vars))
+
+        dic = {
+            'total_loss': total_loss,
+            'actor_surrogate_loss': actor_surrogate_loss,
+            'entropy_loss': entropy_loss,
+            'value_loss': value_loss,
+        }
+
+        return dic
+
     @property
     def actor_train_vars(self):
         return self._actor_train_vars
@@ -205,31 +269,45 @@ class PPOAgent(BaseRLAgent):
                 for name in self.actor.input_name:
                     actor_input_obs.append(batch_data[name])
 
-                for name in self.critic.input_name:
-                    critic_input_obs.append(batch_data[name])
-
                 advantage = batch_data['advantage']
 
                 if self.agent_params.batch_advantage_normalization:
                     advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
 
-                for _ in range(self.agent_params.update_critic_times):
-                    critic_optimize_info = self.train_critic(
-                        critic_inputs=critic_input_obs,
-                        target=batch_data['target'],
-                    )
-                    self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
-
-                for _ in range(self.agent_params.update_actor_times):
-                    actor_optimize_info = self.train_actor(
+                if self.model_type == 'share':
+                    shared_optimize_info = self.train_shared(
                         actor_inputs=actor_input_obs,
+                        target=batch_data['target'],
                         advantage=advantage,
                         old_log_prob=batch_data['prob'],
                         action=batch_data['action'],
                         clip_ratio=self.agent_params.clip_ratio,
                         entropy_coef=self.agent_params.entropy_coef,
+                        vf_coef=self.agent_params.vf_coef,
                     )
-                    self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
+                    self.loss_tracker.add_data(shared_optimize_info, prefix='shared')
+                else:
+
+                    for name in self.critic.input_name:
+                        critic_input_obs.append(batch_data[name])
+
+                    for _ in range(self.agent_params.update_critic_times):
+                        critic_optimize_info = self.train_critic(
+                            critic_inputs=critic_input_obs,
+                            target=batch_data['target'],
+                        )
+                        self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
+
+                    for _ in range(self.agent_params.update_actor_times):
+                        actor_optimize_info = self.train_actor(
+                            actor_inputs=actor_input_obs,
+                            advantage=advantage,
+                            old_log_prob=batch_data['prob'],
+                            action=batch_data['action'],
+                            clip_ratio=self.agent_params.clip_ratio,
+                            entropy_coef=self.agent_params.entropy_coef,
+                        )
+                        self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
 
         summary = self.loss_tracker.get_data()
 
@@ -254,7 +332,7 @@ class PPOAgent(BaseRLAgent):
         std = tf.exp(self.tf_log_std)
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
-        return (log_prob, self.tf_log_std, mu)
+        return (log_prob, self.tf_log_std, *out)
 
     def _resample_log_prob_log_std(self, obs: tuple, action):
         """
@@ -279,7 +357,7 @@ class PPOAgent(BaseRLAgent):
 
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
-        return (log_prob, log_std, mu)
+        return (log_prob, log_std, *out)
 
     @staticmethod
     def get_algo_name():

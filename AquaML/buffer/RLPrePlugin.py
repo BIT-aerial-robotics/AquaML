@@ -30,6 +30,11 @@ class ValueFunctionComputer(PluginBase):
 
         self.value_model = value_model
 
+        if 'log_std' in self.value_model.output_info.keys():
+            self.vf_idx = 2
+        else:
+            self.vf_idx = 1
+
     def _process(self, data: dict, mask_end):
 
         """
@@ -63,9 +68,14 @@ class ValueFunctionComputer(PluginBase):
 
             output2 = self.value_model(*next_input)
 
-            value2 = dict(zip(output_names, output2))['value'].numpy()
+            if isinstance(output2, tf.Tensor):
+                end_value = output2.numpy()
+            elif isinstance(output2, list) or isinstance(output2, tuple):
+                end_value = output2[self.vf_idx].numpy()
+            else:
+                raise ValueError('model is not a tensor or a list or a tuple')
 
-            end_value = np.squeeze(value2)
+            end_value = np.squeeze(end_value)
 
             # end_value = np.squeeze(self.value_model(*next_input).numpy())
 

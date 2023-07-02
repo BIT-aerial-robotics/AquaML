@@ -86,6 +86,7 @@ class AquaRL(BaseAqua):
                  env,
                  agent,
                  agent_info_dict: dict,
+                 decay_lr: bool = False,
                  state_norm: bool = False,
                  reward_norm: bool = False,
                  eval_env=None,
@@ -106,6 +107,13 @@ class AquaRL(BaseAqua):
                 如无特殊需求，agent's name可以使用算法默认值。
             eval_env (BaseEnv, optional): 评估环境。默认为None。在使用VectorEnv时候，eval_env必须存在。
         """
+
+
+        ########################################
+        # 初始化环境参数
+        ########################################
+
+        self.decay_lr = decay_lr
 
         ########################################
         # 初始化communicator参数
@@ -178,6 +186,7 @@ class AquaRL(BaseAqua):
 
         # 计算Roll一次所有线程产生的样本量
         self._total_steps = self.agent_params.rollout_steps * self._total_envs
+        self._max_total_steps = self._total_steps * self.agent_params.epochs
 
         ########################################
         # 初始化env
@@ -418,6 +427,8 @@ class AquaRL(BaseAqua):
 
             std_data_set = self.sampling()
 
+            self.communicator.thread_manager.Barrier()
+
             if self.optimize_enable:
                 print('####################{}####################'.format(epoch + 1))
                 loss_info, reward_info = self.agent.optimize(std_data_set)
@@ -430,39 +441,51 @@ class AquaRL(BaseAqua):
                 for key, value in reward_info.items():
                     print(key, value)
 
+                current_steps = self.agent_params.rollout_steps * self._total_envs * (epoch + 1)
+
+                if self.decay_lr:
+                    for name, param in self.agent.get_optimizer_pool.items():
+                        optimizer = param['optimizer']
+                        lr = param['lr']
+                        lr_now = lr * (1 - current_steps / self._max_total_steps)
+                        optimizer.learning_rate.assign(lr_now)
+                        print('{} lr:{}'.format(name, lr_now))
+
                 self.sync()
 
                 self.recoder.record_scalar(reward_info, epoch + 1)
                 self.recoder.record_scalar(loss_info, epoch + 1)
 
-            self.communicator.thread_manager.Barrier()
+            # self.communicator.thread_manager.Barrier()
 
-            if (epoch + 1) % self.agent_params.eval_interval == 0:
-
-                if self.sample_enable:
-                    self.sync()
-                    self.evaluate()
-
-                self.communicator.thread_manager.Barrier()
-
-                if self.optimize_enable:
-                    # 汇总数据
-                    summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
-
-                    # 计算平均值
-                    new_summery_dict = {}
-                    pre_fix = 'reward/'
-                    for key, value in summery_dict.items():
-                        # if 'reward' in key:
-                        if 'max' in key:
-                            new_summery_dict[pre_fix + key] = np.max(value)
-                        elif 'min' in key:
-                            new_summery_dict[pre_fix + key] = np.min(value)
-                        else:
-                            new_summery_dict[pre_fix + key] = np.mean(value)
-
-                    # 记录数据
-                    for key, value in new_summery_dict.items():
-                        print(key, value)
-
-                    self.recoder.record_scalar(new_summery_dict, epoch + 1)
+            # if (epoch + 1) % self.agent_params.eval_interval == 0:
+            #
+            #     if self.sample_enable:
+            #         self.sync()
+            #         self.evaluate()
+            #
+            #     self.communicator.thread_manager.Barrier()
+            #
+            #     if self.optimize_enable:
+            #         # 汇总数据
+            #         summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
+            #
+            #         # 计算平均值
+            #         new_summery_dict = {}
+            #         pre_fix = 'reward/'
+            #         for key, value in summery_dict.items():
+            #             # if 'reward' in key:
+            #             if 'max' in key:
+            #                 new_summery_dict[pre_fix + key] = np.max(value)
+            #             elif 'min' in key:
+            #                 new_summery_dict[pre_fix + key] = np.min(value)
+            #             else:
+            #                 new_summery_dict[pre_fix + key] = np.mean(value)
+            #
+            #         # 记录数据
+            #         for key, value in new_summery_dict.items():
+            #             print(key, value)
+            #
+            #
+            #
+            #         self.recoder.record_scalar(new_summery_dict, epoch + 1)

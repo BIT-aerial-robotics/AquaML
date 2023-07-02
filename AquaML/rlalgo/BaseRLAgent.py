@@ -62,6 +62,8 @@ class BaseRLAgent(BaseAgent, ABC):
             'critic': {},
         }  # 网络输入数据处理信息
 
+        self._optimizer_pool = {}
+
         # 子类需要根据需要创建的值
         self.actor = None
         self.critic = None
@@ -343,14 +345,24 @@ class BaseRLAgent(BaseAgent, ABC):
             for name, value in self._tf_explore_dict.items():
                 value.assign(self._explore_dict[name].buffer)
 
-    def create_optimizer(self, optimizer_info):
+    def create_optimizer(self, optimizer_info, name):
 
         type = optimizer_info['type']
         args = optimizer_info['args']
 
         optimizer = getattr(tf.keras.optimizers, type)(**args)
 
-        return optimizer
+        setattr(self, name, optimizer)
+
+        self._optimizer_pool[name] = {
+            'optimizer': optimizer,
+            'lr': args['learning_rate'],
+        }
+
+        # return optimizer
+    @property
+    def get_optimizer_pool(self):
+        return self._optimizer_pool
 
     def get_collection_info(self, reward_info: tuple or list, woker_num):
         """

@@ -225,6 +225,7 @@ rl = AquaRL(
     name='debug',
     reward_norm=True,
     state_norm=True,
+    decay_lr=True,
 )
 
 rl.run()

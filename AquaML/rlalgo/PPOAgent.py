@@ -42,7 +42,7 @@ class PPOAgent(BaseRLAgent):
             # 创建优化器
             # 检测actor是否包含优化器参数
             if hasattr(self.actor, 'optimizer_info'):
-                self.actor_optimizer = self.create_optimizer(self.actor.optimizer_info)
+                self.create_optimizer(self.actor.optimizer_info, 'actor_optimizer')
             else:
                 raise AttributeError(f'{self.actor.__class__.__name__} has no optimizer_info attribute')
 
@@ -60,7 +60,7 @@ class PPOAgent(BaseRLAgent):
 
                 # 检测critic是否包含优化器参数
                 if hasattr(self.critic, 'optimizer_info'):
-                    self.critic_optimizer = self.create_optimizer(self.critic.optimizer_info)
+                    self.create_optimizer(self.critic.optimizer_info, 'critic_optimizer')
                 else:
                     raise AttributeError(f'{self.critic.__class__.__name__} has no optimizer_info attribute')
 

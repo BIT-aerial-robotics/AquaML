@@ -110,7 +110,7 @@ class PendulumWrapper(RLBaseEnv):
             dtypes=np.float32
         )
 
-        self._reward_info = ['total_reward', 'indicate']
+        self._reward_info = ['total_reward', ]
 
     def reset(self):
         observation = self.env.reset()
@@ -140,7 +140,7 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': (reward+8)/8, 'indicate': reward}
+        reward = {'total_reward': reward}
 
         # if self.id == 0:
         #     print('reward', reward)
@@ -156,17 +156,17 @@ class PendulumWrapper(RLBaseEnv):
 
 eval_env = PendulumWrapper()
 
-vec_env = RLVectorEnv(PendulumWrapper, 20)
+vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False)
 parameters = PPOAgentParameter(
     rollout_steps=200,
     epochs=200,
     batch_size=2000,
-    update_times=4,
+    update_times=8,
     max_steps=200,
     update_actor_times=1,
     update_critic_times=2,
     eval_episodes=20,
-    eval_interval=10,
+    eval_interval=10000,
     eval_episode_length=200,
     entropy_coef=0.01,
     batch_advantage_normalization=True,
@@ -186,7 +186,9 @@ rl = AquaRL(
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,
-    name='debug'
+    name='debug',
+    reward_norm=True,
+    state_norm=True,
 )
 
 rl.run()

@@ -5,6 +5,78 @@ from AquaML.core.RLToolKit import RLVectorEnv, RLBaseEnv
 from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
 from AquaML.core.RLToolKit import RLStandardDataSet
 import numpy as np
+from copy import deepcopy
+
+
+class RunningMeanStd:
+    # Dynamically calculate mean and std
+    def __init__(self, shape):  # shape:the dimension of input data
+        self.n = 0
+        self.mean = np.zeros(shape)
+        self.S = np.zeros(shape)
+        self.std = np.sqrt(self.S)
+
+    def update(self, x):
+        x = np.asarray(x)
+        size = x.shape[0]
+
+        for i in range(size):
+            self.update_(x[i])
+
+    def update_(self, x):
+        self.n += 1
+        if self.n == 1:
+            self.mean = x
+            self.std = x
+        else:
+            old_mean = deepcopy(self.mean)
+            self.mean = old_mean + (x - old_mean) / self.n
+            self.S = self.S + (x - old_mean) * (x - self.mean)
+            self.std = np.sqrt(self.S / self.n)
+
+
+class Normalization:
+    def __init__(self, obs_shape_dict: dict):
+        self.running_ms = {}
+        for key, value in obs_shape_dict.items():
+            self.running_ms[key] = RunningMeanStd(value)
+
+    def __call__(self, x: dict, update=True):
+        # Whether to update the mean and std,during the evaluating,update=Flase
+        new_x = {}
+        if update:
+            for key, value in x.items():
+                self.running_ms[key].update(value)
+
+        for key, value in x.items():
+            new_x[key] = (value - self.running_ms[key].mean) / (self.running_ms[key].std + 1e-8)
+
+        return new_x
+
+
+class RewardScaling:
+    def __init__(self, shape, gamma):
+        self.shape = shape  # reward shape=1
+        self.gamma = gamma  # discount factor
+        self.running_ms = RunningMeanStd(shape=self.shape)
+        self.R = np.zeros(self.shape)
+
+    def update(self, x):
+        self.R = self.gamma * self.R + x
+        self.running_ms.update_(self.R)
+        x = x / (self.running_ms.std + 1e-8)  # Only divided std
+        return x
+
+    def __call__(self, x):
+        size = x.shape[0]
+        new_x = np.zeros_like(x)
+        for i in range(size):
+            new_x[i] = self.update(deepcopy(x[i]))
+
+        return new_x
+
+    def reset(self):  # When an episode is done,we should reset 'self.R'
+        self.R = np.zeros(self.shape)
 
 
 class AquaRL(BaseAqua):
@@ -14,6 +86,8 @@ class AquaRL(BaseAqua):
                  env,
                  agent,
                  agent_info_dict: dict,
+                 state_norm: bool = False,
+                 reward_norm: bool = False,
                  eval_env=None,
                  comm=None,
                  ):
@@ -76,8 +150,6 @@ class AquaRL(BaseAqua):
         else:
             self.eval_env = env
 
-
-
         ########################################
         # 初始化agent
         ########################################
@@ -106,8 +178,6 @@ class AquaRL(BaseAqua):
 
         # 计算Roll一次所有线程产生的样本量
         self._total_steps = self.agent_params.rollout_steps * self._total_envs
-
-
 
         ########################################
         # 初始化env
@@ -258,6 +328,22 @@ class AquaRL(BaseAqua):
 
         self.evaluator = Evaluator()
 
+        # 状态处理插件，暂时仅支持vectorized env
+
+        self.obs_normalizer = Normalization(
+            obs_shape_dict=self.env.obs_info.shape_dict,
+        )
+
+        self.reward_normalizer = RewardScaling(1, self.agent_params.gamma)
+
+        if self.env_type == 'Vec':
+            if state_norm:
+                self.worker.add_obs_plugin(self.obs_normalizer)
+
+            if reward_norm:
+                self.worker.add_reward_plugin(self.reward_normalizer)
+            # self.worker.add_obs_plugin(self.obs_normalizer)
+
     def sampling(self):
 
         std_data_set = RLStandardDataSet(
@@ -316,14 +402,14 @@ class AquaRL(BaseAqua):
         """
         # TODO: 接口不完善需要统一
         # if self.optimize_enable:
-            # if self.env_type != 'Vec':
-            #     self.sync()
-            # self.sync()
+        # if self.env_type != 'Vec':
+        #     self.sync()
+        # self.sync()
+
+        if self.optimize_enable:
+            self.sync()
 
         for epoch in range(self.agent_params.epochs):
-
-            if self.optimize_enable:
-                self.sync()
 
             self.communicator.thread_manager.Barrier()
 
@@ -345,6 +431,9 @@ class AquaRL(BaseAqua):
                     print(key, value)
 
                 self.sync()
+
+                self.recoder.record_scalar(reward_info, epoch + 1)
+                self.recoder.record_scalar(loss_info, epoch + 1)
 
             self.communicator.thread_manager.Barrier()
 

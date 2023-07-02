@@ -5,6 +5,52 @@ from AquaML.core.DataParser import DataInfo
 import copy
 
 
+class RunningMeanStd:
+    # Dynamically calculate mean and std
+    def __init__(self, shape):  # shape:the dimension of input data
+        self.n = 0
+        self.mean = np.zeros(shape)
+        self.S = np.zeros(shape)
+        self.std = np.sqrt(self.S)
+
+    # def update(self, x):
+    #     x = np.asarray(x)
+    #     size = x.shape[0]
+    #
+    #     for i in range(size):
+    #         self.__update(x[i])
+
+    def update(self, x):
+        self.n += 1
+        if self.n == 1:
+            self.mean = x
+            self.std = x
+        else:
+            old_mean = copy.deepcopy(self.mean)
+            self.mean = old_mean + (x - old_mean) / self.n
+            self.S = self.S + (x - old_mean) * (x - self.mean)
+            self.std = np.sqrt(self.S / self.n)
+
+
+class Normalization:
+    def __init__(self, obs_shape_dict: dict):
+        self.running_ms = {}
+        for key, value in obs_shape_dict.items():
+            self.running_ms[key] = RunningMeanStd(value)
+
+    def __call__(self, x: dict, update=True):
+        # Whether to update the mean and std,during the evaluating,update=Flase
+        new_x = {}
+        if update:
+            for key, value in x.items():
+                self.running_ms[key].update(value)
+
+        for key, value in x.items():
+            new_x[key] = (value - self.running_ms[key].mean) / (self.running_ms[key].std + 1e-8)
+
+        return new_x
+
+
 class RLStandardDataSet:
     """
     RLStandardDataSet. 
@@ -348,7 +394,7 @@ class VecCollector:
             mask (int): mask.
         """
         for name in next_obs.keys():
-            all_name = 'next_' + name
+            all_name = name
             if all_name not in self.obs_dict.keys():
                 self.obs_dict[all_name] = []
             self.obs_dict[all_name].append(next_obs[name])
@@ -553,6 +599,8 @@ class RLBaseEnv(ABC):
         self.steps += 1
         next_obs, reward, done, info = self.step(action_dict)
 
+        reward['indicate'] = copy.deepcopy(reward['total_reward'])
+
         if self.steps >= max_step:
             done = True
 
@@ -562,6 +610,7 @@ class RLBaseEnv(ABC):
             computing_obs = obs
         else:
             computing_obs = next_obs
+            # normalize_flag = False
 
         # next_obs['step'] = self.steps
 
@@ -646,7 +695,7 @@ class RLVectorEnv:
     This is the base class of vector environment.
     """
 
-    def __init__(self, env, num_envs, envs_args=None):
+    def __init__(self, env, num_envs, envs_args=None, normalize_obs=False):
         """
         initialize the vector env.
 
@@ -683,7 +732,7 @@ class RLVectorEnv:
         # vectorized env info
         ########################################
 
-        _reward_info = {}
+        # _reward_info = {}
 
         env_1 = self._envs[0]
 
@@ -717,8 +766,9 @@ class RLVectorEnv:
         # )
 
         self._obs_info = env_1.obs_info
-        self._reward_info = env_1.reward_info
 
+        # self._reward_info = env_1.reward_info
+        self._reward_info = ('indicate', *env_1.reward_info)
         ########################################
         # key info API
         ########################################
@@ -730,6 +780,12 @@ class RLVectorEnv:
         self.last_obs = None
 
         self._max_steps = 100000
+
+        self.normalize_obs = normalize_obs
+
+        self._normalize_obs = Normalization(
+            self._obs_info.shape_dict,
+        )
 
     def set_max_steps(self, max_steps):
         self._max_steps = max_steps
@@ -752,6 +808,15 @@ class RLVectorEnv:
                 sub_action_dict[key] = value[i, :]
 
             sub_next_obs, sub_rew, sub_done, computing_obs = self._envs[i].step_vector(sub_action_dict, self._max_steps)
+
+            if self.normalize_obs:
+                sub_next_obs_ = self._normalize_obs(copy.deepcopy(sub_next_obs))
+                sub_next_obs.update(sub_next_obs_)
+
+                computing_obs_ = self._normalize_obs(copy.deepcopy(computing_obs), update=False)
+
+                computing_obs.update(computing_obs_)
+
             vec_collector.append(sub_next_obs, sub_rew, 1 - sub_done, computing_obs)
 
         obs, rew, done, compute_obs = vec_collector.get_data(expand_dim=False)

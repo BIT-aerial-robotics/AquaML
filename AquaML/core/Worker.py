@@ -5,6 +5,7 @@ import numpy as np
 from copy import deepcopy, copy
 import tensorflow as tf
 
+
 class BaseWorker(ABC):
     """
     The base class of worker.
@@ -310,6 +311,16 @@ class RLVectorEnvWorker(BaseWorker):
             next_obs_names=self.next_obs_names,
         )
 
+        # 插件接口
+        self._obs_plugin = []
+        self._reward_plugin = []
+
+    def add_obs_plugin(self, obs_plugin):
+        self._obs_plugin.append(obs_plugin)
+
+    def add_reward_plugin(self, reward_plugin):
+        self._reward_plugin.append(reward_plugin)
+
     def step(self, agent):
 
         if self.optimize_enable:
@@ -345,6 +356,21 @@ class RLVectorEnvWorker(BaseWorker):
             # step
             next_obs, reward, done, computing_obs = self.vec_env.step(deepcopy(actions_))
 
+            for obs_plugin in self._obs_plugin:
+                next_obs_ = obs_plugin(next_obs)
+                next_obs.update(next_obs_)
+                computing_obs_ = obs_plugin(computing_obs, False)
+                computing_obs.update(computing_obs_)
+
+            new_next_obs = {}
+            for key in next_obs.keys():
+                new_next_obs['next_' + key] = next_obs[key]
+
+            for reward_plugin in self._reward_plugin:
+                reward_ = reward_plugin(deepcopy(reward['total_reward']))
+                # if 'indicate' not in reward.keys():
+                reward['total_reward'] = deepcopy(reward_)
+
             self.communicator.store_data_dict(
                 agent_name=agent.name,
                 data_dict=computing_obs,
@@ -354,7 +380,7 @@ class RLVectorEnvWorker(BaseWorker):
 
             self.communicator.store_data_dict(
                 agent_name=agent.name,
-                data_dict=next_obs,
+                data_dict=new_next_obs,
                 start_index=self.start_index,
                 end_index=self.end_index
             )
@@ -418,7 +444,7 @@ class RLVectorEnvWorker(BaseWorker):
                 reward=deepcopy(reward_),
                 next_obs=deepcopy(next_obs_),
                 mask=deepcopy(mask['mask'])
-         )
+            )
 
             self.obs = deepcopy(computing_obs_)
 
@@ -430,6 +456,10 @@ class RLVectorEnvWorker(BaseWorker):
             if self.sample_enable:
                 obs = self.vec_env.reset()
 
+                for obs_plugin in self._obs_plugin:
+                    obs_ = obs_plugin(obs)
+                    obs.update(obs_)
+
                 # push to data pool
                 self.communicator.store_data_dict(
                     agent_name=agent.name,
@@ -440,15 +470,16 @@ class RLVectorEnvWorker(BaseWorker):
 
                 self.communicator.Barrier()
 
-                if self.optimize_enable:
-                    obs = self.communicator.get_pointed_data_pool_dict(
-                        agent_name=agent.name,
-                        data_name=self.obs_names,
-                        start_index=self.start_index,
-                        end_index=self.end_index
-                    )
+            if self.optimize_enable:
+                obs = self.communicator.get_pointed_data_pool_dict(
+                    agent_name=agent.name,
+                    data_name=self.obs_names,
+                    start_index=self.start_index,
+                    end_index=self.end_index
+                )
 
-                    self.obs = deepcopy(obs)
+                self.obs = deepcopy(obs)
+
         self.communicator.Barrier()
 
         for _ in range(rollout_steps):

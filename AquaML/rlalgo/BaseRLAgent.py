@@ -8,6 +8,7 @@ from AquaML.core.DataParser import DataInfo
 import numpy as np
 
 
+
 class BaseAgent(ABC):
 
     @abstractmethod

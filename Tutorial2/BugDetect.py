@@ -113,7 +113,7 @@ class Critic_net(tf.keras.Model):
         self.input_name = ('obs',)
 
         self.optimizer_info = {
-            'type': 'Adam',
+            'type': 'AdamW',
             'args': {'learning_rate': 2e-3,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,

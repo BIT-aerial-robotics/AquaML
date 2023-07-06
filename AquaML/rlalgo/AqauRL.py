@@ -25,13 +25,13 @@ class RunningMeanStd:
         x = np.asarray(x)
         size = x.shape[0]
 
-        if size == 1:
-            self.update_(x)
-        else:
-            self.update_batch(x)
+        # if size == 1:
+        #     self.update_(x)
+        # else:
+        #     self.update_batch(x)
 
-        # for i in range(size):
-        #     self.update_(x[i])
+        for i in range(size):
+            self.update_(x[i])
 
     def update_batch(self, x):
         self.n += 1
@@ -161,10 +161,10 @@ class AquaRL(BaseAqua):
             env: 环境。两种类型：VecEnv和BaseEnv。
             agent (class): 未实例化的agent类。
             agent_info_dict (dict): agent参数。如使用PPO agent时候, 可以如下设置:
-                agent_info_dict = {'actor': actor_model, 
+                agent_info_dict = {'actor': actor_model,
                                 'critic': critic_model,
                                 'agent_params': agent_params,
-                                } 
+                                }
                 如无特殊需求，agent's name可以使用算法默认值。
             eval_env (BaseEnv, optional): 评估环境。默认为None。在使用VectorEnv时候，eval_env必须存在。
         """
@@ -517,10 +517,7 @@ class AquaRL(BaseAqua):
 
                 self.sync()
 
-                for key, value in self._tool_dict.items():
-                    cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)
-                    for tool in value:
-                        tool.save(cache_path)
+
 
                 self.recoder.record_scalar(reward_info, epoch + 1)
                 self.recoder.record_scalar(loss_info, epoch + 1)
@@ -530,8 +527,25 @@ class AquaRL(BaseAqua):
                         model_dict=self.agent.get_all_model_dict,
                         epoch=epoch + 1,
                         checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
-                        tool=self._tool_dict,
+                        # tool=self._tool_dict,
                     )
+
+            for key, value in self._tool_dict.items():
+                cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)
+                th_id = self.communicator.thread_manager.get_thread_id
+                cache_path = os.path.join(cache_path, str(th_id))
+                for tool in value:
+                    tool.save(cache_path)
+
+            if epoch % self.agent_params.checkpoint_interval == 0:
+                history = self.file_system.get_history_model_path(self.agent.name)
+                history_path = os.path.join(history, str(epoch + 1))
+                for key, value in self._tool_dict.items():
+                    cache_path = os.path.join(history_path, key)
+                    th_id = self.communicator.thread_manager.get_thread_id
+                    cache_path = os.path.join(cache_path, str(th_id))
+                    for tool in value:
+                        tool.save(cache_path)
 
             # self.communicator.thread_manager.Barrier()
 

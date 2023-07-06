@@ -9,9 +9,9 @@ import tensorflow as tf
 class BaseWorker(ABC):
     """
     The base class of worker.
-    
+
     All the worker should inherit this class.
-    
+
     reward_info should be a specified.
 
     obs_info should be a specified.
@@ -356,9 +356,20 @@ class RLVectorEnvWorker(BaseWorker):
             # step
             next_obs, reward, done, computing_obs = self.vec_env.step(deepcopy(actions_))
 
+            for obs_plugin in self._obs_plugin:
+                next_obs_ = obs_plugin(next_obs)
+                next_obs.update(next_obs_)
+                computing_obs_ = obs_plugin(computing_obs, False)
+                computing_obs.update(computing_obs_)
+
             new_next_obs = {}
             for key in next_obs.keys():
                 new_next_obs['next_' + key] = next_obs[key]
+
+            for reward_plugin in self._reward_plugin:
+                reward_ = reward_plugin(deepcopy(reward['total_reward']))
+                # if 'indicate' not in reward.keys():
+                reward['total_reward'] = deepcopy(reward_)
 
             self.communicator.store_data_dict(
                 agent_name=agent.name,
@@ -392,21 +403,21 @@ class RLVectorEnvWorker(BaseWorker):
 
         if self.optimize_enable:
             # store data to MDP collector
-            next_obs = self.communicator.get_pointed_data_pool_dict(
+            next_obs_ = self.communicator.get_pointed_data_pool_dict(
                 agent_name=agent.name,
                 data_name=self.next_obs_names,
                 start_index=self.start_index,
                 end_index=self.end_index
             )
 
-            computing_obs = self.communicator.get_pointed_data_pool_dict(
+            computing_obs_ = self.communicator.get_pointed_data_pool_dict(
                 agent_name=agent.name,
                 data_name=self.obs_names,
                 start_index=self.start_index,
                 end_index=self.end_index
             )
 
-            reward = self.communicator.get_pointed_data_pool_dict(
+            reward_ = self.communicator.get_pointed_data_pool_dict(
                 agent_name=agent.name,
                 data_name=self.reward_names,
                 start_index=self.start_index,
@@ -420,33 +431,22 @@ class RLVectorEnvWorker(BaseWorker):
                 end_index=self.end_index
             )
 
-            actions = self.communicator.get_pointed_data_pool_dict(
+            actions_ = self.communicator.get_pointed_data_pool_dict(
                 agent_name=agent.name,
                 data_name=self.action_names,
                 start_index=self.start_index,
                 end_index=self.end_index
             )
 
-            for obs_plugin in self._obs_plugin:
-                next_obs_ = obs_plugin(deepcopy(next_obs))
-                next_obs.update(next_obs_)
-                computing_obs_ = obs_plugin(deepcopy(computing_obs), False)
-                computing_obs.update(computing_obs_)
-
-            for reward_plugin in self._reward_plugin:
-                reward_ = reward_plugin(deepcopy(reward['total_reward']))
-                # if 'indicate' not in reward.keys():
-                reward['total_reward'] = deepcopy(reward_)
-
             self.vec_MDP_collector.store_data(
                 obs=deepcopy(self.obs),
-                action=deepcopy(actions),
-                reward=deepcopy(reward),
-                next_obs=deepcopy(next_obs),
+                action=deepcopy(actions_),
+                reward=deepcopy(reward_),
+                next_obs=deepcopy(next_obs_),
                 mask=deepcopy(mask['mask'])
             )
 
-            self.obs = deepcopy(computing_obs)
+            self.obs = deepcopy(computing_obs_)
 
     def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
         self.vec_MDP_collector.reset()
@@ -456,6 +456,10 @@ class RLVectorEnvWorker(BaseWorker):
             if self.sample_enable:
                 obs = self.vec_env.reset()
 
+                for obs_plugin in self._obs_plugin:
+                    obs_ = obs_plugin(obs)
+                    obs.update(obs_)
+
                 # push to data pool
                 self.communicator.store_data_dict(
                     agent_name=agent.name,
@@ -464,7 +468,7 @@ class RLVectorEnvWorker(BaseWorker):
                     end_index=self.end_index
                 )
 
-            self.communicator.Barrier()
+                self.communicator.Barrier()
 
             if self.optimize_enable:
                 obs = self.communicator.get_pointed_data_pool_dict(
@@ -473,10 +477,6 @@ class RLVectorEnvWorker(BaseWorker):
                     start_index=self.start_index,
                     end_index=self.end_index
                 )
-
-                for obs_plugin in self._obs_plugin:
-                    obs_ = obs_plugin(deepcopy(obs))
-                    obs.update(obs_)
 
                 self.obs = deepcopy(obs)
 

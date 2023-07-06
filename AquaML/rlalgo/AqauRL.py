@@ -2,19 +2,24 @@ from AquaML.core.BaseAqua import BaseAqua
 from AquaML.core.AgentIOInfo import RLAgentIOInfo
 from AquaML.core.Worker import RLAgentWorker, Evaluator, RLVectorEnvWorker
 from AquaML.core.RLToolKit import RLVectorEnv, RLBaseEnv
-from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector
+from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector, mkdir
 from AquaML.core.RLToolKit import RLStandardDataSet
 import numpy as np
 from copy import deepcopy
+import os
 
 
 class RunningMeanStd:
     # Dynamically calculate mean and std
-    def __init__(self, shape):  # shape:the dimension of input data
+    def __init__(self, shape, name):  # shape:the dimension of input data
         self.n = 0
         self.mean = np.zeros(shape)
         self.S = np.zeros(shape)
         self.std = np.sqrt(self.S)
+
+        self.shape = shape
+
+        self.name = name
 
     def update(self, x):
         x = np.asarray(x)
@@ -34,12 +39,26 @@ class RunningMeanStd:
             self.S = self.S + (x - old_mean) * (x - self.mean)
             self.std = np.sqrt(self.S / self.n)
 
+    def save(self, path):
+        # mkdir(path)
+        all_path_name = os.path.join(path, self.name)
+        mkdir(all_path_name)
+        np.save(os.path.join(all_path_name, 'mean.npy'), self.mean)
+        np.save(os.path.join(all_path_name, 'std.npy'), self.std)
+        np.save(os.path.join(all_path_name, 'n.npy'), self.n)
+
+    def load(self, path):
+        all_path_name = os.path.join(path, self.name)
+        self.mean = np.load(os.path.join(all_path_name, 'mean.npy'))
+        self.std = np.load(os.path.join(all_path_name, 'std.npy'))
+        self.n = np.load(os.path.join(all_path_name, 'n.npy'))
+
 
 class Normalization:
     def __init__(self, obs_shape_dict: dict):
         self.running_ms = {}
         for key, value in obs_shape_dict.items():
-            self.running_ms[key] = RunningMeanStd(value)
+            self.running_ms[key] = RunningMeanStd(value, name=key)
 
     def __call__(self, x: dict, update=True):
         # Whether to update the mean and std,during the evaluating,update=Flase
@@ -53,12 +72,20 @@ class Normalization:
 
         return new_x
 
+    def save(self, path):
+        for key, value in self.running_ms.items():
+            value.save(path)
+
+    def load(self, path):
+        for key, value in self.running_ms.items():
+            value.load(path)
+
 
 class RewardScaling:
     def __init__(self, shape, gamma):
         self.shape = shape  # reward shape=1
         self.gamma = gamma  # discount factor
-        self.running_ms = RunningMeanStd(shape=self.shape)
+        self.running_ms = RunningMeanStd(shape=self.shape, name='reward')
         self.R = np.zeros(self.shape)
 
     def update(self, x):
@@ -77,6 +104,12 @@ class RewardScaling:
 
     def reset(self):  # When an episode is done,we should reset 'self.R'
         self.R = np.zeros(self.shape)
+
+    def save(self, path):
+        self.running_ms.save(path)
+
+    def load(self, path):
+        self.running_ms.load(path)
 
 
 class AquaRL(BaseAqua):
@@ -107,7 +140,6 @@ class AquaRL(BaseAqua):
                 如无特殊需求，agent's name可以使用算法默认值。
             eval_env (BaseEnv, optional): 评估环境。默认为None。在使用VectorEnv时候，eval_env必须存在。
         """
-
 
         ########################################
         # 初始化环境参数
@@ -345,12 +377,16 @@ class AquaRL(BaseAqua):
 
         self.reward_normalizer = RewardScaling(1, self.agent_params.gamma)
 
+        self._tool_dict['scaler'] = []
+
         if self.env_type == 'Vec':
             if state_norm:
                 self.worker.add_obs_plugin(self.obs_normalizer)
+                self._tool_dict['scaler'].append(self.obs_normalizer)
 
             if reward_norm:
                 self.worker.add_reward_plugin(self.reward_normalizer)
+                self._tool_dict['scaler'].append(self.reward_normalizer)
             # self.worker.add_obs_plugin(self.obs_normalizer)
 
     def sampling(self):
@@ -453,8 +489,21 @@ class AquaRL(BaseAqua):
 
                 self.sync()
 
+                for key, value in self._tool_dict.items():
+                    cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)
+                    for tool in value:
+                        tool.save(cache_path)
+
                 self.recoder.record_scalar(reward_info, epoch + 1)
                 self.recoder.record_scalar(loss_info, epoch + 1)
+
+                if epoch % self.agent_params.checkpoint_interval == 0:
+                    self.recoder.save_checkpoint(
+                        model_dict=self.agent.get_all_model_dict,
+                        epoch=epoch + 1,
+                        checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
+                        tool=self._tool_dict,
+                    )
 
             # self.communicator.thread_manager.Barrier()
 

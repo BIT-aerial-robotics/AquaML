@@ -107,6 +107,13 @@ class BaseAqua(ABC):
         # 存储sub Aqua agent 的dict
         self._sub_aqua_dict = {}
 
+        # 工具型插件保存器
+        # {
+        #     'tool_name': [tool1, tool2, ...]
+        # }
+        # tool_name:一种类型的工具集
+        self._tool_dict = {}
+
         atexit.register(self.__del__)
 
     def check(self):
@@ -218,6 +225,7 @@ class BaseAqua(ABC):
                         value.load_weights(sync_file_name)
 
     def __del__(self):
+
         """
         释放资源
         """

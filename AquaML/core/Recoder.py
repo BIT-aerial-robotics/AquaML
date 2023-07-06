@@ -76,7 +76,7 @@ class Recoder:
                 with self.main_writer.as_default():
                     tf.summary.histogram(key + '/' + weight.name, weight, step=step)
 
-    def save_checkpoint(self, model_dict: dict, epoch, checkpoint_dir):
+    def save_checkpoint(self, model_dict: dict, epoch, checkpoint_dir, tool: dict={}):
 
         dir_path = os.path.join(checkpoint_dir, str(epoch))
 
@@ -86,6 +86,12 @@ class Recoder:
             name = key + '.h5'
             file_path = os.path.join(dir_path, name)
             value.save_weights(file_path, overwrite=True)
+
+        for key, value in tool.items():
+            tool_area = os.path.join(dir_path, key)
+            mkdir(tool_area)
+            for to in value:
+                to.save(tool_area)
 
     # record histogram
     # def record_histogram(self, name: str, data: tf.Tensor, step: int, prefix: str = ''):

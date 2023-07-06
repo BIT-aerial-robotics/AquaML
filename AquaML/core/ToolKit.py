@@ -2,6 +2,27 @@ import numpy as np
 from copy import deepcopy
 from AquaML.core.DataParser import DataSet
 import tensorflow as tf
+import os
+
+
+def mkdir(path: str):
+    """
+    create a directory in current path.
+
+    Args:
+        path (_type_:str): name of directory.
+
+    Returns:
+        _type_: str or None: path of directory.
+    """
+    current_path = os.getcwd()
+    # print(current_path)
+    path = os.path.join(current_path, path)
+    if not os.path.exists(path):
+        os.makedirs(path)
+        return path
+    else:
+        None
 
 
 # def display_dict(dic: dict):
@@ -189,10 +210,12 @@ class LossTracker:
         self.reset()
         return loss_dict
 
+
 class DataSetTracker:
     """
     用于追踪多线程或者需要分段处理数据，最后将数据进行汇总为标准训练集
     """
+
     def __init__(self):
         self.data_dict = {}
 

@@ -207,8 +207,9 @@ parameters = PPOAgentParameter(
     eval_episode_length=200,
     entropy_coef=0.1,
     batch_advantage_normalization=True,
-    checkpoint_interval=10,
+    checkpoint_interval=2,
     min_steps=200,
+
 )
 
 agent_info_dict = {

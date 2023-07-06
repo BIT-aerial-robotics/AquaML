@@ -72,7 +72,7 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-3,
+            'args': {'learning_rate': 2e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      },
@@ -113,8 +113,8 @@ class Critic_net(tf.keras.Model):
         self.input_name = ('obs',)
 
         self.optimizer_info = {
-            'type': 'AdamW',
-            'args': {'learning_rate': 2e-3,
+            'type': 'Adam',
+            'args': {'learning_rate': 2e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      }
@@ -196,14 +196,14 @@ eval_env = PendulumWrapper()
 vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False)
 parameters = PPOAgentParameter(
     rollout_steps=200,
-    epochs=200,
-    batch_size=2000,
+    epochs=400,
+    batch_size=1000,
     update_times=4,
     max_steps=200,
     update_actor_times=1,
-    update_critic_times=2,
+    update_critic_times=1,
     eval_episodes=20,
-    eval_interval=10000,
+    eval_interval=2000,
     eval_episode_length=200,
     entropy_coef=0.1,
     batch_advantage_normalization=True,
@@ -213,7 +213,8 @@ parameters = PPOAgentParameter(
 )
 
 agent_info_dict = {
-    'actor': SharedActorCritic,
+    'actor': Actor_net,
+    'critic': Critic_net,
     'agent_params': parameters,
 }
 

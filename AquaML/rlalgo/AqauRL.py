@@ -46,6 +46,7 @@ class RunningMeanStd:
         np.save(os.path.join(all_path_name, 'mean.npy'), self.mean)
         np.save(os.path.join(all_path_name, 'std.npy'), self.std)
         np.save(os.path.join(all_path_name, 'n.npy'), self.n)
+        # print(self.mean)
 
     def load(self, path):
         all_path_name = os.path.join(path, self.name)
@@ -65,10 +66,18 @@ class Normalization:
         new_x = {}
         if update:
             for key, value in x.items():
-                self.running_ms[key].update(value)
+                if 'next_' in key:
+                    real_key = key[5:]
+                else:
+                    real_key = key
+                self.running_ms[real_key].update(value)
 
         for key, value in x.items():
-            new_x[key] = (value - self.running_ms[key].mean) / (self.running_ms[key].std + 1e-8)
+            if 'next_' in key:
+                real_key = key[5:]
+            else:
+                real_key = key
+            new_x[key] = (value - self.running_ms[real_key].mean) / (self.running_ms[real_key].std + 1e-8)
 
         return new_x
 

@@ -25,8 +25,27 @@ class RunningMeanStd:
         x = np.asarray(x)
         size = x.shape[0]
 
-        for i in range(size):
-            self.update_(x[i])
+        if size == 1:
+            self.update_(x)
+        else:
+            self.update_batch(x)
+
+        # for i in range(size):
+        #     self.update_(x[i])
+
+    def update_batch(self, x):
+        self.n += 1
+        if self.n == 1:
+            self.mean = np.mean(x, axis=0)
+            self.std = np.std(x, axis=0)
+        else:
+            new_mean = np.mean(x, axis=0)
+            new_std = np.std(x, axis=0)
+
+            old_mean = deepcopy(self.mean)
+            self.mean = old_mean + (new_mean - old_mean) / self.n
+            self.S = self.S + (new_std - self.std) * (new_std - self.std) + (old_mean - new_mean) * (old_mean - self.mean)
+            self.std = np.sqrt(self.S / self.n)
 
     def update_(self, x):
         self.n += 1

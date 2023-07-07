@@ -8,7 +8,6 @@ from AquaML.core.DataParser import DataInfo
 import numpy as np
 
 
-
 class BaseAgent(ABC):
 
     @abstractmethod
@@ -360,11 +359,13 @@ class BaseRLAgent(BaseAgent, ABC):
         }
 
         # return optimizer
+
     @property
     def get_optimizer_pool(self):
         return self._optimizer_pool
 
-    def get_collection_info(self, reward_info: tuple or list, woker_num):
+    def get_collection_info(self, reward_info: tuple or list, woker_num, obs_norm_flag=False, reward_norm_flag=False,
+                            obs_shape_dict=None):
         """
         获取网络参数信息。
         """
@@ -410,6 +411,33 @@ class BaseRLAgent(BaseAgent, ABC):
             indicate_shapes.append((woker_num, 1))
 
             indicate_names.append('summary_' + name + '_min')
+            indicate_dtypes.append(np.float32)
+            indicate_shapes.append((woker_num, 1))
+
+        if obs_norm_flag:
+            if obs_shape_dict is None:
+                raise ValueError('obs_shape_dict is None')
+            for name, shape in obs_shape_dict.items():
+                if len(shape) == 1:
+                    shape_ = (woker_num, shape[0])
+                else:
+                    shape_ = (woker_num, *shape)
+
+                indicate_names.append(name + '_mean')
+                indicate_dtypes.append(np.float32)
+                indicate_shapes.append(shape_)
+
+                indicate_names.append(name + '_std')
+                indicate_dtypes.append(np.float32)
+                indicate_shapes.append(shape_)
+
+        if reward_norm_flag:
+
+            indicate_names.append('total_reward_mean')
+            indicate_dtypes.append(np.float32)
+            indicate_shapes.append((woker_num, 1))
+
+            indicate_names.append('total_reward_std')
             indicate_dtypes.append(np.float32)
             indicate_shapes.append((woker_num, 1))
 

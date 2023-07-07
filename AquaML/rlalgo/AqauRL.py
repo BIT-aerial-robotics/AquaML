@@ -44,7 +44,8 @@ class RunningMeanStd:
 
             old_mean = deepcopy(self.mean)
             self.mean = old_mean + (new_mean - old_mean) / self.n
-            self.S = self.S + (new_std - self.std) * (new_std - self.std) + (old_mean - new_mean) * (old_mean - self.mean)
+            self.S = self.S + (new_std - self.std) * (new_std - self.std) + (old_mean - new_mean) * (
+                    old_mean - self.mean)
             self.std = np.sqrt(self.S / self.n)
 
     def update_(self, x):
@@ -73,6 +74,11 @@ class RunningMeanStd:
         self.std = np.load(os.path.join(all_path_name, 'std.npy'))
         self.n = np.load(os.path.join(all_path_name, 'n.npy'))
 
+    def set_data(self, mean, std):
+        self.mean = deepcopy(mean)
+        self.std = deepcopy(std)
+        # self.n = n
+
 
 class Normalization:
     def __init__(self, obs_shape_dict: dict):
@@ -100,6 +106,11 @@ class Normalization:
 
         return new_x
 
+    def set_data(self, data):
+        # (mean,std)
+        for key, value in data.items():
+            self.running_ms[key].set_data(value[0], value[1])
+
     def save(self, path):
         for key, value in self.running_ms.items():
             value.save(path)
@@ -107,6 +118,18 @@ class Normalization:
     def load(self, path):
         for key, value in self.running_ms.items():
             value.load(path)
+
+    def push_to_communicator(self, communicator, agent_name):
+        for name, normalizer in self.running_ms.items():
+            dic = {
+                name + '_mean': deepcopy(normalizer.mean),
+                name + '_std': deepcopy(normalizer.std),
+            }
+            communicator.store_indicate_dict(
+                agent_name=agent_name,
+                indicate_dict=dic,
+                index= 0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
+            )
 
 
 class RewardScaling:
@@ -139,6 +162,20 @@ class RewardScaling:
     def load(self, path):
         self.running_ms.load(path)
 
+    def set_data(self, data):
+        self.running_ms.set_data(data[0], data[1])
+
+    def push_to_communicator(self, communicator, agent_name):
+        dic = {
+            'total_reward_mean': deepcopy(self.running_ms.mean),
+            'total_reward_std': deepcopy(self.running_ms.std),
+        }
+        communicator.store_indicate_dict(
+            agent_name=agent_name,
+            indicate_dict=dic,
+            index=0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
+        )
+
 
 class AquaRL(BaseAqua):
 
@@ -150,6 +187,7 @@ class AquaRL(BaseAqua):
                  decay_lr: bool = False,
                  state_norm: bool = False,
                  reward_norm: bool = False,
+                 snyc_norm_per: int = 1,
                  eval_env=None,
                  comm=None,
                  ):
@@ -295,10 +333,14 @@ class AquaRL(BaseAqua):
         # 初始化data pool
         ########################################
         # 初始化之前需要获取indeicate info， parame_info
+        self.obs_names = obs_info.shape_dict.keys()
 
         agent_data_info, param_info, indicate_info = self.agent.get_collection_info(
             reward_info=env.reward_info,
             woker_num=self.worker_thread,
+            obs_norm_flag=state_norm,
+            reward_norm_flag=reward_norm,
+            obs_shape_dict=obs_info.shape_dict,
         )
 
         # 主线程优先创建
@@ -417,6 +459,9 @@ class AquaRL(BaseAqua):
                 self._tool_dict['scaler'].append(self.reward_normalizer)
             # self.worker.add_obs_plugin(self.obs_normalizer)
 
+        self.snyc_norm_per = snyc_norm_per
+
+
     def sampling(self):
 
         std_data_set = RLStandardDataSet(
@@ -489,9 +534,48 @@ class AquaRL(BaseAqua):
             if self.sample_enable:
                 self.sync()
 
-            std_data_set = self.sampling()
+                # sync norm
+                if self.env_type == 'Vec':
+                    if (epoch + 1) % self.snyc_norm_per == 0:
+                        indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
+                        obs_norm_dict = {}
+
+                        for name in self.obs_names:
+                            mean = indicate_data[name + '_mean'][0]
+                            std = indicate_data[name + '_std'][0]
+
+                            obs_norm_dict[name] = (mean, std)
+
+                            self.obs_normalizer.set_data(obs_norm_dict)
+
+                        # total_reward = np.mean(indicate_data['total_reward'])
+
+                        total_reward_mean = indicate_data['total_reward_mean'][0]
+                        total_reward_std = indicate_data['total_reward_std'][0]
+
+                        self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
 
             self.communicator.thread_manager.Barrier()
+
+            std_data_set = self.sampling()
+
+            if self.sample_enable:
+
+                # 获取子线程normalize的数据
+                if self.env_type == 'Vec':
+                    if self.obs_normalizer is not None:
+                        self.obs_normalizer.push_to_communicator(
+                            communicator=self.communicator,
+                            agent_name=self.agent.name,
+                        )
+                    if self.reward_normalizer is not None:
+                        self.reward_normalizer.push_to_communicator(
+                            communicator=self.communicator,
+                            agent_name=self.agent.name,
+                        )
+
+            self.communicator.thread_manager.Barrier()
+
 
             if self.optimize_enable:
                 print('####################{}####################'.format(epoch + 1))
@@ -517,10 +601,42 @@ class AquaRL(BaseAqua):
 
                 self.sync()
 
-
-
                 self.recoder.record_scalar(reward_info, epoch + 1)
                 self.recoder.record_scalar(loss_info, epoch + 1)
+
+                if self.env_type == 'Vec':
+                    indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
+                    obs_norm_dict = {}
+
+                    for name in self.obs_names:
+                        mean = np.mean(indicate_data[name + '_mean'], axis=0)
+
+                        std_2 = np.sum(indicate_data[name + '_std'] ** 2, axis=0)
+                        std = std_2/self.worker_thread
+                        std = np.sqrt(std)
+
+                        obs_norm_dict[name] = (mean, std)
+
+                        self.communicator.store_indicate_dict(
+                            agent_name=self.agent.name,
+                            indicate_dict={name + '_mean': mean, name + '_std': std},
+                            index=0,
+                        )
+
+                        self.obs_normalizer.set_data(obs_norm_dict)
+
+                    # total_reward = np.mean(indicate_data['total_reward'])
+
+                    total_reward_mean = np.mean(indicate_data['total_reward_mean'])
+                    total_reward_std = np.mean(indicate_data['total_reward_std'])
+
+                    self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
+
+                    self.communicator.store_indicate_dict(
+                        agent_name=self.agent.name,
+                        indicate_dict={'total_reward_mean': total_reward_mean, 'total_reward_std': total_reward_std},
+                        index=0,
+                    )
 
                 if epoch % self.agent_params.checkpoint_interval == 0:
                     self.recoder.save_checkpoint(
@@ -529,6 +645,8 @@ class AquaRL(BaseAqua):
                         checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
                         # tool=self._tool_dict,
                     )
+
+                # sync normalizer
 
             for key, value in self._tool_dict.items():
                 cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)

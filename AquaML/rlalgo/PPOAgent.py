@@ -199,7 +199,7 @@ class PPOAgent(BaseRLAgent):
             'entropy_loss': entropy_loss,
         }
 
-        return dic
+        return dic, log_prob
 
     def train_shared(self,
                      target: tf.Tensor,
@@ -247,7 +247,7 @@ class PPOAgent(BaseRLAgent):
             'value_loss': value_loss,
         }
 
-        return dic
+        return dic, log_prob
 
     @property
     def actor_train_vars(self):
@@ -261,7 +261,9 @@ class PPOAgent(BaseRLAgent):
 
         train_data, reward_info = self._episode_tool(data_set)
 
-        for _ in range(self.agent_params.update_times):
+        early_stop = False
+
+        for i in range(self.agent_params.update_times):
             for batch_data in train_data(self.agent_params.batch_size):
                 actor_input_obs = []
                 critic_input_obs = []
@@ -299,7 +301,7 @@ class PPOAgent(BaseRLAgent):
                         self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
 
                     for _ in range(self.agent_params.update_actor_times):
-                        actor_optimize_info = self.train_actor(
+                        actor_optimize_info, log_prob = self.train_actor(
                             actor_inputs=actor_input_obs,
                             advantage=advantage,
                             old_log_prob=batch_data['prob'],
@@ -308,6 +310,31 @@ class PPOAgent(BaseRLAgent):
                             entropy_coef=self.agent_params.entropy_coef,
                         )
                         self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
+
+                    # compute kl divergence
+                    # old_log_prob = tf.math.log(batch_data['prob'])
+                    # log_ratio = log_prob - old_log_prob
+                    # approx_kl_div = tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio).numpy()
+
+                    # compute kl divergence
+                    old_log_prob = tf.math.log(batch_data['prob'])
+                    log_ratio = log_prob - old_log_prob
+                    approx_kl_div = tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio).numpy()
+
+                    self.loss_tracker.add_data({'approx_kl_div': approx_kl_div}, prefix='kl_div')
+
+                    # KL_div = tf.reduce_sum
+
+                    if approx_kl_div > self.agent_params.target_kl*1.5:
+                        print('Early stopping at step {} due to reaching max kl.' .format(i))
+                        early_stop = True
+                        break
+
+                if early_stop:
+                    break
+
+            if early_stop:
+                break
 
         summary = self.loss_tracker.get_data()
 

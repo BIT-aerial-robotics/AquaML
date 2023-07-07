@@ -276,6 +276,12 @@ class CommunicatorBase(ABC):
                              start_index:end_index]
         return ret_dict
 
+    # def get_pointed_data_pool_dict(self, agent_name: str, data_name: list, start_index: int, end_index: int):
+    #     ret_dict = {}
+    #     for name in data_name:
+    #         ret_dict[name] = self._collection_data_fict[agent_name].data_pool.get_unit(name).buffer[
+    #                          start_index:end_index]
+    #     return ret_dict
     def get_indicate_pool_dict(self, agent_name: str):
         """
         获取数据集合中的数据池。

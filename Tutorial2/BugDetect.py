@@ -62,11 +62,11 @@ class Actor_net(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
-        # self.log_std = tf.keras.layers.Dense(1, activation='tanh')
+        self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), }
+        self.output_info = {'action': (1,), 'log_std': (1,)}
 
         self.input_name = ('obs',)
 
@@ -83,9 +83,9 @@ class Actor_net(tf.keras.Model):
         x = self.dense1(obs)
         x = self.dense2(x)
         action = self.action_layer(x)
-        # log_std = self.log_std(x)*10
+        log_std = self.log_std(x)
 
-        return (action,)
+        return (action,log_std,)
 
     def reset(self):
         pass
@@ -197,7 +197,7 @@ vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False)
 parameters = PPOAgentParameter(
     rollout_steps=200,
     epochs=400,
-    batch_size=1000,
+    batch_size=128,
     update_times=4,
     max_steps=200,
     update_actor_times=1,
@@ -205,11 +205,11 @@ parameters = PPOAgentParameter(
     eval_episodes=20,
     eval_interval=2000,
     eval_episode_length=200,
-    entropy_coef=0.1,
+    entropy_coef=0.01,
     batch_advantage_normalization=True,
     checkpoint_interval=2,
     min_steps=200,
-
+    target_kl=1,
 )
 
 agent_info_dict = {

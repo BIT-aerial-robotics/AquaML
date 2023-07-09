@@ -6,7 +6,16 @@ from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector, mkdir
 from AquaML.core.RLToolKit import RLStandardDataSet
 import numpy as np
 from copy import deepcopy
+from dataclasses import dataclass
 import os
+
+
+@dataclass
+class LoadFlag:
+    actor: bool = False
+    critic: bool = False
+    state_normalizer: bool = False
+    reward_normalizer: bool = False
 
 
 class RunningMeanStd:
@@ -128,7 +137,7 @@ class Normalization:
             communicator.store_indicate_dict(
                 agent_name=agent_name,
                 indicate_dict=dic,
-                index= 0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
+                index=0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
             )
 
 
@@ -139,10 +148,14 @@ class RewardScaling:
         self.running_ms = RunningMeanStd(shape=self.shape, name='reward')
         self.R = np.zeros(self.shape)
 
-    def update(self, x):
-        self.R = self.gamma * self.R + x
-        self.running_ms.update_(self.R)
-        x = x / (self.running_ms.std + 1e-8)  # Only divided std
+    def update(self, x, update=True):
+        if update:
+            self.R = self.gamma * self.R + x
+            self.running_ms.update_(self.R)
+            x = x / (self.running_ms.std + 1e-8)  # Only divided std
+        else:
+            x = (x - self.running_ms.mean) / (self.running_ms.std + 1e-8)
+
         return x
 
     def __call__(self, x):
@@ -188,6 +201,8 @@ class AquaRL(BaseAqua):
                  state_norm: bool = False,
                  reward_norm: bool = False,
                  snyc_norm_per: int = 1,
+                 check_point_path: str = None,
+                 load_flag: LoadFlag = LoadFlag(),
                  eval_env=None,
                  comm=None,
                  ):
@@ -441,26 +456,63 @@ class AquaRL(BaseAqua):
 
         # 状态处理插件，暂时仅支持vectorized env
 
-        self.obs_normalizer = Normalization(
-            obs_shape_dict=self.env.obs_info.shape_dict,
-        )
-
-        self.reward_normalizer = RewardScaling(1, self.agent_params.gamma)
-
         self._tool_dict['scaler'] = []
 
         if self.env_type == 'Vec':
             if state_norm:
-                self.worker.add_obs_plugin(self.obs_normalizer)
+
+                self.obs_normalizer = Normalization(
+                    obs_shape_dict=self.env.obs_info.shape_dict,
+                )
+
+                self.state_norm_flag = True
+                self.worker.add_obs_plugin((self.obs_normalizer, self.state_norm_flag))
                 self._tool_dict['scaler'].append(self.obs_normalizer)
+            else:
+                self.state_norm_flag = False
+                self.obs_normalizer = None
 
             if reward_norm:
-                self.worker.add_reward_plugin(self.reward_normalizer)
+                self.reward_normalizer = RewardScaling(1, self.agent_params.gamma)
                 self._tool_dict['scaler'].append(self.reward_normalizer)
+                self.reward_norm_flag = True
+                self.worker.add_reward_plugin((self.reward_normalizer, self.reward_norm_flag))
+            else:
+                self.reward_normalizer = None
+                self.reward_norm_flag = False
             # self.worker.add_obs_plugin(self.obs_normalizer)
 
         self.snyc_norm_per = snyc_norm_per
 
+        if check_point_path is not None:
+            # check the path contains scaler folder if exists, create normalizer and load scaler
+            if load_flag.state_normalizer:
+                path = os.path.join(check_point_path, 'scaler')
+                if self.state_norm_flag is False:
+                    self.obs_normalizer = Normalization(
+                        obs_shape_dict=self.env.obs_info.shape_dict,
+                    )
+
+                    self.worker.add_obs_plugin((self.obs_normalizer, self.state_norm_flag))
+
+                self.obs_normalizer.load(path)
+
+            if load_flag.reward_normalizer:
+                path = os.path.join(check_point_path, 'scaler')
+                if self.reward_norm_flag is False:
+                    self.reward_normalizer = RewardScaling(1, self.agent_params.gamma)
+                    self.worker.add_reward_plugin((self.reward_normalizer, self.reward_norm_flag))
+
+                self.reward_normalizer.load(path)
+
+            if load_flag.actor:
+                path = os.path.join(check_point_path, 'actor.h5')
+                self.agent.actor.load_weights(path)
+
+            if load_flag.critic:
+                if self.optimize_enable:
+                    path = os.path.join(check_point_path, 'critic.h5')
+                    self.agent.critic.load_weights(path)
 
     def sampling(self):
 
@@ -540,20 +592,20 @@ class AquaRL(BaseAqua):
                         indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
                         obs_norm_dict = {}
 
-                        for name in self.obs_names:
-                            mean = indicate_data[name + '_mean'][0]
-                            std = indicate_data[name + '_std'][0]
+                        if self.state_norm_flag:
+                            for name in self.obs_names:
+                                mean = indicate_data[name + '_mean'][0]
+                                std = indicate_data[name + '_std'][0]
 
-                            obs_norm_dict[name] = (mean, std)
+                                obs_norm_dict[name] = (mean, std)
 
-                            self.obs_normalizer.set_data(obs_norm_dict)
+                                self.obs_normalizer.set_data(obs_norm_dict)
 
-                        # total_reward = np.mean(indicate_data['total_reward'])
+                        if self.reward_norm_flag:
+                            total_reward_mean = indicate_data['total_reward_mean'][0]
+                            total_reward_std = indicate_data['total_reward_std'][0]
 
-                        total_reward_mean = indicate_data['total_reward_mean'][0]
-                        total_reward_std = indicate_data['total_reward_std'][0]
-
-                        self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
+                            self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
 
             self.communicator.thread_manager.Barrier()
 
@@ -563,19 +615,18 @@ class AquaRL(BaseAqua):
 
                 # 获取子线程normalize的数据
                 if self.env_type == 'Vec':
-                    if self.obs_normalizer is not None:
+                    if self.state_norm_flag:
                         self.obs_normalizer.push_to_communicator(
                             communicator=self.communicator,
                             agent_name=self.agent.name,
                         )
-                    if self.reward_normalizer is not None:
+                    if self.reward_norm_flag:
                         self.reward_normalizer.push_to_communicator(
                             communicator=self.communicator,
                             agent_name=self.agent.name,
                         )
 
             self.communicator.thread_manager.Barrier()
-
 
             if self.optimize_enable:
                 print('####################{}####################'.format(epoch + 1))
@@ -605,45 +656,56 @@ class AquaRL(BaseAqua):
                 self.recoder.record_scalar(loss_info, epoch + 1)
 
                 if self.env_type == 'Vec':
+
                     indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
                     obs_norm_dict = {}
 
-                    for name in self.obs_names:
-                        mean = np.mean(indicate_data[name + '_mean'], axis=0)
+                    if self.state_norm_flag:
+                        for name in self.obs_names:
+                            mean = np.mean(indicate_data[name + '_mean'], axis=0)
 
-                        std_2 = np.sum(indicate_data[name + '_std'] ** 2, axis=0)
-                        std = std_2/self.worker_thread
-                        std = np.sqrt(std)
+                            std_2 = np.sum(indicate_data[name + '_std'] ** 2, axis=0)
+                            std = std_2 / self.worker_thread
+                            std = np.sqrt(std)
 
-                        obs_norm_dict[name] = (mean, std)
+                            obs_norm_dict[name] = (mean, std)
 
-                        self.communicator.store_indicate_dict(
-                            agent_name=self.agent.name,
-                            indicate_dict={name + '_mean': mean, name + '_std': std},
-                            index=0,
-                        )
+                            self.communicator.store_indicate_dict(
+                                agent_name=self.agent.name,
+                                indicate_dict={name + '_mean': mean, name + '_std': std},
+                                index=0,
+                            )
 
-                        self.obs_normalizer.set_data(obs_norm_dict)
+                            self.obs_normalizer.set_data(obs_norm_dict)
 
                     # total_reward = np.mean(indicate_data['total_reward'])
 
-                    total_reward_mean = np.mean(indicate_data['total_reward_mean'])
-                    total_reward_std = np.mean(indicate_data['total_reward_std'])
+                    if self.reward_norm_flag:
+                        total_reward_mean = np.mean(indicate_data['total_reward_mean'])
+                        total_reward_std = np.mean(indicate_data['total_reward_std'])
 
-                    self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
+                        self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
 
-                    self.communicator.store_indicate_dict(
-                        agent_name=self.agent.name,
-                        indicate_dict={'total_reward_mean': total_reward_mean, 'total_reward_std': total_reward_std},
-                        index=0,
-                    )
+                        self.communicator.store_indicate_dict(
+                            agent_name=self.agent.name,
+                            indicate_dict={'total_reward_mean': total_reward_mean,
+                                           'total_reward_std': total_reward_std},
+                            index=0,
+                        )
+
+                    for key, value in self._tool_dict.items():
+                        cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)
+                        # th_id = self.communicator.thread_manager.get_thread_id
+                        # cache_path = os.path.join(cache_path, str(th_id))
+                        for tool in value:
+                            tool.save(cache_path)
 
                 if epoch % self.agent_params.checkpoint_interval == 0:
                     self.recoder.save_checkpoint(
                         model_dict=self.agent.get_all_model_dict,
                         epoch=epoch + 1,
                         checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
-                        # tool=self._tool_dict,
+                        tool=self._tool_dict,
                     )
 
                 # sync normalizer

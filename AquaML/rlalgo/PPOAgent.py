@@ -6,6 +6,8 @@ from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.core.Comunicator import Communicator
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
+import copy
+import tensorflow_probability as tfp
 
 
 class PPOAgent(BaseRLAgent):
@@ -162,15 +164,16 @@ class PPOAgent(BaseRLAgent):
     def train_actor(self,
                     actor_inputs: tuple,
                     advantage: tf.Tensor,
-                    old_log_prob: tf.Tensor,
+                    old_prob: tf.Tensor,
                     action: tf.Tensor,
                     clip_ratio: float,
                     entropy_coef: float,
                     ):
-        old_log_prob = tf.math.log(old_log_prob)
+        # cancel state std
         with tf.GradientTape() as tape:
             tape.watch(self.actor_train_vars)
 
+            old_log_prob = tf.math.log(old_prob)
             out = self.resample_prob(actor_inputs, action)
 
             log_prob = out[0]
@@ -263,6 +266,12 @@ class PPOAgent(BaseRLAgent):
 
         early_stop = False
 
+        log_std = getattr(self, 'tf_log_std', None)
+        if log_std is not None:
+            old_log_std = copy.deepcopy(log_std)
+        else:
+            old_log_std = None
+
         for i in range(self.agent_params.update_times):
             for batch_data in train_data(self.agent_params.batch_size):
                 actor_input_obs = []
@@ -304,31 +313,43 @@ class PPOAgent(BaseRLAgent):
                         actor_optimize_info, log_prob = self.train_actor(
                             actor_inputs=actor_input_obs,
                             advantage=advantage,
-                            old_log_prob=batch_data['prob'],
+                            old_prob=batch_data['prob'],
                             action=batch_data['action'],
                             clip_ratio=self.agent_params.clip_ratio,
                             entropy_coef=self.agent_params.entropy_coef,
                         )
                         self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
 
-                    # compute kl divergence
-                    # old_log_prob = tf.math.log(batch_data['prob'])
-                    # log_ratio = log_prob - old_log_prob
-                    # approx_kl_div = tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio).numpy()
-
-                    # compute kl divergence
+                    # compute kl divergence, general type
                     old_log_prob = tf.math.log(batch_data['prob'])
                     log_ratio = log_prob - old_log_prob
                     approx_kl_div = tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio).numpy()
+
+                    # compute kl divergence
+                    # if old_log_std is not None:
+                    #     old_log_prob = tf.math.log(batch_data['prob'])
+                    #     log_ratio = log_prob - old_log_prob
+                    #     approx_kl_div = tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio).numpy()
+                    # else:
+                    #     new_log_std = getattr(self, 'tf_log_std')
+                    # 
+                    #     old_dist = tfp.distributions.Normal(batch_data['mu'], tf.exp(old_log_std))
+                    #     new_dist = tfp.distributions.Normal(batch_data['mu'], tf.exp(new_log_std))
+                    #     approx_kl_div = tf.reduce_mean(tfp.distributions.kl_divergence(old_dist, new_dist)).numpy()
 
                     self.loss_tracker.add_data({'approx_kl_div': approx_kl_div}, prefix='kl_div')
 
                     # KL_div = tf.reduce_sum
 
-                    if approx_kl_div > self.agent_params.target_kl*1.5:
-                        print('Early stopping at step {} due to reaching max kl.' .format(i))
-                        early_stop = True
-                        break
+                    if self.agent_params.target_kl is not None:
+                        if approx_kl_div > self.agent_params.target_kl * 1.5:
+                            print('Early stopping at step {} due to reaching max kl.'.format(i))
+                            early_stop = True
+                            break
+                    # if approx_kl_div > self.agent_params.target_kl*1.5:
+                    #     print('Early stopping at step {} due to reaching max kl.' .format(i))
+                    #     early_stop = True
+                    #     break
 
                 if early_stop:
                     break

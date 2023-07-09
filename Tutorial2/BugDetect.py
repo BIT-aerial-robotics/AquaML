@@ -6,7 +6,7 @@ from AquaML.Tool import allocate_gpu
 #
 # comm = MPI.COMM_WORLD
 # allocate_gpu(comm, 0)
-from AquaML.rlalgo.AqauRL import AquaRL
+from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.rlalgo.PPOAgent import PPOAgent
 import numpy as np
@@ -62,11 +62,11 @@ class Actor_net(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
-        self.log_std = tf.keras.layers.Dense(1)
+        # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), 'log_std': (1,)}
+        self.output_info = {'action': (1,),}
 
         self.input_name = ('obs',)
 
@@ -83,9 +83,9 @@ class Actor_net(tf.keras.Model):
         x = self.dense1(obs)
         x = self.dense2(x)
         action = self.action_layer(x)
-        log_std = self.log_std(x)
+        # log_std = self.log_std(x)
 
-        return (action,log_std,)
+        return (action,)
 
     def reset(self):
         pass
@@ -207,9 +207,9 @@ parameters = PPOAgentParameter(
     eval_episode_length=200,
     entropy_coef=0.01,
     batch_advantage_normalization=True,
-    checkpoint_interval=2,
+    checkpoint_interval=20,
     min_steps=200,
-    target_kl=1,
+    target_kl=0.01,
 )
 
 agent_info_dict = {
@@ -217,6 +217,14 @@ agent_info_dict = {
     'critic': Critic_net,
     'agent_params': parameters,
 }
+
+
+load_flag = LoadFlag(
+    actor=True,
+    critic=False,
+    state_normalizer=True,
+    reward_normalizer=False
+)
 
 rl = AquaRL(
     env=vec_env,
@@ -226,8 +234,10 @@ rl = AquaRL(
     # comm=comm,
     name='debug',
     reward_norm=True,
-    state_norm=True,
+    state_norm=False,
     decay_lr=True,
+    # check_point_path='cache',
+    # load_flag=load_flag,
 )
 
 rl.run()

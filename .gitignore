@@ -21,3 +21,5 @@ Tutorial/SAC/history_model/5/info.txt
 *.json
 *.json
 *.npy
+test/analyze.ipynb
+*.ipynb

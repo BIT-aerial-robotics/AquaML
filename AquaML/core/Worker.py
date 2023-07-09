@@ -356,8 +356,8 @@ class RLVectorEnvWorker(BaseWorker):
             # step
             next_obs, reward, done, computing_obs = self.vec_env.step(deepcopy(actions_))
 
-            for obs_plugin in self._obs_plugin:
-                next_obs_ = obs_plugin(next_obs)
+            for obs_plugin, args in self._obs_plugin:
+                next_obs_ = obs_plugin(next_obs, args)
                 next_obs.update(next_obs_)
                 computing_obs_ = obs_plugin(computing_obs, False)
                 computing_obs.update(computing_obs_)
@@ -366,8 +366,8 @@ class RLVectorEnvWorker(BaseWorker):
             for key in next_obs.keys():
                 new_next_obs['next_' + key] = next_obs[key]
 
-            for reward_plugin in self._reward_plugin:
-                reward_ = reward_plugin(deepcopy(reward['total_reward']))
+            for reward_plugin, args in self._reward_plugin:
+                reward_ = reward_plugin(reward['total_reward'])
                 # if 'indicate' not in reward.keys():
                 reward['total_reward'] = deepcopy(reward_)
 
@@ -456,8 +456,8 @@ class RLVectorEnvWorker(BaseWorker):
             if self.sample_enable:
                 obs = self.vec_env.reset()
 
-                for obs_plugin in self._obs_plugin:
-                    obs_ = obs_plugin(obs)
+                for obs_plugin, args in self._obs_plugin:
+                    obs_ = obs_plugin(obs, args)
                     obs.update(obs_)
 
                 # push to data pool

@@ -99,7 +99,7 @@ class PPOAgentParameter(BaseAgentParameter):
                  update_critic_times: int,
                  update_actor_times: int,
                  batch_advantage_normalization: bool = True,
-                 target_kl: float = 1,
+                 target_kl: float = None,
                  vf_coef: float = 0.5,
                  min_steps: int = 1,
                  checkpoint_interval: int = 10,

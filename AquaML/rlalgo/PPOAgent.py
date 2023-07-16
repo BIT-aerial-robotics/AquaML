@@ -126,16 +126,26 @@ class PPOAgent(BaseRLAgent):
             pointed_value=log_std_init,
         )
 
+        if self.level == 0:
+            ########################################
+            # 获取训练参数
+            ########################################
+            self._actor_train_vars = self.actor.trainable_variables
+            for key, value in self._tf_explore_dict.items():
+                self._actor_train_vars += [value]
+
+            if 'critic' in self._all_model_dict:
+                self._critic_train_vars = self.critic.trainable_variables
+
+                self._all_train_vars = self._actor_train_vars + self._critic_train_vars
+            else:
+                self._all_train_vars = self._actor_train_vars
+
         # 确定resample_prob函数
         if 'log_std' in self._explore_dict:
             self.resample_prob = self._resample_log_prob_no_std
         else:
             self.resample_prob = self._resample_log_prob_log_std
-
-        # 获取actor优化参数
-        self._actor_train_vars = self.actor.trainable_variables
-        for key, value in self._tf_explore_dict.items():
-            self._actor_train_vars += [value]
 
         # 初始化模型同步器
         self._sync_model_dict = {
@@ -168,6 +178,7 @@ class PPOAgent(BaseRLAgent):
                     action: tf.Tensor,
                     clip_ratio: float,
                     entropy_coef: float,
+                    normalize_advantage: bool = True,
                     ):
         # cancel state std
         with tf.GradientTape() as tape:
@@ -182,14 +193,20 @@ class PPOAgent(BaseRLAgent):
 
             ratio = tf.exp(log_prob - old_log_prob)
 
-            actor_surrogate_loss = tf.reduce_mean(
-                tf.minimum(
+            if normalize_advantage:
+                advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
+
+            actor_surrogate_loss = tf.reduce_sum(
+                tf.reduce_mean(tf.minimum(
                     ratio * advantage,
                     tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
+                ), axis=0
                 )
             )
 
             entropy_loss = tf.reduce_mean(self.explore_policy.get_entropy(mu, log_std))
+
+            # entropy_loss = tf.reduce_sum(tf.reduce_mean(-log_prob, axis=0))
 
             actor_loss = -actor_surrogate_loss - entropy_coef * entropy_loss
 
@@ -204,6 +221,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
+    @tf.function
     def train_shared(self,
                      target: tf.Tensor,
                      actor_inputs: list,
@@ -213,6 +231,7 @@ class PPOAgent(BaseRLAgent):
                      clip_ratio: float,
                      entropy_coef: float,
                      vf_coef: float,
+                     normalize_advantage: bool = True,
                      ):
         old_log_prob = tf.math.log(old_log_prob)
         with tf.GradientTape() as tape:
@@ -227,10 +246,14 @@ class PPOAgent(BaseRLAgent):
 
             ratio = tf.exp(log_prob - old_log_prob)
 
-            actor_surrogate_loss = tf.reduce_mean(
-                tf.minimum(
+            if normalize_advantage:
+                advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
+
+            actor_surrogate_loss = tf.reduce_sum(
+                tf.reduce_mean(tf.minimum(
                     ratio * advantage,
                     tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
+                ), axis=0
                 )
             )
 
@@ -252,9 +275,68 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
+    @tf.function
+    def train_all(self,
+                  target: tf.Tensor,
+                  actor_inputs: list,
+                  critic_inputs: list,
+                  advantage: tf.Tensor,
+                  old_log_prob: tf.Tensor,
+                  action: tf.Tensor,
+                  clip_ratio: float,
+                  entropy_coef: float,
+                  vf_coef: float,
+                  normalize_advantage: bool = True,
+                  ):
+
+        with tf.GradientTape() as tape:
+            old_log_prob = tf.math.log(old_log_prob)
+            tape.watch(self.all_train_vars)
+
+            out = self.resample_prob(actor_inputs, action)
+
+            log_prob = out[0]
+            log_std = out[1]
+            mu = out[2]
+
+            ratio = tf.exp(log_prob - old_log_prob)
+
+            if normalize_advantage:
+                advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
+
+            actor_surrogate_loss = tf.reduce_sum(
+                tf.reduce_mean(tf.minimum(
+                    ratio * advantage,
+                    tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
+                ), axis=0
+                )
+            )
+
+            entropy_loss = tf.reduce_mean(self.explore_policy.get_entropy(mu, log_std))
+
+            critic_loss = tf.reduce_mean(tf.square(target - self.critic(*critic_inputs)))
+
+            total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * critic_loss
+
+        actor_grads = tape.gradient(total_loss, self.all_train_vars)
+        self.actor_optimizer.apply_gradients(zip(actor_grads, self.all_train_vars))
+
+        dic = {
+            'total_loss': total_loss,
+            'actor_surrogate_loss': actor_surrogate_loss,
+            'entropy_loss': entropy_loss,
+            'critic_loss': critic_loss,
+        }
+
+        return dic, log_prob
+
     @property
     def actor_train_vars(self):
         return self._actor_train_vars
+
+    @property
+    def all_train_vars(self):
+        return self._all_train_vars
 
     def optimize(self, data_set: RLStandardDataSet):
 
@@ -282,9 +364,6 @@ class PPOAgent(BaseRLAgent):
 
                 advantage = batch_data['advantage']
 
-                if self.agent_params.batch_advantage_normalization:
-                    advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
-
                 if self.model_type == 'share':
                     shared_optimize_info = self.train_shared(
                         actor_inputs=actor_input_obs,
@@ -295,6 +374,7 @@ class PPOAgent(BaseRLAgent):
                         clip_ratio=self.agent_params.clip_ratio,
                         entropy_coef=self.agent_params.entropy_coef,
                         vf_coef=self.agent_params.vf_coef,
+                        normalize_advantage=self.agent_params.batch_advantage_normalization,
                     )
                     self.loss_tracker.add_data(shared_optimize_info, prefix='shared')
                 else:
@@ -302,41 +382,59 @@ class PPOAgent(BaseRLAgent):
                     for name in self.critic.input_name:
                         critic_input_obs.append(batch_data[name])
 
-                    for _ in range(self.agent_params.update_critic_times):
-                        critic_optimize_info = self.train_critic(
-                            critic_inputs=critic_input_obs,
+                    if self.agent_params.train_all:
+                        all_optimize_info, log_prob = self.train_all(
                             target=batch_data['target'],
-                        )
-                        self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
-
-                    for _ in range(self.agent_params.update_actor_times):
-                        actor_optimize_info, log_prob = self.train_actor(
                             actor_inputs=actor_input_obs,
+                            critic_inputs=critic_input_obs,
                             advantage=advantage,
-                            old_prob=batch_data['prob'],
+                            old_log_prob=batch_data['prob'],
                             action=batch_data['action'],
                             clip_ratio=self.agent_params.clip_ratio,
                             entropy_coef=self.agent_params.entropy_coef,
+                            vf_coef=self.agent_params.vf_coef,
+                            normalize_advantage=self.agent_params.batch_advantage_normalization,
                         )
-                        self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
+                        self.loss_tracker.add_data(all_optimize_info, prefix='all')
+                    else:
+
+                        for _ in range(self.agent_params.update_critic_times):
+                            critic_optimize_info = self.train_critic(
+                                critic_inputs=critic_input_obs,
+                                target=batch_data['target'],
+                            )
+                            self.loss_tracker.add_data(critic_optimize_info, prefix='critic')
+
+                        for _ in range(self.agent_params.update_actor_times):
+                            actor_optimize_info, log_prob = self.train_actor(
+                                actor_inputs=actor_input_obs,
+                                advantage=advantage,
+                                old_prob=batch_data['prob'],
+                                action=batch_data['action'],
+                                clip_ratio=self.agent_params.clip_ratio,
+                                entropy_coef=self.agent_params.entropy_coef,
+                                normalize_advantage=self.agent_params.batch_advantage_normalization,
+                            )
+                            self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
 
                     # compute kl divergence, general type
                     old_log_prob = tf.math.log(batch_data['prob'])
                     log_ratio = log_prob - old_log_prob
-                    approx_kl_div = tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio).numpy()
+                    approx_kl_div = tf.reduce_mean(tf.reduce_sum((tf.exp(log_ratio) - 1) - log_ratio, axis=1)).numpy()
 
                     # compute kl divergence
                     # if old_log_std is not None:
                     #     old_log_prob = tf.math.log(batch_data['prob'])
                     #     log_ratio = log_prob - old_log_prob
-                    #     approx_kl_div = tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio).numpy()
+                    #     approx_kl_div = tf.reduce_sum(tf.reduce_mean((tf.exp(log_ratio) - 1) - log_ratio, axis=1).numpy()).numpy()
+                    #
                     # else:
                     #     new_log_std = getattr(self, 'tf_log_std')
-                    # 
-                    #     old_dist = tfp.distributions.Normal(batch_data['mu'], tf.exp(old_log_std))
-                    #     new_dist = tfp.distributions.Normal(batch_data['mu'], tf.exp(new_log_std))
+                    #
+                    #     old_dist = tfp.distributions.Normal(batch_data['mu'], tf.exp(old_log_std)**2)
+                    #     new_dist = tfp.distributions.Normal(batch_data['mu'], tf.exp(new_log_std)**2)
                     #     approx_kl_div = tf.reduce_mean(tfp.distributions.kl_divergence(old_dist, new_dist)).numpy()
-
+                    #
                     self.loss_tracker.add_data({'approx_kl_div': approx_kl_div}, prefix='kl_div')
 
                     # KL_div = tf.reduce_sum

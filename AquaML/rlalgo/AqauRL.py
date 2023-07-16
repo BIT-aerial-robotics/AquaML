@@ -201,6 +201,7 @@ class AquaRL(BaseAqua):
                  state_norm: bool = False,
                  reward_norm: bool = False,
                  snyc_norm_per: int = 1,
+                 distributed_norm: bool = False,
                  check_point_path: str = None,
                  load_flag: LoadFlag = LoadFlag(),
                  eval_env=None,
@@ -221,6 +222,11 @@ class AquaRL(BaseAqua):
                 如无特殊需求，agent's name可以使用算法默认值。
             eval_env (BaseEnv, optional): 评估环境。默认为None。在使用VectorEnv时候，eval_env必须存在。
         """
+
+        ########################################
+        # AquaRL参数
+        ########################################
+        self.distributed_norm = distributed_norm
 
         ########################################
         # 初始化环境参数
@@ -428,7 +434,25 @@ class AquaRL(BaseAqua):
             # 创建worker和evaluator
 
         # TODO:这俩个worker貌似定义不是很合理
+
+        ########################################
+        # 创建worker
+        ########################################
+
         if self.env_type == 'Vec':
+            # if self.distributed_norm:
+            #     self.worker = RLDistributedVectorEnvWorker(
+            #         max_steps=self.agent_params.max_steps,
+            #         communicator=self.communicator,
+            #         optimize_enable=self.optimize_enable,
+            #         sample_enable=self.sample_enable,
+            #         vec_env=self.env,
+            #         action_names=self.agent.get_action_names,
+            #         obs_names=self.env.obs_info.names,
+            #         reward_names=self.env.reward_info,
+            #         agent_name=self.agent.name,
+            #     )
+            # else:
             self.worker = RLVectorEnvWorker(
                 max_steps=self.agent_params.max_steps,
                 communicator=self.communicator,
@@ -440,6 +464,8 @@ class AquaRL(BaseAqua):
                 reward_names=self.env.reward_info,
                 agent_name=self.agent.name,
             )
+
+
         else:
             self.worker = RLAgentWorker(
                 max_steps=self.agent_params.max_steps,
@@ -468,6 +494,9 @@ class AquaRL(BaseAqua):
                 self.state_norm_flag = True
                 self.worker.add_obs_plugin((self.obs_normalizer, self.state_norm_flag))
                 self._tool_dict['scaler'].append(self.obs_normalizer)
+
+                if eval_env is not None:
+                    self.evaluator.add_obs_plugin(self.obs_normalizer)
             else:
                 self.state_norm_flag = False
                 self.obs_normalizer = None
@@ -494,6 +523,9 @@ class AquaRL(BaseAqua):
                     )
 
                     self.worker.add_obs_plugin((self.obs_normalizer, self.state_norm_flag))
+
+                    if eval_env is not None:
+                        self.evaluator.add_obs_plugin(self.obs_normalizer)
 
                 self.obs_normalizer.load(path)
 
@@ -727,36 +759,34 @@ class AquaRL(BaseAqua):
                     for tool in value:
                         tool.save(cache_path)
 
-            # self.communicator.thread_manager.Barrier()
+            self.communicator.thread_manager.Barrier()
 
-            # if (epoch + 1) % self.agent_params.eval_interval == 0:
-            #
-            #     if self.sample_enable:
-            #         self.sync()
-            #         self.evaluate()
-            #
-            #     self.communicator.thread_manager.Barrier()
-            #
-            #     if self.optimize_enable:
-            #         # 汇总数据
-            #         summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
-            #
-            #         # 计算平均值
-            #         new_summery_dict = {}
-            #         pre_fix = 'reward/'
-            #         for key, value in summery_dict.items():
-            #             # if 'reward' in key:
-            #             if 'max' in key:
-            #                 new_summery_dict[pre_fix + key] = np.max(value)
-            #             elif 'min' in key:
-            #                 new_summery_dict[pre_fix + key] = np.min(value)
-            #             else:
-            #                 new_summery_dict[pre_fix + key] = np.mean(value)
-            #
-            #         # 记录数据
-            #         for key, value in new_summery_dict.items():
-            #             print(key, value)
-            #
-            #
-            #
-            #         self.recoder.record_scalar(new_summery_dict, epoch + 1)
+            if (epoch + 1) % self.agent_params.eval_interval == 0:
+
+                if self.sample_enable:
+                    self.sync()
+                    self.evaluate()
+
+                self.communicator.thread_manager.Barrier()
+
+                if self.optimize_enable:
+                    # 汇总数据
+                    summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
+
+                    # 计算平均值
+                    new_summery_dict = {}
+                    pre_fix = 'reward/'
+                    for key, value in summery_dict.items():
+                        # if 'reward' in key:
+                        if 'max' in key:
+                            new_summery_dict[pre_fix + key] = np.max(value)
+                        elif 'min' in key:
+                            new_summery_dict[pre_fix + key] = np.min(value)
+                        else:
+                            new_summery_dict[pre_fix + key] = np.mean(value)
+
+                    # 记录数据
+                    for key, value in new_summery_dict.items():
+                        print(key, value)
+
+                    self.recoder.record_scalar(new_summery_dict, epoch + 1)

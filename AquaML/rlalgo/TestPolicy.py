@@ -26,9 +26,12 @@ class DataSetTracker:
 
     def save_data(self, path):
         for key, value in self.data_dict.items():
-            data = np.vstack(value)
-            file = os.path.join(path, key + '.npy')
-            np.save(file, data)
+            if 'reward' not in key:
+                data = np.vstack(value)
+                file = os.path.join(path, key + '.npy')
+                np.save(file, data)
+            else:
+                print("{}:{}".format(key,np.sum(value)))
 
 
 class TestPolicy:
@@ -55,9 +58,10 @@ class TestPolicy:
 
             for _ in range(episode_steps):
                 action = self.policy.get_action(obs)
-                obs, _, done, _ = self.env.step(action)
+                obs, reward, done, _ = self.env.step(action)
                 data_tracker.add_data(obs)
                 data_tracker.add_data(action)
+                data_tracker.add_data(reward, 'reward')
                 if done:
                     break
 

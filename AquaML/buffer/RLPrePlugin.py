@@ -58,26 +58,41 @@ class ValueFunctionComputer(PluginBase):
         else:
             value = data['value']
 
-        # next value, the last value is 0
-        if mask_end == 0:
-            end_value = 0.0
+        next_input = []
+        for name in input_name:
+            next_input.append(data['next_' + name][-1].reshape((1, -1)))
+
+        output2 = self.value_model(*next_input)
+
+        if isinstance(output2, tf.Tensor):
+            end_value = output2.numpy()
+        elif isinstance(output2, list) or isinstance(output2, tuple):
+            end_value = output2[self.vf_idx].numpy()
         else:
-            next_input = []
-            for name in input_name:
-                next_input.append(data['next_' + name][-1].reshape((1, -1)))
+            raise ValueError('model is not a tensor or a list or a tuple')
 
-            output2 = self.value_model(*next_input)
+        end_value = np.squeeze(end_value)
 
-            if isinstance(output2, tf.Tensor):
-                end_value = output2.numpy()
-            elif isinstance(output2, list) or isinstance(output2, tuple):
-                end_value = output2[self.vf_idx].numpy()
-            else:
-                raise ValueError('model is not a tensor or a list or a tuple')
+        # next value, the last value is 0
+        # if mask_end == 0:
+        #     end_value = 0.0
+        # else:
+        #     next_input = []
+        #     for name in input_name:
+        #         next_input.append(data['next_' + name][-1].reshape((1, -1)))
+        #
+        #     output2 = self.value_model(*next_input)
+        #
+        #     if isinstance(output2, tf.Tensor):
+        #         end_value = output2.numpy()
+        #     elif isinstance(output2, list) or isinstance(output2, tuple):
+        #         end_value = output2[self.vf_idx].numpy()
+        #     else:
+        #         raise ValueError('model is not a tensor or a list or a tuple')
 
-            end_value = np.squeeze(end_value)
+        # end_value = np.squeeze(end_value)
 
-            # end_value = np.squeeze(self.value_model(*next_input).numpy())
+        # end_value = np.squeeze(self.value_model(*next_input).numpy())
 
         next_value = np.append(value[1:], end_value)
 
@@ -116,12 +131,14 @@ class GAEComputer(PluginBase):
             if index == length - 1:
                 next_value = last_value
                 done = mask_end
+                reward = rewards[index] + self.gamma * next_value
             else:
                 next_value = values[index + 1]
                 done = mask[index]
+                reward = rewards[index]
 
-            delta = rewards[index] + self.gamma * next_value*done - values[index]
-            cumulated_advantage = self.gamma * self.lamda * cumulated_advantage*done + delta
+            delta = reward + self.gamma * next_value * done - values[index]
+            cumulated_advantage = self.gamma * self.lamda * cumulated_advantage * done + delta
             gae[index] = cumulated_advantage
             n_steps_target[index] = gae[index] + values[index]
 
@@ -172,7 +189,6 @@ class SplitTrajectory:
                     episode_traj[key] = value[start_idx:terminal_idx]
 
                 episode_length = terminal_idx - start_idx
-
 
                 if end_mask == 1:
                     store_flag = True

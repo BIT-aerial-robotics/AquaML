@@ -44,7 +44,8 @@ class SummaryRewardCollector:
 
     def store_data(self, reward: dict):
         for name in self.reward_names:
-            self.reward_dict[name].append(reward[name])
+            if name != 'indicate':
+                self.reward_dict[name].append(reward[name])
 
     def summary_episode(self):
 

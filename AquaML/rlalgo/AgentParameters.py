@@ -100,6 +100,7 @@ class PPOAgentParameter(BaseAgentParameter):
                  update_actor_times: int,
                  batch_advantage_normalization: bool = True,
                  target_kl: float = None,
+                 train_all: bool = False,
                  vf_coef: float = 0.5,
                  min_steps: int = 1,
                  checkpoint_interval: int = 10,
@@ -165,3 +166,5 @@ class PPOAgentParameter(BaseAgentParameter):
         self.vf_coef = vf_coef
 
         self.target_kl = target_kl
+
+        self.train_all = train_all

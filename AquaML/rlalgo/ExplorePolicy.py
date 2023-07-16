@@ -3,6 +3,9 @@ import tensorflow_probability as tfp
 import numpy as np
 import abc
 
+pi = tf.constant(np.pi)
+e = tf.constant(np.e)
+
 
 def create_explor_policy(explore_policy_name, shape, actor_out_names):
     if explore_policy_name == 'Gaussian':
@@ -191,11 +194,20 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         # sigma = tf.exp(log_std)
         noise = (action - mu) / std
         log_prob = self.dist.log_prob(noise)
+
+        # dist = tfp.distributions.Normal(loc=mu, scale=std ** 2)
+        # log_prob = dist.log_prob(action)
+
         return log_prob
 
     def get_entropy(self, mean, log_std):
+
         dist = tfp.distributions.Normal(loc=mean, scale=tf.exp(log_std))
-        entropy = dist.entropy()
+        if len(mean.shape) == 1:
+            entropy = tf.reduce_sum(dist.entropy())
+        else:
+            entropy = tf.reduce_sum(dist.entropy(), axis=1)
+
         return entropy
 
     def test_action(self, mu, log_std):

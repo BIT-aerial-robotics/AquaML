@@ -142,8 +142,8 @@ class PendulumWrapper(RLBaseEnv):
 
         # our frame work support POMDP env
         self._obs_info = DataInfo(
-            names=('obs', 'id', 'step',),
-            shapes=((3,), (1,), (1,)),
+            names=('obs', 'step',),
+            shapes=((3,), (1,)),
             dtypes=np.float32
         )
 
@@ -158,7 +158,7 @@ class PendulumWrapper(RLBaseEnv):
 
         # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
 
-        obs = {'obs': observation, 'id': self.id, 'step': self.step_s}
+        obs = {'obs': observation, 'step': self.step_s}
 
         obs = self.initial_obs(obs)
 
@@ -173,7 +173,7 @@ class PendulumWrapper(RLBaseEnv):
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
-        obs = {'obs': observation, 'id': self.id, 'step': self.step_s}
+        obs = {'obs': observation, 'step': self.step_s}
 
         obs = self.check_obs(obs, action_dict)
 
@@ -202,12 +202,14 @@ parameters = PPOAgentParameter(
     max_steps=200,
     update_actor_times=1,
     update_critic_times=1,
-    eval_episodes=20,
-    eval_interval=2000,
+    eval_episodes=5,
+    eval_interval=10000,
     eval_episode_length=200,
     entropy_coef=0.01,
     batch_advantage_normalization=True,
     checkpoint_interval=20,
+    log_std_init_value=0.0,
+    train_all=False,
     min_steps=200,
     target_kl=0.01,
 )
@@ -234,7 +236,7 @@ rl = AquaRL(
     # comm=comm,
     name='debug',
     reward_norm=True,
-    state_norm=False,
+    state_norm=True,
     decay_lr=True,
     # check_point_path='cache',
     # load_flag=load_flag,

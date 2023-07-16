@@ -209,6 +209,12 @@ class Evaluator(BaseWorker):
         self.obs = None
         self.episode_step_count = 0
 
+        # 插件接口
+        self._obs_plugin = []
+
+    def add_obs_plugin(self, obs_plugin):
+        self._obs_plugin.append(obs_plugin)
+
     def step(self, env, agent, collector):
         """
         采样一次数据。
@@ -450,6 +456,35 @@ class RLVectorEnvWorker(BaseWorker):
 
     def roll(self, agent, rollout_steps, std_data_set: RLStandardDataSet):
         self.vec_MDP_collector.reset()
+
+        # if self.sample_enable:
+        #     obs = self.vec_env.reset()
+        #
+        #     for obs_plugin, args in self._obs_plugin:
+        #         obs_ = obs_plugin(obs, args)
+        #         obs.update(obs_)
+        #
+        #     # push to data pool
+        #     self.communicator.store_data_dict(
+        #         agent_name=agent.name,
+        #         data_dict=obs,
+        #         start_index=self.start_index,
+        #         end_index=self.end_index
+        #     )
+        #
+        #     self.communicator.Barrier()
+        #
+        # if self.optimize_enable:
+        #     obs = self.communicator.get_pointed_data_pool_dict(
+        #         agent_name=agent.name,
+        #         data_name=self.obs_names,
+        #         start_index=self.start_index,
+        #         end_index=self.end_index
+        #     )
+        #
+        #     self.obs = deepcopy(obs)
+        #
+        # self.communicator.Barrier()
 
         if self.initial_flag:
             self.initial_flag = False

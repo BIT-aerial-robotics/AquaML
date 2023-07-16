@@ -2,10 +2,12 @@ import sys
 
 sys.path.append('..')
 from AquaML.Tool import allocate_gpu
-# from mpi4py import MPI
+from mpi4py import MPI
+
 #
-# comm = MPI.COMM_WORLD
-# allocate_gpu(comm, 0)
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+allocate_gpu(comm, 0)
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.rlalgo.PPOAgent import PPOAgent
@@ -16,6 +18,10 @@ from AquaML.core.RLToolKit import RLBaseEnv
 from AquaML.core.RLToolKit import RLVectorEnv
 import tensorflow as tf
 
+
+# import pydevd_pycharm
+# port_mapping=[35163, 32845, 33387, 37577]
+# pydevd_pycharm.settrace('localhost', port=port_mapping[rank], stdoutToServer=True, stderrToServer=True)
 
 class SharedActorCritic(tf.keras.Model):
 
@@ -66,7 +72,7 @@ class Actor_net(tf.keras.Model):
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,),}
+        self.output_info = {'action': (1,), }
 
         self.input_name = ('obs',)
 
@@ -193,10 +199,10 @@ class PendulumWrapper(RLBaseEnv):
 
 eval_env = PendulumWrapper()
 
-vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False)
+vec_env = RLVectorEnv(PendulumWrapper, 4, normalize_obs=False, )
 parameters = PPOAgentParameter(
     rollout_steps=200,
-    epochs=400,
+    epochs=200,
     batch_size=128,
     update_times=4,
     max_steps=200,
@@ -220,7 +226,6 @@ agent_info_dict = {
     'agent_params': parameters,
 }
 
-
 load_flag = LoadFlag(
     actor=True,
     critic=False,
@@ -233,11 +238,12 @@ rl = AquaRL(
     agent=PPOAgent,
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
-    # comm=comm,
-    name='debug',
+    comm=comm,
+    name='debug2',
     reward_norm=True,
     state_norm=True,
     decay_lr=True,
+    snyc_norm_per=10,
     # check_point_path='cache',
     # load_flag=load_flag,
 )

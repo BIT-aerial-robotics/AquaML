@@ -503,7 +503,7 @@ class RLVectorEnvWorker(BaseWorker):
                     end_index=self.end_index
                 )
 
-                self.communicator.Barrier()
+            self.communicator.Barrier()
 
             if self.optimize_enable:
                 obs = self.communicator.get_pointed_data_pool_dict(

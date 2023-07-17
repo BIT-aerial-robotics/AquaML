@@ -1,13 +1,13 @@
 import sys
 
 sys.path.append('..')
-from AquaML.Tool import allocate_gpu
-from mpi4py import MPI
-
+# from AquaML.Tool import allocate_gpu
+# from mpi4py import MPI
 #
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-allocate_gpu(comm, 0)
+# #
+# comm = MPI.COMM_WORLD
+# rank = comm.Get_rank()
+# allocate_gpu(comm, 0)
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.rlalgo.PPOAgent import PPOAgent
@@ -199,7 +199,7 @@ class PendulumWrapper(RLBaseEnv):
 
 eval_env = PendulumWrapper()
 
-vec_env = RLVectorEnv(PendulumWrapper, 4, normalize_obs=False, )
+vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
 parameters = PPOAgentParameter(
     rollout_steps=200,
     epochs=200,
@@ -215,7 +215,7 @@ parameters = PPOAgentParameter(
     batch_advantage_normalization=True,
     checkpoint_interval=20,
     log_std_init_value=0.0,
-    train_all=False,
+    train_all=True,
     min_steps=200,
     target_kl=0.01,
 )
@@ -238,7 +238,7 @@ rl = AquaRL(
     agent=PPOAgent,
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
-    comm=comm,
+    # comm=comm,
     name='debug2',
     reward_norm=True,
     state_norm=True,
@@ -246,6 +246,7 @@ rl = AquaRL(
     snyc_norm_per=10,
     # check_point_path='cache',
     # load_flag=load_flag,
+
 )
 
 rl.run()

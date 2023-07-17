@@ -191,7 +191,10 @@ class PPOAgent(BaseRLAgent):
             log_std = out[1]
             mu = out[2]
 
-            ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
+            # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
+
+            # 动作是独立的
+            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
 
             if normalize_advantage:
                 advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
@@ -241,7 +244,10 @@ class PPOAgent(BaseRLAgent):
             mu = out[2]
             value = out[self.value_idx + 2]
 
-            ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
+            # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
+
+            # 动作是独立的
+            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
 
             if normalize_advantage:
                 advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
@@ -295,7 +301,10 @@ class PPOAgent(BaseRLAgent):
             log_std = out[1]
             mu = out[2]
 
-            ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
+            # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
+
+            # 动作是独立的
+            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
 
             if normalize_advantage:
                 advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
@@ -412,8 +421,9 @@ class PPOAgent(BaseRLAgent):
 
                     # compute kl divergence, general type
                     old_log_prob = tf.math.log(batch_data['prob'])
-                    log_ratio = log_prob - old_log_prob
-                    approx_kl_div = tf.reduce_mean(tf.reduce_sum((tf.exp(log_ratio) - 1) - log_ratio, axis=1)).numpy()
+                    log_ratio = tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True) # 多维分布
+                    approx_kl_div = tf.reduce_mean(tf.exp(log_ratio) - 1 - log_ratio).numpy()
+                    # approx_kl_div = tf.reduce_mean(((tf.exp(log_ratio) - 1) - log_ratio, axis=1)).numpy()
 
                     # compute kl divergence
                     # if old_log_std is not None:

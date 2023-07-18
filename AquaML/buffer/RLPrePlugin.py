@@ -61,6 +61,7 @@ class ValueFunctionComputer(PluginBase):
         next_input = []
         for name in input_name:
             next_input.append(data['next_' + name][-1].reshape((1, -1)))
+            # print(data['next_' + name].shape)
 
         output2 = self.value_model(*next_input)
 
@@ -202,13 +203,14 @@ class SplitTrajectory:
                         processed_data = plugin(episode_traj, end_mask)
 
                         episode_traj.update(processed_data)
-                        reward = {
-                            'total_reward': np.sum(episode_traj['total_reward']),
-                            'length': episode_length,
-                        }
-                        if 'indicate' in episode_traj:
-                            reward['indicate'] = np.sum(episode_traj['indicate'])
-                        reward_tracker.add_data(reward, 'episode')
+
+                    reward = {
+                        'total_reward': np.sum(episode_traj['total_reward']),
+                        'length': episode_length,
+                    }
+                    if 'indicate' in episode_traj:
+                        reward['indicate'] = np.sum(episode_traj['indicate'])
+                    reward_tracker.add_data(reward, 'episode')
 
                     data_set_tracker.add_data(episode_traj)
 
@@ -220,9 +222,10 @@ class SplitTrajectory:
         if isinstance(plugin, PluginBase):
             self._plugin_list.append(plugin)
 
-    class RLPrePluginRegister:
-        def __init__(self):
-            self.plugins = []
 
-        def add_plugin(self, plugin):
-            self.plugins.append(plugin)
+class RLPrePluginRegister:
+    def __init__(self):
+        self.plugins = []
+
+    def add_plugin(self, plugin):
+        self.plugins.append(plugin)

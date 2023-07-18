@@ -207,6 +207,12 @@ class LossTracker:
             loss_dict[key + '_min'] = np.min(value)
             loss_dict[key] = np.mean(value)
 
+            if 'reward' in key:
+                loss_dict[key + '_std'] = np.std(value)
+
+            if 'indicate' in key:
+                loss_dict[key + '_std'] = np.std(value)
+
         # 获取data以后自动释放内存
         self.reset()
         return loss_dict

@@ -218,11 +218,12 @@ parameters = PPOAgentParameter(
     train_all=False,
     min_steps=200,
     target_kl=0.01,
+    lamda=0.95,
 )
 
 agent_info_dict = {
-    'actor': Actor_net,
-    'critic': Critic_net,
+    'actor': SharedActorCritic,
+    # 'critic': Critic_net,
     'agent_params': parameters,
 }
 
@@ -240,8 +241,8 @@ rl = AquaRL(
     eval_env=eval_env,
     # comm=comm,
     name='debug2',
-    reward_norm=True,
-    state_norm=True,
+    reward_norm=False,
+    state_norm=False,
     decay_lr=True,
     snyc_norm_per=10,
     # check_point_path='cache',

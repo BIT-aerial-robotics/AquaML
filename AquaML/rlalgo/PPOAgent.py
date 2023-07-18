@@ -367,7 +367,7 @@ class PPOAgent(BaseRLAgent):
                 advantage = batch_data['advantage']
 
                 if self.model_type == 'share':
-                    shared_optimize_info = self.train_shared(
+                    shared_optimize_info, log_prob = self.train_shared(
                         actor_inputs=actor_input_obs,
                         target=batch_data['target'],
                         advantage=advantage,

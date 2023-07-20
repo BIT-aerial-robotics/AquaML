@@ -205,11 +205,14 @@ class SplitTrajectory:
                         episode_traj.update(processed_data)
 
                     reward = {
-                        'total_reward': np.sum(episode_traj['total_reward']),
+                        # 'total_reward': np.sum(episode_traj['total_reward']),
                         'length': episode_length,
                     }
-                    if 'indicate' in episode_traj:
-                        reward['indicate'] = np.sum(episode_traj['indicate'])
+
+                    for name in trajectory.reward_names:
+                        reward[name] = np.sum(episode_traj[name])
+                    # if 'indicate' in episode_traj:
+                    #     reward['indicate'] = np.sum(episode_traj['indicate'])
                     reward_tracker.add_data(reward, 'episode')
 
                     data_set_tracker.add_data(episode_traj)
@@ -221,7 +224,6 @@ class SplitTrajectory:
     def add_plugin(self, plugin):
         if isinstance(plugin, PluginBase):
             self._plugin_list.append(plugin)
-
 
 class RLPrePluginRegister:
     def __init__(self):

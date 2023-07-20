@@ -34,11 +34,11 @@ class SharedActorCritic(tf.keras.Model):
         self.action_layer2 = tf.keras.layers.Dense(1, activation='tanh')
         self.value_layer1 = tf.keras.layers.Dense(64, activation='relu')
         self.value_layer2 = tf.keras.layers.Dense(1, activation='linear')
-        # self.log_std = tf.keras.layers.Dense(1, activation='tanh')
+        self.log_std = tf.Variable(np.array([0.0]), dtype=tf.float32, trainable=True, name='log_std')
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), 'value': (1,)}
+        self.output_info = {'action': (1,), 'log_std': (1,), 'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -57,7 +57,9 @@ class SharedActorCritic(tf.keras.Model):
         action = self.action_layer2(action_1)
         value_1 = self.value_layer1(x)
         value = self.value_layer2(value_1)
-        return (action, value,)
+
+        log_std = tf.ones_like(action) * self.log_std
+        return (action,log_std, value , )
 
 
 class Actor_net(tf.keras.Model):
@@ -211,7 +213,7 @@ parameters = PPOAgentParameter(
     eval_episodes=5,
     eval_interval=10000,
     eval_episode_length=200,
-    entropy_coef=0.01,
+    entropy_coef=0.0,
     batch_advantage_normalization=True,
     checkpoint_interval=20,
     log_std_init_value=0.0,
@@ -241,8 +243,8 @@ rl = AquaRL(
     eval_env=eval_env,
     # comm=comm,
     name='debug2',
-    reward_norm=False,
-    state_norm=False,
+    reward_norm=True,
+    state_norm=True,
     decay_lr=True,
     snyc_norm_per=10,
     # check_point_path='cache',

@@ -76,7 +76,7 @@ class Recoder:
                 with self.main_writer.as_default():
                     tf.summary.histogram(key + '/' + weight.name, weight, step=step)
 
-    def save_checkpoint(self, model_dict: dict, epoch, checkpoint_dir, tool: dict={}):
+    def save_checkpoint(self, model_dict: dict, epoch, checkpoint_dir, tool: dict={}, agent:dict={}):
 
         dir_path = os.path.join(checkpoint_dir, str(epoch))
 
@@ -92,6 +92,11 @@ class Recoder:
             mkdir(tool_area)
             for to in value:
                 to.save(tool_area)
+
+        for key, value in agent.items():
+            path = os.path.join(dir_path, key)
+            mkdir(path)
+            value.save_param(path)
 
     # record histogram
     # def record_histogram(self, name: str, data: tf.Tensor, step: int, prefix: str = ''):

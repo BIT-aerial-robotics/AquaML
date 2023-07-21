@@ -16,6 +16,7 @@ class LoadFlag:
     critic: bool = False
     state_normalizer: bool = False
     reward_normalizer: bool = False
+    agent_param: bool = False
 
 
 class RunningMeanStd:
@@ -546,6 +547,11 @@ class AquaRL(BaseAqua):
                     path = os.path.join(check_point_path, 'critic.h5')
                     self.agent.critic.load_weights(path)
 
+            if load_flag.agent_param:
+                if self.optimize_enable:
+                    path = os.path.join(check_point_path, 'agent_param')
+                    self.agent.load_param(path)
+
     def sampling(self):
 
         std_data_set = RLStandardDataSet(
@@ -687,6 +693,12 @@ class AquaRL(BaseAqua):
                 self.recoder.record_scalar(reward_info, epoch + 1)
                 self.recoder.record_scalar(loss_info, epoch + 1)
 
+                #######################
+                # 存储数据
+                #######################
+                agent_param_path = os.path.join(self.file_system.get_cache_path(self.agent.name), 'agent_param')
+                mkdir(agent_param_path)
+                self.agent.save_param(agent_param_path)
                 if self.env_type == 'Vec':
 
                     indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
@@ -738,6 +750,7 @@ class AquaRL(BaseAqua):
                         epoch=epoch + 1,
                         checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
                         tool=self._tool_dict,
+                        agent={'agent_param': self.agent}
                     )
 
                 # sync normalizer

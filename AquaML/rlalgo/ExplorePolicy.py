@@ -183,7 +183,7 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         action = mu + sigma * noise
 
         # action = tf.clip_by_value(action, -1, 1)
-        #
+
         # noise = (action - mu) / sigma
         #
         # prob = self.get_prob(noise)

@@ -5,7 +5,9 @@ from AquaML.rlalgo.ExplorePolicy import create_explor_policy
 from AquaML.core.ToolKit import LossTracker
 from AquaML.data.DataUnit import DataUnit
 from AquaML.core.DataParser import DataInfo
+from AquaML.core.ToolKit import mkdir
 import numpy as np
+import os
 
 
 class BaseAgent(ABC):
@@ -330,9 +332,30 @@ class BaseRLAgent(BaseAgent, ABC):
                     'dtype': item['dtype'],
                     'trainable': True,
                     'init': init_value,
+                    'data': self._explore_dict[name],
                 }
 
         self.explore_policy = policy
+
+    def save_param(self, path):
+
+        # store_path = os.path.join(path, self.name)
+        # mkdir(store_path)
+        for name, value in self._param_dict.items():
+            file_name = os.path.join(path, name + '.npy')
+            value['data'].save(file_name)
+
+    def load_param(self, path):
+
+        # load_path = os.path.join(path, self.name)
+
+        for name, value in self._param_dict.items():
+            file_name = os.path.join(path, name + '.npy')
+            value['data'].load(file_name)
+
+            if value['trainable']:
+                var = getattr(self, 'tf_' + name)
+                var.assign(np.squeeze(value['data'].buffer))
 
     def update_explorer(self):
 
@@ -432,7 +455,6 @@ class BaseRLAgent(BaseAgent, ABC):
                 indicate_shapes.append(shape_)
 
         if reward_norm_flag:
-
             indicate_names.append('total_reward_mean')
             indicate_dtypes.append(np.float32)
             indicate_shapes.append((woker_num, 1))

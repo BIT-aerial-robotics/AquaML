@@ -32,13 +32,14 @@ class SharedActorCritic(tf.keras.Model):
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer1 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer2 = tf.keras.layers.Dense(1, activation='tanh')
+
         self.value_layer1 = tf.keras.layers.Dense(64, activation='relu')
         self.value_layer2 = tf.keras.layers.Dense(1, activation='linear')
-        self.log_std = tf.Variable(np.array([0.0]), dtype=tf.float32, trainable=True, name='log_std')
+        # self.log_std = tf.Variable(np.array([0.0]), dtype=tf.float32, trainable=True, name='log_std')
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), 'log_std': (1,), 'value': (1,)}
+        self.output_info = {'action': (1,),  'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -58,8 +59,8 @@ class SharedActorCritic(tf.keras.Model):
         value_1 = self.value_layer1(x)
         value = self.value_layer2(value_1)
 
-        log_std = tf.ones_like(action) * self.log_std
-        return (action,log_std, value , )
+        # log_std = tf.ones_like(action) * self.log_std
+        return (action, value , )
 
 
 class Actor_net(tf.keras.Model):
@@ -233,7 +234,8 @@ load_flag = LoadFlag(
     actor=True,
     critic=False,
     state_normalizer=True,
-    reward_normalizer=False
+    reward_normalizer=False,
+    agent_param=True
 )
 
 rl = AquaRL(
@@ -247,8 +249,8 @@ rl = AquaRL(
     state_norm=True,
     decay_lr=True,
     snyc_norm_per=10,
-    # check_point_path='cache',
-    # load_flag=load_flag,
+    check_point_path='debug2/cache/ppo',
+    load_flag=load_flag,
 )
 
 rl.run()

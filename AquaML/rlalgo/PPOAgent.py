@@ -152,6 +152,10 @@ class PPOAgent(BaseRLAgent):
             'actor': self.actor,
         }
 
+        if self.level == 0:
+            if self.model_type == 'independent':
+                self._sync_model_dict['critic'] = self.critic
+
     @tf.function
     def train_critic(self,
                      critic_inputs: tuple,

@@ -335,6 +335,32 @@ class DataUnit:
 
         return dtype
 
+    def save(self, path):
+        """Save data.
+
+        Args:
+            path (str): path to save.
+        """
+        np.save(path, self._buffer)
+
+    def load(self, path):
+        """Load data.
+
+        Args:
+            path (str): path to load.
+        """
+        buffer = np.load(path)
+
+        # check shape
+        if buffer.shape != self._shape:
+            raise ValueError('shape not match')
+
+        # check dtype
+        if buffer.dtype != self._dtype:
+            raise ValueError('dtype not match')
+
+        self._buffer[:] = buffer[:]
+
 
 # print(DataUnit.get_dtype_from_str('np.float32'))
 # print(DataUnit.get_str_from_dtype(np.float32))

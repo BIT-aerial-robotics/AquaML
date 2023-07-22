@@ -316,7 +316,7 @@ class BaseRLAgent(BaseAgent, ABC):
 
             if item['trainable']:
                 vars = tf.Variable(
-                    initial_value=init_value,
+                    initial_value=init_value * tf.ones(shape=item['shape'], dtype=item['dtype']),
                     trainable=True,
                     name=self.name + '_' + name,
                 )

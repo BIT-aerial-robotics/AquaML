@@ -31,14 +31,14 @@ class SharedActorCritic(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer1 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer2 = tf.keras.layers.Dense(1, activation='tanh')
+        self.action_layer2 = tf.keras.layers.Dense(8, activation='tanh')
         self.value_layer1 = tf.keras.layers.Dense(64, activation='relu')
         self.value_layer2 = tf.keras.layers.Dense(1, activation='linear')
-        self.log_std = tf.Variable(np.array([0.0]), dtype=tf.float32, trainable=True, name='log_std')
+        # self.log_std = tf.Variable(np.array([0.0]), dtype=tf.float32, trainable=True, name='log_std')
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), 'log_std': (1,), 'value': (1,)}
+        self.output_info = {'action': (8,), 'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -58,8 +58,7 @@ class SharedActorCritic(tf.keras.Model):
         value_1 = self.value_layer1(x)
         value = self.value_layer2(value_1)
 
-        log_std = tf.ones_like(action) * self.log_std
-        return (action,log_std, value , )
+        return (action, value , )
 
 
 class Actor_net(tf.keras.Model):
@@ -141,7 +140,7 @@ class Critic_net(tf.keras.Model):
 
 
 class PendulumWrapper(RLBaseEnv):
-    def __init__(self, env_name="Pendulum-v1"):
+    def __init__(self, env_name="Ant-v4"):
         super().__init__()
         # TODO: update in the future
         self.step_s = 0
@@ -151,7 +150,7 @@ class PendulumWrapper(RLBaseEnv):
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs', 'step',),
-            shapes=((3,), (1,)),
+            shapes=((27,), (1,)),
             dtypes=np.float32
         )
 
@@ -242,7 +241,7 @@ rl = AquaRL(
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,
-    name='debug2',
+    name='debug4',
     reward_norm=True,
     state_norm=True,
     decay_lr=True,

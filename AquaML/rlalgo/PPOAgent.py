@@ -221,7 +221,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
-    @tf.function
+    # @tf.function
     def train_shared(self,
                      target: tf.Tensor,
                      actor_inputs: list,
@@ -478,7 +478,7 @@ class PPOAgent(BaseRLAgent):
 
         out = self.actor(*obs)
         mu = out[0]
-        std = tf.exp(self.tf_log_std)*tf.ones_like(mu)
+        std = tf.exp(self.tf_log_std)
         log_prob = self.explore_policy.resample_prob(mu, std, action)
 
         return (log_prob, self.tf_log_std, *out)

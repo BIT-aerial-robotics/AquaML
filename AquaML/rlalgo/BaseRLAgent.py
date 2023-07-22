@@ -5,6 +5,7 @@ from AquaML.rlalgo.ExplorePolicy import create_explor_policy
 from AquaML.core.ToolKit import LossTracker
 from AquaML.data.DataUnit import DataUnit
 from AquaML.core.DataParser import DataInfo
+import copy
 import numpy as np
 
 
@@ -239,6 +240,7 @@ class BaseRLAgent(BaseAgent, ABC):
 
         input_data = []
 
+        obs = copy.deepcopy(obs)
         # 获取输入数据
         for name in self.actor.input_name:
             data = tf.cast(obs[name], dtype=tf.float32)

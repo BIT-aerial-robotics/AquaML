@@ -198,6 +198,7 @@ class AquaRL(BaseAqua):
                  agent,
                  agent_info_dict: dict,
                  decay_lr: bool = False,
+                 min_lr: float = 2.5e-5,
                  state_norm: bool = False,
                  reward_norm: bool = False,
                  snyc_norm_per: int = 1,
@@ -233,6 +234,7 @@ class AquaRL(BaseAqua):
         ########################################
 
         self.decay_lr = decay_lr
+        self.min_lr = min_lr
 
         ########################################
         # 初始化communicator参数
@@ -679,6 +681,7 @@ class AquaRL(BaseAqua):
                         optimizer = param['optimizer']
                         lr = param['lr']
                         lr_now = lr * (1 - current_steps / self._max_total_steps)
+                        lr_now = max(lr_now, self.min_lr)
                         optimizer.learning_rate.assign(lr_now)
                         print('{} lr:{}'.format(name, lr_now))
 

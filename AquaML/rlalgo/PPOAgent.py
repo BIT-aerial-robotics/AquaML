@@ -181,10 +181,10 @@ class PPOAgent(BaseRLAgent):
                     normalize_advantage: bool = True,
                     ):
         # cancel state std
+        old_log_prob = tf.math.log(old_prob)
         with tf.GradientTape() as tape:
             tape.watch(self.actor_train_vars)
 
-            old_log_prob = tf.math.log(old_prob)
             out = self.resample_prob(actor_inputs, action)
 
             log_prob = out[0]
@@ -194,15 +194,16 @@ class PPOAgent(BaseRLAgent):
             # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
 
             # 动作是独立的
+            # ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
             ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
 
             if normalize_advantage:
                 advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
 
             actor_surrogate_loss = tf.reduce_mean(tf.minimum(
-                    ratio * advantage,
-                    tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
-                ))
+                ratio * advantage,
+                tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
+            ))
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
@@ -253,10 +254,10 @@ class PPOAgent(BaseRLAgent):
                 advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
 
             actor_surrogate_loss = tf.reduce_mean(tf.minimum(
-                    ratio * advantage,
-                    tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
-                )
-                )
+                ratio * advantage,
+                tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
+            )
+            )
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
@@ -276,7 +277,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
-    @tf.function
+    # @tf.function
     def train_all(self,
                   target: tf.Tensor,
                   actor_inputs: list,
@@ -290,10 +291,10 @@ class PPOAgent(BaseRLAgent):
                   normalize_advantage: bool = True,
                   ):
 
-        with tf.GradientTape() as tape:
+        old_log_prob = tf.math.log(old_log_prob)
 
+        with tf.GradientTape() as tape:
             tape.watch(self.all_train_vars)
-            old_log_prob = tf.math.log(old_log_prob)
 
             out = self.resample_prob(actor_inputs, action)
 
@@ -310,9 +311,9 @@ class PPOAgent(BaseRLAgent):
                 advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
 
             actor_surrogate_loss = tf.reduce_mean(tf.minimum(
-                    ratio * advantage,
-                    tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
-                ))
+                ratio * advantage,
+                tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
+            ))
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 

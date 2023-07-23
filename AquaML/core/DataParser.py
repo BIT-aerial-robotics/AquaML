@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from copy import deepcopy
 
 
 class DataInfo:
@@ -101,7 +102,7 @@ class DataSet:
 
             batch = {}
             for key, val in self.data_dict.items():
-                batch[key] = tf.cast(val[batch_indices], tf.float32)
+                batch[key] = tf.cast(deepcopy(val[batch_indices]), tf.float32)
 
             yield batch
 

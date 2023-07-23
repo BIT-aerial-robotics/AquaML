@@ -195,7 +195,7 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         noise = (action - mu) / std
         log_prob = self.dist.log_prob(noise)
 
-        # dist = tfp.distributions.Normal(loc=mu, scale=std ** 2)
+        # dist = tfp.distributions.Normal(loc=mu, scale=std)
         # log_prob = dist.log_prob(action)
 
         return log_prob

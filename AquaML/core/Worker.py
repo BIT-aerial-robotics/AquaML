@@ -104,7 +104,7 @@ class RLAgentWorker(BaseWorker):
             computing_obs, flag = self.env.reset()
             self.reset_flag = False
             self.episode_step_count = 0
-            self.obs = computing_obs
+            self.obs = deepcopy(computing_obs)
 
         if self.sample_enable:
             self.collector.reset()

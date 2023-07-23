@@ -645,6 +645,8 @@ class AquaRL(BaseAqua):
 
             std_data_set = self.sampling()
 
+            print("{}: {}".format(self.communicator.get_level(), self.agent.log_std.buffer))
+
             if self.sample_enable:
 
                 # 获取子线程normalize的数据

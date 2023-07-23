@@ -204,7 +204,7 @@ class PPOAgent(BaseRLAgent):
                     tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
                 ))
 
-            entropy_loss = tf.reduce_mean(self.explore_policy.get_entropy(mu, log_std))
+            entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
             # entropy_loss = tf.reduce_sum(tf.reduce_mean(-log_prob, axis=0))
 
@@ -221,7 +221,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
-    # @tf.function
+    @tf.function
     def train_shared(self,
                      target: tf.Tensor,
                      actor_inputs: list,
@@ -258,7 +258,7 @@ class PPOAgent(BaseRLAgent):
                 )
                 )
 
-            entropy_loss = tf.reduce_mean(self.explore_policy.get_entropy(mu, log_std))
+            entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
             value_loss = tf.reduce_mean(tf.square(target - value))
 
@@ -314,7 +314,7 @@ class PPOAgent(BaseRLAgent):
                     tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
                 ))
 
-            entropy_loss = tf.reduce_mean(self.explore_policy.get_entropy(mu, log_std))
+            entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
             critic_loss = tf.reduce_mean(tf.square(target - self.critic(*critic_inputs)))
 

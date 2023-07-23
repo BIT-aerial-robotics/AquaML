@@ -201,10 +201,12 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         return log_prob
 
     def get_entropy(self, mean, log_std):
+        entropy_ = 0.5 * (1.0 + np.log(2.0 * np.pi)) + log_std
+        entropy = tf.reduce_sum(entropy_, keepdims=True)
 
-        dist = tfp.distributions.Normal(loc=mean, scale=tf.exp(log_std))
+        # dist = tfp.distributions.Normal(loc=mean, scale=tf.exp(log_std))
 
-        entropy = tf.reduce_sum(dist.entropy(), axis=1, keepdims=True)
+        # entropy = tf.reduce_sum(dist.entropy(), axis=1, keepdims=True)
         # if len(mean.shape) == 1:
         #     entropy = tf.reduce_sum(dist.entropy())
         # else:

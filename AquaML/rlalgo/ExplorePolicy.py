@@ -195,6 +195,8 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         noise = (action - mu) / std
         log_prob = self.dist.log_prob(noise)
 
+        log_prob = tf.reduce_sum(log_prob, axis=1, keepdims=True)
+
         # dist = tfp.distributions.Normal(loc=mu, scale=std)
         # log_prob = dist.log_prob(action)
 

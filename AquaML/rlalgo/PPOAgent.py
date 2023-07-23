@@ -222,7 +222,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
-    @tf.function
+    # @tf.function
     def train_shared(self,
                      target: tf.Tensor,
                      actor_inputs: list,
@@ -234,7 +234,7 @@ class PPOAgent(BaseRLAgent):
                      vf_coef: float,
                      normalize_advantage: bool = True,
                      ):
-        old_log_prob = tf.math.log(old_log_prob)
+        old_log_prob = tf.reduce_sum(tf.math.log(old_log_prob), axis=1, keepdims=True)
         with tf.GradientTape() as tape:
             tape.watch(self.actor_train_vars)
 
@@ -248,7 +248,7 @@ class PPOAgent(BaseRLAgent):
             # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
 
             # 动作是独立的
-            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
+            ratio = tf.exp(log_prob - old_log_prob)
 
             if normalize_advantage:
                 advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
@@ -421,8 +421,8 @@ class PPOAgent(BaseRLAgent):
                             self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
 
                     # compute kl divergence, general type
-                    old_log_prob = tf.math.log(batch_data['prob'])
-                    log_ratio = tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True) # 多维分布
+                    old_log_prob = tf.reduce_sum(tf.math.log(batch_data['prob']), axis=1, keepdims=True)
+                    log_ratio = log_prob - old_log_prob # 多维分布
                     approx_kl_div = tf.reduce_mean(tf.exp(log_ratio) - 1 - log_ratio).numpy()
                     # approx_kl_div = tf.reduce_mean(((tf.exp(log_ratio) - 1) - log_ratio, axis=1)).numpy()
 

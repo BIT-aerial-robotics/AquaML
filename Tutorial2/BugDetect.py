@@ -1,13 +1,13 @@
 import sys
 
 sys.path.append('..')
-# from AquaML.Tool import allocate_gpu
-# from mpi4py import MPI
+from AquaML.Tool import allocate_gpu
+from mpi4py import MPI
 #
 # #
-# comm = MPI.COMM_WORLD
-# rank = comm.Get_rank()
-# allocate_gpu(comm, 0)
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+allocate_gpu(comm, 0)
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.rlalgo.PPOAgent import PPOAgent
@@ -202,11 +202,11 @@ eval_env = PendulumWrapper()
 
 vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
 parameters = PPOAgentParameter(
-    rollout_steps=200,
+    rollout_steps=1000,
     epochs=200,
     batch_size=128,
     update_times=4,
-    max_steps=200,
+    max_steps=1000,
     update_actor_times=1,
     update_critic_times=1,
     eval_episodes=5,
@@ -241,7 +241,7 @@ rl = AquaRL(
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,
-    name='debug1',
+    name='debug7',
     reward_norm=True,
     state_norm=True,
     decay_lr=True,

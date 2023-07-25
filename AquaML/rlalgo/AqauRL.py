@@ -1,7 +1,7 @@
 from AquaML.core.BaseAqua import BaseAqua
 from AquaML.core.AgentIOInfo import RLAgentIOInfo
 from AquaML.core.Worker import RLAgentWorker, Evaluator, RLVectorEnvWorker
-from AquaML.core.RLToolKit import RLVectorEnv, RLBaseEnv
+from AquaML.core.RLToolKit import RLVectorEnv, RLBaseEnv, RLNormalVectorEnvWorker
 from AquaML.core.ToolKit import SummaryRewardCollector, MDPCollector, mkdir
 from AquaML.core.RLToolKit import RLStandardDataSet
 import numpy as np
@@ -442,31 +442,30 @@ class AquaRL(BaseAqua):
         ########################################
 
         if self.env_type == 'Vec':
-            # if self.distributed_norm:
-            #     self.worker = RLDistributedVectorEnvWorker(
-            #         max_steps=self.agent_params.max_steps,
-            #         communicator=self.communicator,
-            #         optimize_enable=self.optimize_enable,
-            #         sample_enable=self.sample_enable,
-            #         vec_env=self.env,
-            #         action_names=self.agent.get_action_names,
-            #         obs_names=self.env.obs_info.names,
-            #         reward_names=self.env.reward_info,
-            #         agent_name=self.agent.name,
-            #     )
-            # else:
-            self.worker = RLVectorEnvWorker(
-                max_steps=self.agent_params.max_steps,
-                communicator=self.communicator,
-                optimize_enable=self.optimize_enable,
-                sample_enable=self.sample_enable,
-                vec_env=self.env,
-                action_names=self.agent.get_action_names,
-                obs_names=self.env.obs_info.names,
-                reward_names=self.env.reward_info,
-                agent_name=self.agent.name,
-            )
-
+            if self.distributed_norm:
+                self.worker = RLVectorEnvWorker(
+                    max_steps=self.agent_params.max_steps,
+                    communicator=self.communicator,
+                    optimize_enable=self.optimize_enable,
+                    sample_enable=self.sample_enable,
+                    vec_env=self.env,
+                    action_names=self.agent.get_action_names,
+                    obs_names=self.env.obs_info.names,
+                    reward_names=self.env.reward_info,
+                    agent_name=self.agent.name,
+                )
+            else:
+                self.worker = RLNormalVectorEnvWorker(
+                    max_steps=self.agent_params.max_steps,
+                    communicator=self.communicator,
+                    optimize_enable=self.optimize_enable,
+                    sample_enable=self.sample_enable,
+                    vec_env=self.env,
+                    action_names=self.agent.get_action_names,
+                    obs_names=self.env.obs_info.names,
+                    reward_names=self.env.reward_info,
+                    agent_name=self.agent.name,
+                )
 
         else:
             self.worker = RLAgentWorker(

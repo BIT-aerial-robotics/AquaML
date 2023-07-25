@@ -537,7 +537,7 @@ class RLDistributedVectorEnvWorker(BaseWorker):
             )
 
 
-class RLVectorEnvWorker(BaseWorker):
+class RLNormalVectorEnvWorker(BaseWorker):
     """
     vectorized environment worker.
 

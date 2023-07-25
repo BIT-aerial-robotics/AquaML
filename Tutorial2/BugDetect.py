@@ -3,11 +3,13 @@ import sys
 sys.path.append('..')
 from AquaML.Tool import allocate_gpu
 from mpi4py import MPI
+
 #
 # #
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 allocate_gpu(comm, 0)
+
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.rlalgo.PPOAgent import PPOAgent
@@ -19,6 +21,8 @@ from AquaML.core.RLToolKit import RLVectorEnv
 import tensorflow as tf
 
 
+# tf.random.set_seed(1)
+# np.random.seed(1)
 # import pydevd_pycharm
 # port_mapping=[35163, 32845, 33387, 37577]
 # pydevd_pycharm.settrace('localhost', port=port_mapping[rank], stdoutToServer=True, stderrToServer=True)
@@ -58,7 +62,7 @@ class SharedActorCritic(tf.keras.Model):
         value_1 = self.value_layer1(x)
         value = self.value_layer2(value_1)
 
-        return (action, value , )
+        return (action, value,)
 
 
 class Actor_net(tf.keras.Model):

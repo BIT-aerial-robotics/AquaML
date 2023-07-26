@@ -190,12 +190,12 @@ class GaussianExplorePolicy(ExplorePolicyBase):
 
         return action, prob
 
-    def resample_prob(self, mu, std, action):
+    def resample_prob(self, mu, std, action, sum_axis=1):
         # sigma = tf.exp(log_std)
         noise = (action - mu) / std
         log_prob = self.dist.log_prob(noise)
 
-        log_prob = tf.reduce_sum(log_prob, axis=1, keepdims=True)
+        log_prob = tf.reduce_sum(log_prob, axis=sum_axis, keepdims=True)
 
         # dist = tfp.distributions.Normal(loc=mu, scale=std)
         # log_prob = dist.log_prob(action)

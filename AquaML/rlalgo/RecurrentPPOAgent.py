@@ -281,7 +281,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
-    @tf.function
+    # @tf.function
     def train_all(self,
                   target: tf.Tensor,
                   actor_inputs: list,
@@ -302,7 +302,7 @@ class PPOAgent(BaseRLAgent):
         with tf.GradientTape() as tape:
             tape.watch(self.all_train_vars)
 
-            out = self.resample_prob(actor_inputs, action, mask=bool_mask)
+            out = self.resample_prob(actor_inputs, action)
 
             log_prob = out[0]
             log_std = out[1]
@@ -311,26 +311,23 @@ class PPOAgent(BaseRLAgent):
             # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
 
             # 动作是独立的
-            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=self.sum_axis, keepdims=True))
-
-            mask_ratio = tf.boolean_mask(ratio, bool_mask)
-            mask_advantage = tf.boolean_mask(advantage, bool_mask)
+            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
 
             if normalize_advantage:
-                mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (tf.math.reduce_std(mask_advantage) + 1e-8)
+                advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
 
-            surr1 = mask_ratio * mask_advantage
-            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_ratio
+            surr1 = ratio * advantage
+            surr2 = tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage
 
             surr = tf.minimum(surr1, surr2)
 
-            # mask_surr = tf.boolean_mask(surr, bool_mask)
+            mask_surr = tf.boolean_mask(surr, bool_mask)
 
-            actor_surrogate_loss = tf.reduce_mean(surr)
+            actor_surrogate_loss = tf.reduce_mean(mask_surr)
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
-            critic_l = tf.square(target - self.critic(*critic_inputs))
+            critic_l = tf.square(target - self.critic(critic_inputs))
 
             mask_critic_l = tf.boolean_mask(critic_l, bool_mask)
 
@@ -485,7 +482,7 @@ class PPOAgent(BaseRLAgent):
 
         return summary, reward_info
 
-    def _resample_log_prob_no_std(self, obs, action, mask=None):
+    def _resample_log_prob_no_std(self, obs, action):
 
         """
         Re get log_prob of action.
@@ -497,10 +494,10 @@ class PPOAgent(BaseRLAgent):
             action (tf.Tensor): action.
         """
 
-        out = self.actor(*obs, mask)
+        out = self.actor(*obs)
         mu = out[0]
         std = tf.exp(self.tf_log_std)
-        log_prob = self.explore_policy.resample_prob(mu, std, action, sum_axis=self.sum_axis)
+        log_prob = self.explore_policy.resample_prob(mu, std, action)
 
         return (log_prob, self.tf_log_std, *out)
 

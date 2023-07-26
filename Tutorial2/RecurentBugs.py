@@ -70,6 +70,8 @@ class Actor_net(tf.keras.Model):
     def __init__(self):
         super(Actor_net, self).__init__()
 
+        self.lstm = tf.keras.layers.LSTM(64, input_shape=(2,), return_sequences=True, return_state=True)
+
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
@@ -77,9 +79,11 @@ class Actor_net(tf.keras.Model):
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), }
+        self.output_info = {'action': (1,), 'hidden1': (64,), 'hidden2': (64,)}
 
-        self.input_name = ('obs',)
+        self.input_name = ('mask_obs', 'hidden1', 'hidden2')
+
+        self.rnn_flag = True
 
         self.optimizer_info = {
             'type': 'Adam',
@@ -90,13 +94,15 @@ class Actor_net(tf.keras.Model):
         }
 
     @tf.function
-    def call(self, obs):
-        x = self.dense1(obs)
+    def call(self, obs, hidden1, hidden2, mask=None):
+        hidden_states = (hidden1, hidden2)
+        whole_seq, last_seq, hidden_state = self.lstm(obs, hidden_states, mask=mask)
+        x = self.dense1(whole_seq)
         x = self.dense2(x)
         action = self.action_layer(x)
         # log_std = self.log_std(x)
 
-        return (action,)
+        return (action, last_seq, hidden_state,)
 
     def reset(self):
         pass
@@ -125,13 +131,13 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4,
-                     # 'epsilon': 1e-5,
-                     # 'clipnorm': 0.5,
+            'args': {'learning_rate': 2e-3,
+                     'epsilon': 1e-5,
+                     'clipnorm': 0.5,
                      }
         }
 
-    @tf.function
+    # @tf.function
     def call(self, obs):
         x = self.dense1(obs)
         x = self.dense2(x)
@@ -153,8 +159,8 @@ class PendulumWrapper(RLBaseEnv):
 
         # our frame work support POMDP env
         self._obs_info = DataInfo(
-            names=('obs', 'step',),
-            shapes=((3,), (1,)),
+            names=('obs', 'mask_obs', 'step',),
+            shapes=((3,), (2,), (1,),),
             dtypes=np.float32
         )
 
@@ -169,7 +175,7 @@ class PendulumWrapper(RLBaseEnv):
 
         # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
 
-        obs = {'obs': observation, 'step': self.step_s}
+        obs = {'obs': observation, 'step': self.step_s, 'mask_obs': observation[:, :2]}
 
         obs = self.initial_obs(obs)
 
@@ -184,7 +190,7 @@ class PendulumWrapper(RLBaseEnv):
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
-        obs = {'obs': observation, 'step': self.step_s}
+        obs = {'obs': observation, 'step': self.step_s, 'mask_obs': observation[:, :2]}
 
         obs = self.check_obs(obs, action_dict)
 
@@ -208,9 +214,9 @@ vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
 parameters = PPOAgentParameter(
     rollout_steps=200,
     epochs=200,
-    batch_size=128,
+    batch_size=1000,
     update_times=4,
-    max_steps=1000,
+    max_steps=200,
     update_actor_times=1,
     update_critic_times=1,
     eval_episodes=5,
@@ -220,15 +226,19 @@ parameters = PPOAgentParameter(
     batch_advantage_normalization=True,
     checkpoint_interval=20,
     log_std_init_value=0.0,
-    train_all=False,
+    train_all=True,
     min_steps=200,
     target_kl=0.01,
     lamda=0.95,
+
+    # sequential args
+    is_sequential=True,
+    shuffle=True,
 )
 
 agent_info_dict = {
-    'actor': SharedActorCritic,
-    # 'critic': Critic_net,
+    'actor': Actor_net,
+    'critic': Critic_net,
     'agent_params': parameters,
 }
 
@@ -245,7 +255,7 @@ rl = AquaRL(
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,
-    name='debug',
+    name='debug1',
     reward_norm=True,
     state_norm=True,
     decay_lr=True,

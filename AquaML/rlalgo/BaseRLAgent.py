@@ -122,6 +122,13 @@ class BaseRLAgent(BaseAgent, ABC):
         # 判断网络类型
         actor_rnn_flag = getattr(self.actor, 'rnn_flag', False)
 
+        self.actor_rnn_flag = actor_rnn_flag
+
+        if actor_rnn_flag:
+            self.sum_axis = 2
+        else:
+            self.sum_axis = 1
+
         # RNN输入时候维度的处理
 
         self.actor_expand_dims_idx = []
@@ -254,8 +261,14 @@ class BaseRLAgent(BaseAgent, ABC):
 
         actor_out = self.actor(*input_data)
 
+        # squeeze
+
+
         # TODO: 这个地方需要优化速度
         policy_out = dict(zip(self.actor.output_info, actor_out))
+
+        if self.actor_rnn_flag:
+            policy_out['action'] = tf.squeeze(policy_out['action'], axis=1)
 
         for name, value in self._explore_dict.items():
             policy_out[name] = tf.cast(value.buffer, dtype=tf.float32)

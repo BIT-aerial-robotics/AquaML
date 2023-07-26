@@ -161,15 +161,21 @@ class SplitTrajectory:
 
         self._plugin_list = []
 
-    def __call__(self, trajectory: RLStandardDataSet):
+    def __call__(self, trajectory: RLStandardDataSet, shuffle=False):
         """
         The dataset store in the trajectory is a dict, the key is the name of the data, the value is the data.
 
         The shape of the data is (num_envs, rollout_steps, ...)
+
+        Args:
+            trajectory: Collection of trajectories
+            shuffle: shuffle the data according to the first dimension.
         """
         data_set_tracker = DataSetTracker()
         reward_tracker = LossTracker()
-        for env_traj in trajectory.get_env_data():
+        rollout_steps = trajectory.rollout_steps
+        num_envs = trajectory.num_envs
+        for env_traj in trajectory.get_env_data(shuffle=shuffle):
             masks = env_traj['mask']
 
             terminal = np.where(masks == 0)[0] + 1
@@ -219,11 +225,12 @@ class SplitTrajectory:
 
         data = data_set_tracker.gett_data()
 
-        return DataSet(data), reward_tracker.get_data()
+        return DataSet(data, rollout_steps, num_envs), reward_tracker.get_data()
 
     def add_plugin(self, plugin):
         if isinstance(plugin, PluginBase):
             self._plugin_list.append(plugin)
+
 
 class RLPrePluginRegister:
     def __init__(self):

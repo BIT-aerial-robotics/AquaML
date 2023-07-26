@@ -113,7 +113,15 @@ class PPOAgentParameter(BaseAgentParameter):
                  eval_episodes: int = 1,
                  explore_policy='Default',
                  max_steps: int = 1000000,
-                 log_std_init_value: float = -0.5,
+                 log_std_init_value: float = -0.0,
+
+                 # sequential training
+                 is_sequential: bool = False,
+                 sequential_args: dict = {
+                     'split_point_num': 1,
+                     'return_first_hidden': True,
+                 },
+                 shuffle: bool = False,
                  ):
         """
             Initializes the parameters for the PPO agent.
@@ -133,6 +141,9 @@ class PPOAgentParameter(BaseAgentParameter):
             - explore_policy (str): The exploration policy to use.
             - max_steps (int): The maximum number of steps to take in the environment.
             - log_std_init_value (float): The initial value for the log standard deviation.
+            - is_sequential (bool): Whether to use sequential training.
+            - sequential_args (dict): The arguments for sequential training.
+            - shuffle (bool): Whether to shuffle the data according to the environment. We suggest setting this to True, when using sequential training.
             """
         super().__init__(
             rollout_steps=rollout_steps,
@@ -168,3 +179,7 @@ class PPOAgentParameter(BaseAgentParameter):
         self.target_kl = target_kl
 
         self.train_all = train_all
+
+        self.is_sequential = is_sequential
+        self.sequential_args = sequential_args
+        self.shuffle = shuffle

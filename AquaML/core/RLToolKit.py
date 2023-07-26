@@ -1,55 +1,186 @@
 from abc import ABC, abstractmethod
+from AquaML.core.ToolKit import mkdir
 from typing import Any
 import numpy as np
 from AquaML.core.DataParser import DataInfo
 import copy
 from copy import deepcopy
+import os
+
 
 class RunningMeanStd:
     # Dynamically calculate mean and std
-    def __init__(self, shape):  # shape:the dimension of input data
+    def __init__(self, shape, name):  # shape:the dimension of input data
         self.n = 0
         self.mean = np.zeros(shape)
         self.S = np.zeros(shape)
         self.std = np.sqrt(self.S)
 
-    # def update(self, x):
-    #     x = np.asarray(x)
-    #     size = x.shape[0]
-    #
-    #     for i in range(size):
-    #         self.__update(x[i])
+        self.shape = shape
+
+        self.name = name
 
     def update(self, x):
+        x = np.asarray(x)
+        size = x.shape[0]
+
+        # if size == 1:
+        #     self.update_(x)
+        # else:
+        #     self.update_batch(x)
+
+        for i in range(size):
+            self.update_(x[i])
+
+    def update_batch(self, x):
+        self.n += 1
+        if self.n == 1:
+            self.mean = np.mean(x, axis=0)
+            self.std = np.std(x, axis=0)
+        else:
+            new_mean = np.mean(x, axis=0)
+            new_std = np.std(x, axis=0)
+
+            old_mean = deepcopy(self.mean)
+            self.mean = old_mean + (new_mean - old_mean) / self.n
+            self.S = self.S + (new_std - self.std) * (new_std - self.std) + (old_mean - new_mean) * (
+                    old_mean - self.mean)
+            self.std = np.sqrt(self.S / self.n)
+
+    def update_(self, x):
         self.n += 1
         if self.n == 1:
             self.mean = x
             self.std = x
         else:
-            old_mean = copy.deepcopy(self.mean)
+            old_mean = deepcopy(self.mean)
             self.mean = old_mean + (x - old_mean) / self.n
             self.S = self.S + (x - old_mean) * (x - self.mean)
             self.std = np.sqrt(self.S / self.n)
+
+    def save(self, path):
+        # mkdir(path)
+        all_path_name = os.path.join(path, self.name)
+        mkdir(all_path_name)
+        np.save(os.path.join(all_path_name, 'mean.npy'), self.mean)
+        np.save(os.path.join(all_path_name, 'std.npy'), self.std)
+        np.save(os.path.join(all_path_name, 'n.npy'), self.n)
+        # print(self.mean)
+
+    def load(self, path):
+        all_path_name = os.path.join(path, self.name)
+        self.mean = np.load(os.path.join(all_path_name, 'mean.npy'))
+        self.std = np.load(os.path.join(all_path_name, 'std.npy'))
+        self.n = np.load(os.path.join(all_path_name, 'n.npy'))
+
+    def set_data(self, mean, std):
+        self.mean = deepcopy(mean)
+        self.std = deepcopy(std)
+        # self.n = n
 
 
 class Normalization:
     def __init__(self, obs_shape_dict: dict):
         self.running_ms = {}
         for key, value in obs_shape_dict.items():
-            self.running_ms[key] = RunningMeanStd(value)
+            self.running_ms[key] = RunningMeanStd(value, name=key)
 
     def __call__(self, x: dict, update=True):
         # Whether to update the mean and std,during the evaluating,update=Flase
         new_x = {}
         if update:
             for key, value in x.items():
-                self.running_ms[key].update(value)
+                if 'hidden' in key:
+                    continue
+                if 'next_' in key:
+                    real_key = key[5:]
+                else:
+                    real_key = key
+                self.running_ms[real_key].update(value)
 
         for key, value in x.items():
-            new_x[key] = (value - self.running_ms[key].mean) / (self.running_ms[key].std + 1e-8)
+            if 'hidden' in key:
+                continue
+            if 'next_' in key:
+                real_key = key[5:]
+            else:
+                real_key = key
+            new_x[key] = (value - self.running_ms[real_key].mean) / (self.running_ms[real_key].std + 1e-8)
 
         return new_x
 
+    def set_data(self, data):
+        # (mean,std)
+        for key, value in data.items():
+            self.running_ms[key].set_data(value[0], value[1])
+
+    def save(self, path):
+        for key, value in self.running_ms.items():
+            value.save(path)
+
+    def load(self, path):
+        for key, value in self.running_ms.items():
+            value.load(path)
+
+    def push_to_communicator(self, communicator, agent_name):
+        for name, normalizer in self.running_ms.items():
+            dic = {
+                name + '_mean': deepcopy(normalizer.mean),
+                name + '_std': deepcopy(normalizer.std),
+            }
+            communicator.store_indicate_dict(
+                agent_name=agent_name,
+                indicate_dict=dic,
+                index=0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
+            )
+
+class RewardScaling:
+    def __init__(self, shape, gamma):
+        self.shape = shape  # reward shape=1
+        self.gamma = gamma  # discount factor
+        self.running_ms = RunningMeanStd(shape=self.shape, name='reward')
+        self.R = np.zeros(self.shape)
+
+    def update(self, x, update=True):
+        if update:
+            self.R = self.gamma * self.R + x
+            self.running_ms.update_(self.R)
+            x = x / (self.running_ms.std + 1e-8)  # Only divided std
+        else:
+            x = (x - self.running_ms.mean) / (self.running_ms.std + 1e-8)
+
+        return x
+
+    def __call__(self, x):
+        size = x.shape[0]
+        new_x = np.zeros_like(x)
+        for i in range(size):
+            new_x[i] = self.update(deepcopy(x[i]))
+
+        return new_x
+
+    def reset(self):  # When an episode is done,we should reset 'self.R'
+        self.R = np.zeros(self.shape)
+
+    def save(self, path):
+        self.running_ms.save(path)
+
+    def load(self, path):
+        self.running_ms.load(path)
+
+    def set_data(self, data):
+        self.running_ms.set_data(data[0], data[1])
+
+    def push_to_communicator(self, communicator, agent_name):
+        dic = {
+            'total_reward_mean': deepcopy(self.running_ms.mean),
+            'total_reward_std': deepcopy(self.running_ms.std),
+        }
+        communicator.store_indicate_dict(
+            agent_name=agent_name,
+            indicate_dict=dic,
+            index=0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
+        )
 
 class RLStandardDataSet:
     """
@@ -101,12 +232,15 @@ class RLStandardDataSet:
         self.mask = mask
         self._buffer_dict['mask'] = self.mask
 
-    def get_env_data(self):
+    def get_env_data(self, shuffle=False):
         """
         get the data of each env.
 
         return a generator, the element of the generator is a dict, 
         the key is the name of the data, the value is the data.
+
+        Args:
+            shuffle: bool, whether to shuffle the data. If True, the data will be shuffled according to the num_envs.
 
         Return:
             env_data: a dict, the key is the name of the data, the value is the data. 
@@ -114,11 +248,20 @@ class RLStandardDataSet:
 
         """
 
-        for i in range(self.num_envs):
-            env_data = {}
-            for name in self._buffer_dict.keys():
-                env_data[name] = self._buffer_dict[name][i]
-            yield env_data
+        if shuffle:
+            index = np.arange(self.num_envs)
+            np.random.shuffle(index)
+            for i in range(self.num_envs):
+                env_data = {}
+                for name in self._buffer_dict.keys():
+                    env_data[name] = self._buffer_dict[name][index[i]]
+                yield env_data
+        else:
+            for i in range(self.num_envs):
+                env_data = {}
+                for name in self._buffer_dict.keys():
+                    env_data[name] = self._buffer_dict[name][i]
+                yield env_data
 
     def add_data(self, data: Any, name: str):
         """
@@ -352,7 +495,8 @@ class VecMDPCollector:
         action_dict = {}
 
         for name in self.action_names:
-            action_dict[name] = np.concatenate(self.action_dict[name], axis=1)
+            if 'hidden' not in name:
+                action_dict[name] = np.concatenate(self.action_dict[name], axis=1)
 
         reward_dict = {}
 
@@ -843,11 +987,11 @@ class RLVectorEnv:
 
         for key, shape in actor_out_info.items():
             if key in actor_input_name:
-                for env in self._envs:
-                    env.set_action_state_info(actor_out_info, actor_input_name)
-
                 self.action_state_info[key] = shape
-                self._obs_info.add_info(key, shape, np.float32)
+                # self._obs_info.add_info(key, shape, np.float32)
+
+        for env in self._envs:
+            env.set_action_state_info(actor_out_info, actor_input_name)
 
     def close(self):
         """

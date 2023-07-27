@@ -74,7 +74,7 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
+        self.action_layer = tf.keras.layers.Dense(1)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
@@ -87,9 +87,9 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4,
-                     # 'epsilon': 1e-5,
-                     # 'clipnorm': 0.5,
+            'args': {'learning_rate': 2e-3,
+                     'epsilon': 1e-5,
+                     'clipnorm': 0.5,
                      },
         }
 
@@ -131,7 +131,7 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-3,
+            'args': {'learning_rate': 2e-4,
                      'epsilon': 1e-5,
                      'clipnorm': 0.5,
                      }
@@ -256,8 +256,8 @@ rl = AquaRL(
     eval_env=eval_env,
     # comm=comm,
     name='debug1',
-    reward_norm=True,
-    state_norm=True,
+    reward_norm=False,
+    state_norm=False,
     decay_lr=True,
     snyc_norm_per=10,
     # check_point_path='cache',

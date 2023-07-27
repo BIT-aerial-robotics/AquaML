@@ -180,16 +180,17 @@ class PPOAgent(BaseRLAgent):
                     advantage: tf.Tensor,
                     old_prob: tf.Tensor,
                     action: tf.Tensor,
+                    bool_mask: tf.Tensor,
                     clip_ratio: float,
                     entropy_coef: float,
                     normalize_advantage: bool = True,
                     ):
         # cancel state std
-        old_log_prob = tf.math.log(old_prob)
+        old_log_prob = tf.reduce_sum(tf.math.log(old_prob), axis=self.sum_axis, keepdims=True)
         with tf.GradientTape() as tape:
             tape.watch(self.actor_train_vars)
 
-            out = self.resample_prob(actor_inputs, action)
+            out = self.resample_prob(actor_inputs, action, mask=bool_mask)
 
             log_prob = out[0]
             log_std = out[1]
@@ -199,15 +200,19 @@ class PPOAgent(BaseRLAgent):
 
             # 动作是独立的
             # ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
-            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=1, keepdims=True))
+            ratio = tf.exp(log_prob - old_log_prob)
+
+            mask_ratio = tf.boolean_mask(ratio, bool_mask)
+            mask_advantage = tf.boolean_mask(advantage, bool_mask)
 
             if normalize_advantage:
-                advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
+                mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (tf.math.reduce_std(mask_advantage) + 1e-8)
 
-            actor_surrogate_loss = tf.reduce_mean(tf.minimum(
-                ratio * advantage,
-                tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
-            ))
+            surr1 = mask_ratio * mask_advantage
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
+            surr = tf.minimum(surr1, surr2)
+
+            actor_surrogate_loss = tf.reduce_mean(surr)
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
@@ -233,6 +238,7 @@ class PPOAgent(BaseRLAgent):
                      advantage: tf.Tensor,
                      old_log_prob: tf.Tensor,
                      action: tf.Tensor,
+                     bool_mask: tf.Tensor,
                      clip_ratio: float,
                      entropy_coef: float,
                      vf_coef: float,
@@ -242,7 +248,7 @@ class PPOAgent(BaseRLAgent):
         with tf.GradientTape() as tape:
             tape.watch(self.actor_train_vars)
 
-            out = self.resample_prob(actor_inputs, action)
+            out = self.resample_prob(actor_inputs, action, mask=bool_mask)
 
             log_prob = out[0]
             log_std = out[1]
@@ -254,18 +260,26 @@ class PPOAgent(BaseRLAgent):
             # 动作是独立的
             ratio = tf.exp(log_prob - old_log_prob)
 
-            if normalize_advantage:
-                advantage = (advantage - tf.reduce_mean(advantage)) / (tf.math.reduce_std(advantage) + 1e-8)
+            mask_ratio = tf.boolean_mask(ratio, bool_mask)
+            mask_advantage = tf.boolean_mask(advantage, bool_mask)
 
-            actor_surrogate_loss = tf.reduce_mean(tf.minimum(
-                ratio * advantage,
-                tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * advantage,
-            )
-            )
+            if normalize_advantage:
+                mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (tf.math.reduce_std(mask_advantage) + 1e-8)
+
+            surr1 = mask_ratio * mask_advantage
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
+
+            surr = tf.minimum(surr1, surr2)
+
+            actor_surrogate_loss = tf.reduce_mean(surr)
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
-            value_loss = tf.reduce_mean(tf.square(target - value))
+            value_l = tf.square(target - value)
+
+            mask_value_l = tf.boolean_mask(value_l, bool_mask)
+
+            value_loss = tf.reduce_mean(mask_value_l)
 
             total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * value_loss
 
@@ -297,7 +311,7 @@ class PPOAgent(BaseRLAgent):
 
                   ):
 
-        old_log_prob = tf.math.log(old_log_prob)
+        old_log_prob = tf.reduce_sum(tf.math.log(old_log_prob), axis=self.sum_axis, keepdims=True)
 
         with tf.GradientTape() as tape:
             tape.watch(self.all_train_vars)
@@ -308,10 +322,11 @@ class PPOAgent(BaseRLAgent):
             log_std = out[1]
             mu = out[2]
 
-            # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=True)
+            # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=
+
 
             # 动作是独立的
-            ratio = tf.exp(tf.reduce_sum(log_prob - old_log_prob, axis=self.sum_axis, keepdims=True))
+            ratio = tf.exp(log_prob - old_log_prob)
 
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
@@ -320,7 +335,7 @@ class PPOAgent(BaseRLAgent):
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (tf.math.reduce_std(mask_advantage) + 1e-8)
 
             surr1 = mask_ratio * mask_advantage
-            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_ratio
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
 
             surr = tf.minimum(surr1, surr2)
 
@@ -392,6 +407,7 @@ class PPOAgent(BaseRLAgent):
                         advantage=advantage,
                         old_log_prob=batch_data['prob'],
                         action=batch_data['action'],
+                        bool_mask=bool_mask,
                         clip_ratio=self.agent_params.clip_ratio,
                         entropy_coef=self.agent_params.entropy_coef,
                         vf_coef=self.agent_params.vf_coef,
@@ -433,6 +449,7 @@ class PPOAgent(BaseRLAgent):
                                 advantage=advantage,
                                 old_prob=batch_data['prob'],
                                 action=batch_data['action'],
+                                bool_mask=bool_mask,
                                 clip_ratio=self.agent_params.clip_ratio,
                                 entropy_coef=self.agent_params.entropy_coef,
                                 normalize_advantage=self.agent_params.batch_advantage_normalization,
@@ -504,7 +521,7 @@ class PPOAgent(BaseRLAgent):
 
         return (log_prob, self.tf_log_std, *out)
 
-    def _resample_log_prob_log_std(self, obs: tuple, action):
+    def _resample_log_prob_log_std(self, obs: tuple, action, bool_mask=None):
         """
         Explore policy in SAC2 is Gaussian  exploration policy.
 
@@ -519,13 +536,13 @@ class PPOAgent(BaseRLAgent):
         log_pi (tf.Tensor): log_pi
         """
 
-        out = self.actor(*obs)
+        out = self.actor(*obs, bool_mask=bool_mask)
 
         mu, log_std = out[0], out[1]
 
         std = tf.exp(log_std)
 
-        log_prob = self.explore_policy.resample_prob(mu, std, action)
+        log_prob = self.explore_policy.resample_prob(mu, std, action, sum_axis=self.sum_axis)
 
         return (log_prob, log_std, *out)
 

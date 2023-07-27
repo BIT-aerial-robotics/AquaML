@@ -181,7 +181,9 @@ class DataSet:
                 for key, val in self.data_dict.items():
                     batch[key] = tf.cast(deepcopy(val[batch_indices]), tf.float32)
 
-                batch['bool_mask'] = tf.ones_like(batch['reward'], dtype=tf.bool)
+                batch['bool_mask'] = tf.ones_like(batch['total_reward'], dtype=tf.bool)
+                batch['bool_mask'] = np.squeeze(batch['bool_mask'])
+                batch['bool_mask'] = tf.cast(batch['bool_mask'], dtype=tf.bool)
 
                 yield batch
 
@@ -260,7 +262,7 @@ class DataSet:
                         else:
                             batch[key] = self.pad(val[batch_indices])
 
-                batch['bool_mask'] = self.pad(np.ones_like(val[batch_indices])) > 1e-6
+                batch['bool_mask'] = self.pad(np.ones_like(self.data_dict['total_reward'][batch_indices])) > 1e-6
 
                 batch['bool_mask'] = np.squeeze(batch['bool_mask'], axis=-1)
 

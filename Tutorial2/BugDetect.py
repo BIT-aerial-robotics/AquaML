@@ -42,7 +42,7 @@ class SharedActorCritic(tf.keras.Model):
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (8,), 'value': (1,)}
+        self.output_info = {'action': (1,), 'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -54,7 +54,7 @@ class SharedActorCritic(tf.keras.Model):
                      },
         }
 
-    def call(self, inputs, training=None, mask=None):
+    def call(self, inputs,  mask=None):
         x = self.dense1(inputs)
         x = self.dense2(x)
         action_1 = self.action_layer1(x)

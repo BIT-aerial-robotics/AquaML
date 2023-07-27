@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from copy import deepcopy
 from functools import partial
-
+from keras_core.utils import pad_sequences
 
 def pad(
         seq_start_indices: np.ndarray,
@@ -25,7 +25,7 @@ def pad(
 
     seq = [tf.cast(tensor[start: end + 1], dtype=tf.float32) for start, end in zip(seq_start_indices, seq_end_indices)]
 
-    return tf.keras.utils.pad_sequences(
+    return pad_sequences(
         seq,
         padding='post',
         dtype='float32',

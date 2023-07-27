@@ -45,6 +45,7 @@ conda install tensorflow-gpu
 pip install tensorflow-probability==0.12.2
 pip install mpi4py
 pip install gym
+pip install keras-core
 ```
 
 ## 架构设计过程(For developer)

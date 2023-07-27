@@ -211,6 +211,11 @@ class PendulumWrapper(RLBaseEnv):
 eval_env = PendulumWrapper()
 
 vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
+
+sequential_args = {
+                     'split_point_num': 1,
+                     'return_first_hidden': True,
+                 }
 parameters = PPOAgentParameter(
     rollout_steps=200,
     epochs=200,
@@ -234,6 +239,7 @@ parameters = PPOAgentParameter(
     # sequential args
     is_sequential=True,
     shuffle=True,
+    sequential_args=sequential_args,
 )
 
 agent_info_dict = {

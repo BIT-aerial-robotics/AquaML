@@ -2,20 +2,27 @@ import numpy as np
 import tensorflow as tf
 from copy import deepcopy
 from functools import partial
-from keras_core.utils import pad_sequences
+
+try:
+    pad_sequences = tf.keras.preprocessing.sequence.pad_sequences
+except:
+    pad_sequences = tf.keras.utils.pad_sequences
+
 
 def pad(
         seq_start_indices: np.ndarray,
         seq_end_indices: np.ndarray,
+        minimum_length: int,
         tensor: np.ndarray,
         padding_value: float = 0.0,
+
 ) -> tf.Tensor:
     """
     copy from ssb3_contrib.common.buffers
     Args:
         seq_start_indices:
         seq_end_indices:
-        tensor:
+        tensor (object):
         padding_value:
 
     Returns:
@@ -23,7 +30,14 @@ def pad(
 
     """
 
-    seq = [tf.cast(tensor[start: end + 1], dtype=tf.float32) for start, end in zip(seq_start_indices, seq_end_indices)]
+    seq = []
+
+    for start, end in zip(seq_start_indices, seq_end_indices):
+        if end - start < minimum_length:
+            continue
+        seq.append(tf.cast(tensor[start: end], dtype=tf.float32))
+
+    # seq = [tf.cast(tensor[start: end + 1], dtype=tf.float32) for start, end in zip(seq_start_indices, seq_end_indices)]
 
     return pad_sequences(
         seq,
@@ -45,6 +59,7 @@ def pad(
 def create_sequencers(
         episode_starts: np.ndarray,
         env_change: np.ndarray,
+        minimum_length: int = 1,
 ):
     """
     copy from ssb3_contrib.common.buffers
@@ -57,14 +72,21 @@ def create_sequencers(
     """
 
     seq_start = np.logical_or(episode_starts, env_change).flatten()
-    seq_start[0] = True
-    seq_start_indices = np.where(seq_start == True)[0]
-    seq_end_indices = np.concatenate([seq_start_indices[1:], np.array([len(episode_starts)])])
+    seq_start[-1] = True
+    seq_end_indices = np.where(seq_start == True)[0] + 1
+    # seq_end_indices = np.concatenate([seq_start_indices[1:], np.array([len(episode_starts)])])
+    seq_start_indices = np.concatenate([np.array([0]), seq_end_indices[:-1]])
+    local_pad = partial(pad, seq_start_indices, seq_end_indices, minimum_length)
 
-    local_pad = partial(pad, seq_start_indices, seq_end_indices)
+    real_start_indices = []
+
+    for start, end in zip(seq_start_indices, seq_end_indices):
+        if end - start < minimum_length:
+            continue
+        real_start_indices.append(start)
 
     # Don't pad the sequence
-    return seq_start_indices, local_pad
+    return real_start_indices, local_pad
 
 
 class DataInfo:
@@ -191,16 +213,17 @@ class DataSet:
 
         elif mode == 'seq':
             # TODO: check
-            if args is None:
-                args = {
-                    'split_point_num': 1,
-                    'return_first_hidden': True,
-                    # 'shuffle_seq': True,
-                }
+            defualt_args = args = {
+                'split_point_num': 1,
+                'return_first_hidden': True,
+                'minimum_seq_len': 16,
+            }
+            if args is not None:
+                defualt_args.update(args)
 
             indices = np.arange(self.buffer_size)
 
-            split_point_num = args['split_point_num']
+            split_point_num = defualt_args['split_point_num']
 
             if split_point_num > 0:
                 split_index = np.random.randint(0, self.buffer_size, split_point_num)
@@ -218,7 +241,7 @@ class DataSet:
 
                 l = len(sequence_slice)
 
-                if l <3:
+                if l < 3:
                     indices = np.concatenate([sequence_slice[1], sequence_slice[0]])
                 else:
                     sequence_slice_index = np.random.permutation(np.arange(l))
@@ -231,7 +254,7 @@ class DataSet:
 
             env_change = np.zeros(self.buffer_size).reshape(self.num_envs, self.rollout_steps)
 
-            env_change[:, 0] = 1
+            env_change[:, self.rollout_steps - 1] = 1
 
             env_change = env_change.reshape(-1, 1)
 
@@ -246,13 +269,14 @@ class DataSet:
                 self.seq_start_indices, self.pad = create_sequencers(
                     episode_start[batch_indices],
                     env_change[batch_indices],
+                    minimum_length=defualt_args['minimum_seq_len'],
                 )  # padding the sequence shape (batch_size, seq_len, ...)
 
                 batch = {}
 
                 for key, val in self.data_dict.items():
                     if 'hidden' in key:
-                        if args['return_first_hidden']:
+                        if defualt_args['return_first_hidden']:
                             batch[key] = tf.cast(val[batch_indices][self.seq_start_indices], tf.float32)
                         else:
                             batch[key] = val[batch_indices]

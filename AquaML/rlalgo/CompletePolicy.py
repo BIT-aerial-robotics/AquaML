@@ -5,6 +5,7 @@ import tensorflow as tf
 import os
 import numpy as np
 from copy import deepcopy
+from AquaML.core.RLToolKit import Normalization
 
 
 def mkdir(path: str):
@@ -27,78 +28,6 @@ def mkdir(path: str):
         None
 
 
-class RunningMeanStd:
-    # Dynamically calculate mean and std
-    def __init__(self, shape, name):  # shape:the dimension of input data
-        self.n = 0
-        self.mean = np.zeros(shape)
-        self.S = np.zeros(shape)
-        self.std = np.sqrt(self.S)
-
-        self.shape = shape
-
-        self.name = name
-
-    def update(self, x):
-        x = np.asarray(x)
-        size = x.shape[0]
-
-        for i in range(size):
-            self.update_(x[i])
-
-    def update_(self, x):
-        self.n += 1
-        if self.n == 1:
-            self.mean = x
-            self.std = x
-        else:
-            old_mean = deepcopy(self.mean)
-            self.mean = old_mean + (x - old_mean) / self.n
-            self.S = self.S + (x - old_mean) * (x - self.mean)
-            self.std = np.sqrt(self.S / self.n)
-
-    def save(self, path):
-        # mkdir(path)
-        all_path_name = os.path.join(path, self.name)
-        mkdir(all_path_name)
-        np.save(os.path.join(all_path_name, 'mean.npy'), self.mean)
-        np.save(os.path.join(all_path_name, 'std.npy'), self.std)
-        np.save(os.path.join(all_path_name, 'n.npy'), self.n)
-
-    def load(self, path):
-        all_path_name = os.path.join(path, self.name)
-        self.mean = np.load(os.path.join(all_path_name, 'mean.npy'))
-        self.std = np.load(os.path.join(all_path_name, 'std.npy'))
-        self.n = np.load(os.path.join(all_path_name, 'n.npy'))
-
-
-class Normalization:
-    def __init__(self, obs_shape_dict: dict):
-        self.running_ms = {}
-        for key, value in obs_shape_dict.items():
-            self.running_ms[key] = RunningMeanStd(value, name=key)
-
-    def __call__(self, x: dict, update=True):
-        # Whether to update the mean and std,during the evaluating,update=Flase
-        new_x = {}
-        if update:
-            for key, value in x.items():
-                self.running_ms[key].update(value)
-
-        for key, value in x.items():
-            new_x[key] = (value - self.running_ms[key].mean) / (self.running_ms[key].std + 1e-8)
-
-        return new_x
-
-    def save(self, path):
-        for key, value in self.running_ms.items():
-            value.save(path)
-
-    def load(self, path):
-        for key, value in self.running_ms.items():
-            value.load(path)
-
-
 class CompletePolicy:
     # Complete policy for your device.
     # TODO: store the input shape of the network
@@ -118,15 +47,24 @@ class CompletePolicy:
             using_obs_scale (bool): whether using observation scale.
         """
 
+        ############################
+        # TODO: store the input shape of the network
+        ############################
+
+        self._network_process_info = {
+            'actor': {},
+            'critic': {},
+        }  # 网络输入数据处理信息
+
         self.obs_dict = obs_shape_dict
 
         self.actor = actor()
 
-        self.initialize_actor()
+        # self.initialize_actor()
 
-        actor_model_path = os.path.join(checkpoint_path, 'actor.h5')
+        self.actor_model_path = os.path.join(checkpoint_path, 'actor.h5')
 
-        self.actor.load_weights(actor_model_path)
+
 
         self.normalizer = Normalization(obs_shape_dict)
 
@@ -136,12 +74,8 @@ class CompletePolicy:
             norm_path = os.path.join(checkpoint_path, 'scaler')
             self.normalizer.load(norm_path)
 
-        self._network_process_info = {
-            'actor': {},
-            'critic': {},
-        }  # 网络输入数据处理信息
 
-    def initialize_actor(self):
+    def initialize_actor(self, obs_dict):
         """
         用于初始化actor，比如说在rnn系统模型里面，某些输入需要额外处理维度。
 
@@ -171,9 +105,12 @@ class CompletePolicy:
         self.initialize_network(
             model=self.actor,
             expand_dims_idx=self.actor_expand_dims_idx,
+            obs_dict=obs_dict,
         )
 
-    def initialize_network(self, model, expand_dims_idx=None):
+        self.actor.load_weights(self.actor_model_path)
+
+    def initialize_network(self, model, obs_dict,expand_dims_idx=None):
         """
 
         初始化网络参数。
@@ -189,7 +126,7 @@ class CompletePolicy:
         input_data = []
 
         for name in input_data_name:
-            shape = self.obs_dict[name]
+            shape = obs_dict[name]
 
             data = tf.zeros(shape=shape, dtype=tf.float32)
             input_data.append(data)
@@ -199,24 +136,49 @@ class CompletePolicy:
 
         model(*input_data)
 
-    def get_action(self, obs):
-
-        if self.using_obs_scale:
-            obs_ = self.normalizer(deepcopy(obs), update=False)
-            obs = deepcopy(obs_)
+    def get_action(self, obs, test_flag=False):
 
         input_data = []
 
+        obs = copy.deepcopy(obs)
         # 获取输入数据
         for name in self.actor.input_name:
             data = tf.cast(obs[name], dtype=tf.float32)
             input_data.append(data)
+
+        # 数据扩展
+        # TODO: 后续版本中需要给出数据处理通用接口 backends
 
         for idx in self.actor_expand_dims_idx:
             input_data[idx] = tf.expand_dims(input_data[idx], axis=1)
 
         actor_out = self.actor(*input_data)
 
-        action = actor_out[0].numpy()
+        # squeeze
 
-        return {'action': action}
+        # TODO: 这个地方需要优化速度
+        policy_out = dict(zip(self.actor.output_info, actor_out))
+
+        if self.actor_rnn_flag:
+            policy_out['action'] = tf.squeeze(policy_out['action'], axis=1)
+
+        if self.agent_params.train_fusion:
+            policy_out['fusion_value'] = tf.squeeze(policy_out['fusion_value'], axis=1)
+
+        for name, value in self._explore_dict.items():
+            policy_out[name] = tf.cast(value.buffer, dtype=tf.float32)
+
+        action, prob = self.explore_policy(policy_out, test_flag=test_flag)
+
+        policy_out['action'] = action
+        policy_out['prob'] = prob
+
+        # create return dict according to rl_io_info.actor_out_name
+        return_dict = dict()
+        for name in self.agent_info.actor_out_name:
+            return_dict[name] = policy_out[name]
+
+        for name in self.explore_policy.get_aditional_output.keys():
+            return_dict[name] = policy_out[name]
+
+        return return_dict

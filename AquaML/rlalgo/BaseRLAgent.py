@@ -270,6 +270,9 @@ class BaseRLAgent(BaseAgent, ABC):
         if self.actor_rnn_flag:
             policy_out['action'] = tf.squeeze(policy_out['action'], axis=1)
 
+        if self.agent_params.train_fusion:
+            policy_out['fusion_value'] = tf.squeeze(policy_out['fusion_value'], axis=1)
+
         for name, value in self._explore_dict.items():
             policy_out[name] = tf.cast(value.buffer, dtype=tf.float32)
 

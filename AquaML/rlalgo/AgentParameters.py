@@ -101,6 +101,7 @@ class PPOAgentParameter(BaseAgentParameter):
                  batch_advantage_normalization: bool = True,
                  target_kl: float = None,
                  train_all: bool = False,
+                 train_fusion: bool = False,
                  vf_coef: float = 0.5,
                  min_steps: int = 1,
                  checkpoint_interval: int = 10,
@@ -183,3 +184,5 @@ class PPOAgentParameter(BaseAgentParameter):
         self.is_sequential = is_sequential
         self.sequential_args = sequential_args
         self.shuffle = shuffle
+
+        self.train_fusion = train_fusion

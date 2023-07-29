@@ -20,6 +20,8 @@ from AquaML.core.RLToolKit import RLBaseEnv
 from AquaML.core.RLToolKit import RLVectorEnv
 import tensorflow as tf
 
+tf.random.set_seed(1)
+np.random.seed(1)
 
 # tf.random.set_seed(1)
 # np.random.seed(1)
@@ -107,6 +109,61 @@ class Actor_net(tf.keras.Model):
     def reset(self):
         pass
 
+
+class Fusion_actor_net(tf.keras.Model):
+
+    def __init__(self):
+        super(Fusion_actor_net, self).__init__()
+
+        self.lstm = tf.keras.layers.LSTM(64, input_shape=(2,), return_sequences=True, return_state=True)
+
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        # self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+
+        self.action_dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(1)
+        # self.log_std = tf.keras.layers.Dense(1)
+
+        self.fusion_dense1 = tf.keras.layers.Dense(64, activation='relu')
+        # self.fusion_dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.fusion_action_layer = tf.keras.layers.Dense(1)
+
+        # self.learning_rate = 2e-5
+
+        self.output_info = {'action': (1,),'fusion_value':(1,), 'hidden1': (64,), 'hidden2': (64,)}
+
+        self.input_name = ('mask_obs', 'hidden1', 'hidden2')
+
+        self.rnn_flag = True
+
+        self.optimizer_info = {
+            'type': 'Adam',
+            'args': {'learning_rate': 2e-3,
+                     'epsilon': 1e-5,
+                     'clipnorm': 0.5,
+                     },
+        }
+
+    @tf.function
+    def call(self, obs, hidden1, hidden2, mask=None):
+        hidden_states = (hidden1, hidden2)
+        whole_seq, last_seq, hidden_state = self.lstm(obs, hidden_states, mask=mask)
+        x = self.dense1(whole_seq)
+        # x = self.dense2(x)
+        action_x = self.action_dense1(x)
+        action = self.action_layer(action_x)
+
+        fusion_x = self.fusion_dense1(x)
+        # fusion_x = self.fusion_dense2(fusion_x)
+        fusion_value = self.fusion_action_layer(fusion_x)
+
+
+        # log_std = self.log_std(x)
+
+        return (action, fusion_value ,last_seq, hidden_state,)
+
+    def reset(self):
+        pass
 
 class Critic_net(tf.keras.Model):
     def __init__(self):
@@ -218,7 +275,7 @@ sequential_args = {
                  }
 parameters = PPOAgentParameter(
     rollout_steps=200,
-    epochs=200,
+    epochs=150,
     batch_size=1000,
     update_times=4,
     max_steps=200,
@@ -232,8 +289,9 @@ parameters = PPOAgentParameter(
     checkpoint_interval=20,
     log_std_init_value=0.0,
     train_all=True,
+    train_fusion=False,
     min_steps=200,
-    target_kl=0.01,
+    target_kl=10,
     lamda=0.95,
 
     # sequential args
@@ -261,11 +319,11 @@ rl = AquaRL(
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,
-    name='debug1',
+    name='OrgEasy',
     reward_norm=True,
     state_norm=True,
     decay_lr=True,
-    snyc_norm_per=10,
+    # snyc_norm_per=10,
     # check_point_path='cache',
     # load_flag=load_flag,
 )

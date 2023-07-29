@@ -346,9 +346,7 @@ class PPOAgent(BaseRLAgent):
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
             critic_l = tf.square(target - self.critic(*critic_inputs))
-
             mask_critic_l = tf.boolean_mask(critic_l, bool_mask)
-
             critic_loss = tf.reduce_mean(mask_critic_l)
 
             total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * critic_loss
@@ -364,6 +362,92 @@ class PPOAgent(BaseRLAgent):
         }
 
         return dic, log_prob
+
+    @tf.function
+    def train_fusion(self,
+                     target: tf.Tensor,
+                     actor_inputs: list,
+                     critic_inputs: list,
+                     advantage: tf.Tensor,
+                     old_log_prob: tf.Tensor,
+                     action: tf.Tensor,
+                     bool_mask: tf.Tensor,
+                     clip_ratio: float,
+                     entropy_coef: float,
+                     vf_coef: float,
+                     normalize_advantage: bool = True,
+                     ):
+        old_log_prob = tf.reduce_sum(tf.math.log(old_log_prob), axis=self.sum_axis, keepdims=True)
+
+        # compute fusion loss weight
+        # do not compute gradient
+        c_value = self.critic(*critic_inputs)  # updated critic value, provent stop gradient
+        mask_c_value = tf.boolean_mask(c_value, bool_mask)
+        fusion_value = self.actor(*actor_inputs, mask=bool_mask)[1]  # fusion value
+        mask_fusion_value = tf.boolean_mask(fusion_value, bool_mask)
+        mask_target = tf.boolean_mask(target, bool_mask)
+
+        c_target = tf.reduce_mean(tf.square(mask_target - mask_c_value))
+        fusion_value_c = tf.reduce_mean(tf.square(mask_fusion_value - mask_c_value))
+
+        distance = tf.sqrt(c_target) + tf.sqrt(fusion_value_c)
+
+        lam = tf.clip_by_value(tf.stop_gradient(1.0 / distance),0,0.3)
+
+        with tf.GradientTape() as tape:
+            tape.watch(self.all_train_vars)
+
+            # update critic first
+            critic_l = tf.square(target - self.critic(*critic_inputs))
+            mask_critic_l = tf.boolean_mask(critic_l, bool_mask)
+            critic_loss = tf.reduce_mean(mask_critic_l)
+
+
+            # update actor
+            out = self.resample_prob(actor_inputs, action, mask=bool_mask)
+            log_prob = out[0]
+            log_std = out[1]
+            mu = out[2]
+
+            f_v = out[3]
+
+            ratio = tf.exp(log_prob - old_log_prob)
+            mask_ratio = tf.boolean_mask(ratio, bool_mask)
+            mask_advantage = tf.boolean_mask(advantage, bool_mask)
+            if normalize_advantage:
+                mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
+                            tf.math.reduce_std(mask_advantage) + 1e-8)
+            surr1 = mask_ratio * mask_advantage
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
+
+            surr = tf.minimum(surr1, surr2)
+            # mask_surr = tf.boolean_mask(surr, bool_mask)
+            actor_surrogate_loss = tf.reduce_mean(surr)
+
+            f_l = tf.square(f_v - target)
+            mask_f_l = tf.boolean_mask(f_l, bool_mask)
+            fusion_loss = tf.reduce_mean(mask_f_l)
+
+            entropy_loss = self.explore_policy.get_entropy(mu, log_std)
+
+            total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * critic_loss + lam * fusion_loss
+
+        actor_grads = tape.gradient(total_loss, self.all_train_vars)
+        self.actor_optimizer.apply_gradients(zip(actor_grads, self.all_train_vars))
+
+        dic = {
+            'total_loss': total_loss,
+            'actor_surrogate_loss': actor_surrogate_loss,
+            'entropy_loss': entropy_loss,
+            'critic_loss': critic_loss,
+            'fusion_loss': fusion_loss,
+            'lam': lam,
+        }
+
+        return dic, log_prob
+
+
+
 
     @property
     def actor_train_vars(self):
@@ -420,19 +504,35 @@ class PPOAgent(BaseRLAgent):
                         critic_input_obs.append(batch_data[name])
 
                     if self.agent_params.train_all:
-                        all_optimize_info, log_prob = self.train_all(
-                            target=batch_data['target'],
-                            actor_inputs=actor_input_obs,
-                            critic_inputs=critic_input_obs,
-                            advantage=advantage,
-                            bool_mask=bool_mask,
-                            old_log_prob=batch_data['prob'],
-                            action=batch_data['action'],
-                            clip_ratio=self.agent_params.clip_ratio,
-                            entropy_coef=self.agent_params.entropy_coef,
-                            vf_coef=self.agent_params.vf_coef,
-                            normalize_advantage=self.agent_params.batch_advantage_normalization,
-                        )
+                        if self.agent_params.train_fusion:
+                            all_optimize_info, log_prob = self.train_fusion(
+                                target=batch_data['target'],
+                                actor_inputs=actor_input_obs,
+                                critic_inputs=critic_input_obs,
+                                advantage=advantage,
+                                bool_mask=bool_mask,
+                                old_log_prob=batch_data['prob'],
+                                action=batch_data['action'],
+                                clip_ratio=self.agent_params.clip_ratio,
+                                entropy_coef=self.agent_params.entropy_coef,
+                                vf_coef=self.agent_params.vf_coef,
+                                normalize_advantage=self.agent_params.batch_advantage_normalization,
+                            )
+                        else:
+                            all_optimize_info, log_prob = self.train_all(
+                                target=batch_data['target'],
+                                actor_inputs=actor_input_obs,
+                                critic_inputs=critic_input_obs,
+                                advantage=advantage,
+                                bool_mask=bool_mask,
+                                old_log_prob=batch_data['prob'],
+                                action=batch_data['action'],
+                                clip_ratio=self.agent_params.clip_ratio,
+                                entropy_coef=self.agent_params.entropy_coef,
+                                vf_coef=self.agent_params.vf_coef,
+                                normalize_advantage=self.agent_params.batch_advantage_normalization,
+                            )
+
                         self.loss_tracker.add_data(all_optimize_info, prefix='all')
                     else:
 

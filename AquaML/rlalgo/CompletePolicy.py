@@ -4,7 +4,7 @@ This script can help you to deploy a complete policy for your device.
 import tensorflow as tf
 import os
 import numpy as np
-from copy import deepcopy
+import copy
 from AquaML.core.RLToolKit import Normalization
 
 
@@ -75,7 +75,7 @@ class CompletePolicy:
             self.normalizer.load(norm_path)
 
 
-    def initialize_actor(self, obs_dict):
+    def initialize_actor(self, obs_io):
         """
         用于初始化actor，比如说在rnn系统模型里面，某些输入需要额外处理维度。
 
@@ -84,6 +84,8 @@ class CompletePolicy:
 
         # 判断网络类型
         actor_rnn_flag = getattr(self.actor, 'rnn_flag', False)
+
+        setattr(self, 'actor_rnn_flag', actor_rnn_flag)
 
         # RNN输入时候维度的处理
 
@@ -105,12 +107,12 @@ class CompletePolicy:
         self.initialize_network(
             model=self.actor,
             expand_dims_idx=self.actor_expand_dims_idx,
-            obs_dict=obs_dict,
+            obs_io=obs_io,
         )
 
         self.actor.load_weights(self.actor_model_path)
 
-    def initialize_network(self, model, obs_dict,expand_dims_idx=None):
+    def initialize_network(self, model, obs_io,expand_dims_idx=None):
         """
 
         初始化网络参数。
@@ -126,10 +128,11 @@ class CompletePolicy:
         input_data = []
 
         for name in input_data_name:
-            shape = obs_dict[name]
-
+            shape = obs_io.shape_dict[name]
+            shape = (1,*shape)
             data = tf.zeros(shape=shape, dtype=tf.float32)
             input_data.append(data)
+
         if expand_dims_idx is not None:
             for idx in expand_dims_idx:
                 input_data[idx] = tf.expand_dims(input_data[idx], axis=1)
@@ -162,23 +165,23 @@ class CompletePolicy:
         if self.actor_rnn_flag:
             policy_out['action'] = tf.squeeze(policy_out['action'], axis=1)
 
-        if self.agent_params.train_fusion:
-            policy_out['fusion_value'] = tf.squeeze(policy_out['fusion_value'], axis=1)
+        # if self.agent_params.train_fusion:
+        #     policy_out['fusion_value'] = tf.squeeze(policy_out['fusion_value'], axis=1)
 
-        for name, value in self._explore_dict.items():
-            policy_out[name] = tf.cast(value.buffer, dtype=tf.float32)
+        # for name, value in self._explore_dict.items():
+        #     policy_out[name] = tf.cast(value.buffer, dtype=tf.float32)
 
-        action, prob = self.explore_policy(policy_out, test_flag=test_flag)
+        # action, prob = self.explore_policy(policy_out, test_flag=test_flag)
 
-        policy_out['action'] = action
-        policy_out['prob'] = prob
+        # policy_out['action'] = action
+        # policy_out['prob'] = prob
 
         # create return dict according to rl_io_info.actor_out_name
-        return_dict = dict()
-        for name in self.agent_info.actor_out_name:
-            return_dict[name] = policy_out[name]
+        # return_dict = dict()
+        # for name in self.agent_info.actor_out_name:
+        #     return_dict[name] = policy_out[name]
 
-        for name in self.explore_policy.get_aditional_output.keys():
-            return_dict[name] = policy_out[name]
+        # for name in self.explore_policy.get_aditional_output.keys():
+        #     return_dict[name] = policy_out[name]
 
-        return return_dict
+        return policy_out

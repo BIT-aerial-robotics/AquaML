@@ -231,7 +231,7 @@ class PPOAgent(BaseRLAgent):
 
         return dic, log_prob
 
-    # @tf.function
+    @tf.function
     def train_shared(self,
                      target: tf.Tensor,
                      actor_inputs: list,

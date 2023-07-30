@@ -44,7 +44,7 @@ class TestPolicy:
 
         self.env.set_action_state_info(self.policy.actor.output_info, self.policy.actor.input_name)
 
-        self.policy.initialize_actor(self.env.obs_info.shape_dict)
+        self.policy.initialize_actor(self.env.obs_info)
 
     def evaluate(self,
                  episode_steps,

@@ -77,6 +77,9 @@ class Actor_net(tf.keras.Model):
         self.rnn_flag = True
 
     def call(self, img, actor_obs, hidden1, hidden2, mask=None):
+        
+        # conv usully can not support sequence input, so we need to reshape the input
+        img = tf.reshape(img, (-1, width, height, channel)) 
         encode = self.encoder(img)
 
         # When use rnn, if encode can't output as (batch_size, time_step, 64), use this reshape
@@ -98,3 +101,24 @@ class Actor_net(tf.keras.Model):
 In all algorithms, you need to specify the output and input of the model. The output and input are specified by `output_info` and `input_name`. The `output_info` is a dictionary, the key is the name of the output, and the value is the shape of the output. The `input_name` is a tuple, the elements of the tuple are the name of the input. The order of the elements in the tuple is the same as the order of the input in the `call` method.
 
 
+### Parrallel training
+
+If you want to train your model in parallel, you just need to add the following code to your code.
+
+```python
+from mpi4py import MPI
+from AquaML.Tool import allocate_gpu
+comm = MPI.COMM_WORLD  # get group communicator
+allocate_gpu(comm,1) # use GPU 1
+rank = comm.Get_rank()
+```
+
+Then add `comm` to the algorithm runner initialization. 
+
+At last, you can run your code with mpi. For example, if you want to use 4 gpus to train your model, you can run the following command.
+
+```bash
+mpirun -np 4 python your_code.py
+```
+
+**Note**: parallel training will be changed in the future.

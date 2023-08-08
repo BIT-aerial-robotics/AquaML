@@ -118,14 +118,14 @@ class Fusion_actor_net(tf.keras.Model):
         self.lstm = tf.keras.layers.LSTM(64, input_shape=(2,), return_sequences=True, return_state=True)
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-        # self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
 
         self.action_dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1)
-        # self.log_std = tf.keras.layers.Dense(1)
+        self.log_std = tf.keras.layers.Dense(1)
 
         self.fusion_dense1 = tf.keras.layers.Dense(64, activation='relu')
-        # self.fusion_dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.fusion_dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.fusion_action_layer = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
@@ -149,13 +149,16 @@ class Fusion_actor_net(tf.keras.Model):
         hidden_states = (hidden1, hidden2)
         whole_seq, last_seq, hidden_state = self.lstm(obs, hidden_states, mask=mask)
         x = self.dense1(whole_seq)
-        # x = self.dense2(x)
+        x = self.dense2(x)
+
+        # fusion_x = self.fusion_dense1(x)
+        # fusion_x = self.fusion_dense2(fusion_x)
+        fusion_value = self.fusion_action_layer(x)
+
         action_x = self.action_dense1(x)
         action = self.action_layer(action_x)
 
-        fusion_x = self.fusion_dense1(x)
-        # fusion_x = self.fusion_dense2(fusion_x)
-        fusion_value = self.fusion_action_layer(fusion_x)
+
 
 
         # log_std = self.log_std(x)
@@ -168,6 +171,8 @@ class Fusion_actor_net(tf.keras.Model):
 class Critic_net(tf.keras.Model):
     def __init__(self):
         super(Critic_net, self).__init__()
+
+        # self.lstm_layer = tf.keras.layers.LSTM(128, return_sequences=True, return_state=True)
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
@@ -289,10 +294,10 @@ parameters = PPOAgentParameter(
     checkpoint_interval=20,
     log_std_init_value=0.0,
     train_all=True,
-    train_fusion=False,
+    train_fusion=True,
     min_steps=200,
     target_kl=10,
-    lamda=0.95,
+    lamda=0.97,
 
     # sequential args
     is_sequential=True,
@@ -301,7 +306,7 @@ parameters = PPOAgentParameter(
 )
 
 agent_info_dict = {
-    'actor': Actor_net,
+    'actor': Fusion_actor_net,
     'critic': Critic_net,
     'agent_params': parameters,
 }
@@ -319,10 +324,10 @@ rl = AquaRL(
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,
-    name='OrgEasy',
+    name='FusionHard_decay_false',
     reward_norm=True,
-    state_norm=True,
-    decay_lr=True,
+    state_norm=False,
+    decay_lr=False,
     # snyc_norm_per=10,
     # check_point_path='cache',
     # load_flag=load_flag,

@@ -78,6 +78,12 @@ class RunningMeanStd:
         self.std = deepcopy(std)
         # self.n = n
 
+    def reset(self):
+        self.n = 0
+        self.mean = np.zeros(self.shape)
+        self.S = np.zeros(self.shape)
+        self.std = np.sqrt(self.S)
+
 
 class Normalization:
     def __init__(self, obs_shape_dict: dict):
@@ -134,33 +140,46 @@ class Normalization:
                 index=0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
             )
 
+    def reset(self):
+        for key, value in self.running_ms.items():
+            value.reset()
+
+
 class RewardScaling:
     def __init__(self, shape, gamma):
         self.shape = shape  # reward shape=1
         self.gamma = gamma  # discount factor
         self.running_ms = RunningMeanStd(shape=self.shape, name='reward')
-        self.R = np.zeros(self.shape)
+        self.R = None
 
-    def update(self, x, update=True):
+    def update(self, x, last_r, update=True):
         if update:
-            self.R = self.gamma * self.R + x
-            self.running_ms.update_(self.R)
+            new_r = self.gamma * last_r + x
+            self.running_ms.update_(new_r)
             x = x / (self.running_ms.std + 1e-8)  # Only divided std
         else:
             x = (x - self.running_ms.mean) / (self.running_ms.std + 1e-8)
+            new_r = self.gamma * last_r + x
 
-        return x
+        return x, new_r
 
-    def __call__(self, x):
+    def __call__(self, x, mask):
         size = x.shape[0]
         new_x = np.zeros_like(x)
+
+        if self.R is None:
+            self.R = np.zeros_like(x)
         for i in range(size):
-            new_x[i] = self.update(deepcopy(x[i]))
+            if mask[i] == 0:
+                self.R[i] = 0
+            x_, new_r = self.update(deepcopy(x[i]), deepcopy(self.R[i]))
+            self.R[i] = new_r
+            new_x[i] = x_
 
         return new_x
 
-    def reset(self):  # When an episode is done,we should reset 'self.R'
-        self.R = np.zeros(self.shape)
+    # def reset(self):  # When an episode is done,we should reset 'self.R'
+    #     self.R = np.zeros(self.shape)
 
     def save(self, path):
         self.running_ms.save(path)
@@ -181,6 +200,7 @@ class RewardScaling:
             indicate_dict=dic,
             index=0 if communicator.thread_manager.get_thread_id - 1 < 0 else communicator.thread_manager.get_thread_id - 1
         )
+
 
 class RLStandardDataSet:
     """
@@ -1202,13 +1222,13 @@ class RLNormalVectorEnvWorker:
             )
 
             for obs_plugin, args in self._obs_plugin:
-                next_obs_ = obs_plugin(deepcopy(next_obs))
+                next_obs_ = obs_plugin(deepcopy(next_obs), mask['mask'])
                 next_obs.update(next_obs_)
                 computing_obs_ = obs_plugin(deepcopy(computing_obs), False)
                 computing_obs.update(computing_obs_)
 
             for reward_plugin, args in self._reward_plugin:
-                reward_ = reward_plugin(deepcopy(reward['total_reward']))
+                reward_ = reward_plugin(deepcopy(reward['total_reward']), mask['mask'])
                 # if 'indicate' not in reward.keys():
                 reward['total_reward'] = deepcopy(reward_)
 

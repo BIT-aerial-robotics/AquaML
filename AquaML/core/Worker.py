@@ -373,7 +373,7 @@ class RLVectorEnvWorker(BaseWorker):
                 new_next_obs['next_' + key] = next_obs[key]
 
             for reward_plugin, args in self._reward_plugin:
-                reward_ = reward_plugin(reward['total_reward'])
+                reward_ = reward_plugin(reward['total_reward'], done)
                 # if 'indicate' not in reward.keys():
                 reward['total_reward'] = deepcopy(reward_)
 

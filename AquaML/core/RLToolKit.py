@@ -178,8 +178,8 @@ class RewardScaling:
 
         return new_x
 
-    # def reset(self):  # When an episode is done,we should reset 'self.R'
-    #     self.R = np.zeros(self.shape)
+    def reset(self):  # When an episode is done,we should reset 'self.R'
+        self.running_ms.reset()
 
     def save(self, path):
         self.running_ms.save(path)

@@ -1,14 +1,14 @@
 import sys
 
 sys.path.append('..')
-# from AquaML.Tool import allocate_gpu
-# from mpi4py import MPI
+from AquaML.Tool import allocate_gpu
+from mpi4py import MPI
+
 #
 # #
-# # #
-# comm = MPI.COMM_WORLD
-# rank = comm.Get_rank()
-# allocate_gpu(comm, 0)
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+allocate_gpu(comm, 0)
 
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
@@ -35,14 +35,14 @@ class SharedActorCritic(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer1 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer2 = tf.keras.layers.Dense(1, activation='tanh')
+        self.action_layer2 = tf.keras.layers.Dense(4, activation='tanh')
         self.value_layer1 = tf.keras.layers.Dense(64, activation='relu')
         self.value_layer2 = tf.keras.layers.Dense(1, activation='linear')
         # self.log_std = tf.Variable(np.array([0.0]), dtype=tf.float32, trainable=True, name='log_std')
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), 'value': (1,)}
+        self.output_info = {'action': (4,), 'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -72,25 +72,25 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
+        self.action_layer = tf.keras.layers.Dense(4)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), }
+        self.output_info = {'action': (4,), }
 
         self.input_name = ('obs',)
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4,
+            'args': {'learning_rate': 3e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      },
         }
 
     @tf.function
-    def call(self, obs):
+    def call(self, obs, mask=None):
         x = self.dense1(obs)
         x = self.dense2(x)
         action = self.action_layer(x)
@@ -106,9 +106,9 @@ class Critic_net(tf.keras.Model):
     def __init__(self):
         super(Critic_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu',
+        self.dense1 = tf.keras.layers.Dense(128, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
-        self.dense2 = tf.keras.layers.Dense(64, activation='relu',
+        self.dense2 = tf.keras.layers.Dense(128, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
@@ -125,7 +125,7 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4,
+            'args': {'learning_rate': 3e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      }
@@ -144,7 +144,7 @@ class Critic_net(tf.keras.Model):
 
 
 class PendulumWrapper(RLBaseEnv):
-    def __init__(self, env_name="Pendulum-v1"):
+    def __init__(self, env_name="BipedalWalker-v3"):
         super().__init__()
         # TODO: update in the future
         self.step_s = 0
@@ -154,7 +154,7 @@ class PendulumWrapper(RLBaseEnv):
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs', 'step',),
-            shapes=((3,), (1,)),
+            shapes=((24,), (1,)),
             dtypes=np.float32
         )
 
@@ -180,7 +180,7 @@ class PendulumWrapper(RLBaseEnv):
         action = action_dict['action']
         if isinstance(action, tf.Tensor):
             action = action.numpy()
-        action *= 2
+        # action *= 2
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
@@ -204,31 +204,34 @@ class PendulumWrapper(RLBaseEnv):
 
 eval_env = PendulumWrapper()
 
-vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
+vec_env = RLVectorEnv(PendulumWrapper, 8, normalize_obs=False, )
 parameters = PPOAgentParameter(
-    rollout_steps=200,
-    epochs=200,
-    batch_size=128,
+    rollout_steps=1000,
+    epochs=10000,
+    batch_size=10000,
     update_times=4,
     max_steps=1000,
     update_actor_times=1,
-    update_critic_times=1,
+    update_critic_times=2,
     eval_episodes=5,
-    eval_interval=10000,
+    eval_interval=100000,
     eval_episode_length=200,
     entropy_coef=0.0,
-    batch_advantage_normalization=True,
+    batch_advantage_normalization=False,
+    clip_ratio=0.2,
+
     checkpoint_interval=20,
-    log_std_init_value=0.0,
-    train_all=False,
-    min_steps=200,
+    log_std_init_value=-0.0,
+    train_all=True,
+    min_steps=5,
     target_kl=0.01,
     lamda=0.95,
+    gamma=0.9999,
 )
 
 agent_info_dict = {
-    'actor': SharedActorCritic,
-    # 'critic': Critic_net,
+    'actor': Actor_net,
+    'critic': Critic_net,
     'agent_params': parameters,
 }
 
@@ -244,12 +247,13 @@ rl = AquaRL(
     agent=PPOAgent,
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
-    # comm=comm,
-    name='debug',
+    comm=comm,
+    name='debug19',
     reward_norm=True,
-    state_norm=True,
-    decay_lr=True,
-    snyc_norm_per=10,
+    state_norm=False,
+    decay_lr=False,
+    snyc_norm_per=100,
+    distributed_norm=False,
     # check_point_path='cache',
     # load_flag=load_flag,
 )

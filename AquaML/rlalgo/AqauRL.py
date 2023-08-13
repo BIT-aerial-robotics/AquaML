@@ -29,7 +29,8 @@ class AquaRL(BaseAqua):
                  min_lr: float = 2.5e-5,
                  state_norm: bool = False,
                  reward_norm: bool = False,
-                 snyc_norm_per: int = 1,
+                 reset_norm_per = None,
+                 snyc_norm_per = 1,
                  distributed_norm: bool = False,
                  check_point_path: str = None,
                  load_flag: LoadFlag = LoadFlag(),
@@ -101,6 +102,7 @@ class AquaRL(BaseAqua):
                          )
 
         self.env = env
+        self.reset_norm_per = reset_norm_per
 
         if eval_env is not None:
             self.eval_env = eval_env
@@ -524,7 +526,7 @@ class AquaRL(BaseAqua):
                     indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
                     obs_norm_dict = {}
 
-                    if self.state_norm_flag:
+                    if self.state_norm_flag and self.distributed_norm:
                         for name in self.obs_names:
                             mean = np.mean(indicate_data[name + '_mean'], axis=0)
 
@@ -544,7 +546,7 @@ class AquaRL(BaseAqua):
 
                     # total_reward = np.mean(indicate_data['total_reward'])
 
-                    if self.reward_norm_flag:
+                    if self.reward_norm_flag and self.distributed_norm:
                         total_reward_mean = np.mean(indicate_data['total_reward_mean'])
                         total_reward_std = np.mean(indicate_data['total_reward_std'])
 
@@ -556,6 +558,11 @@ class AquaRL(BaseAqua):
                                            'total_reward_std': total_reward_std},
                             index=0,
                         )
+
+                    if self.reset_norm_per is not None:
+                        if (epoch + 1) % self.reset_norm_per == 0:
+                            self.obs_normalizer.reset()
+                            self.reward_normalizer.reset()
 
                     for key, value in self._tool_dict.items():
                         cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)

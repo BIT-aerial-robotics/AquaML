@@ -10,6 +10,7 @@ from AquaML.core.DataParser import DataSet
 import numpy as np
 from abc import ABC, abstractmethod
 import tensorflow as tf
+from copy import deepcopy
 
 
 class PluginBase(ABC):
@@ -152,14 +153,28 @@ class SplitTrajectory:
 
     def __init__(self,
                  filter_name=None,
-                 filter_args: dict = {}
+                 filter_args: dict = {},
+                 summary_stype='episode',
+                 summary_steps=1,
                  ):
+
+        """
+        split the trajectory into several parts, and filter the data.
+        Args:
+            filter_name: trajectory filter name
+            filter_args: trajectory filter args
+            summary_stype: how to summary the trajectory, 'episode' or 'step'
+            summary_steps: calculate the summary every summary_steps steps
+        """
         from AquaML import traj_filter_register
 
         self.filter = traj_filter_register.get_filter(filter_name)
         self.filter_args = filter_args
 
         self._plugin_list = []
+
+        self.summary_stype = summary_stype
+        self.summary_steps = summary_steps
 
     def __call__(self, trajectory: RLStandardDataSet, shuffle=False):
         """
@@ -175,6 +190,20 @@ class SplitTrajectory:
         reward_tracker = LossTracker()
         rollout_steps = trajectory.rollout_steps
         num_envs = trajectory.num_envs
+
+        # calculate rewards by steps
+        reward_dict = {}
+        if self.summary_stype == 'step':
+            for name in trajectory.reward_names:
+                reward = deepcopy(trajectory.get_data(name))
+                reward = reward.reshape((-1, self.summary_steps))
+
+                # avg_reward = np.mean(np.sum(reward, axis=1))
+
+                step_sum_reward = np.sum(reward, axis=1)
+                average_reward = np.mean(step_sum_reward)
+                reward_dict['episode/'+name] = average_reward
+
         for env_traj in trajectory.get_env_data(shuffle=shuffle):
             masks = env_traj['mask']
 
@@ -225,7 +254,11 @@ class SplitTrajectory:
 
         data = data_set_tracker.gett_data()
 
-        return DataSet(data, rollout_steps, num_envs), reward_tracker.get_data()
+        return_reward_dict = reward_tracker.get_data()
+
+        return_reward_dict.update(reward_dict)
+
+        return DataSet(data, rollout_steps, num_envs), return_reward_dict
 
     def add_plugin(self, plugin):
         if isinstance(plugin, PluginBase):

@@ -60,6 +60,7 @@ class BaseRLAgent(BaseAgent, ABC):
         self._network_process_info = {
             'actor': {},
             'critic': {},
+            # 'discriminator': {},
         }  # 网络输入数据处理信息
 
         self._optimizer_pool = {}
@@ -201,6 +202,9 @@ class BaseRLAgent(BaseAgent, ABC):
         input_data = []
 
         for name in input_data_name:
+
+            # if 'next' in name:
+            #     name = name[5:]
             try:
                 shape, _ = self.agent_info.get_data_info(name)
             except:

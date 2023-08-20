@@ -451,7 +451,7 @@ class AquaRL(BaseAqua):
 
                 # sync norm
                 if self.env_type == 'Vec':
-                    if (epoch + 1) % self.snyc_norm_per == 0:
+                    if (epoch + 1) % self.snyc_norm_per == 0 and self.distributed_norm:
                         indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
                         obs_norm_dict = {}
 
@@ -561,8 +561,9 @@ class AquaRL(BaseAqua):
 
                     if self.reset_norm_per is not None:
                         if (epoch + 1) % self.reset_norm_per == 0:
-                            self.obs_normalizer.reset()
-                            self.reward_normalizer.reset()
+                            # self.obs_normalizer.reset()
+                            if self.reward_norm_flag:
+                                self.reward_normalizer.reset()
 
                     for key, value in self._tool_dict.items():
                         cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)

@@ -1,7 +1,7 @@
 import sys
 
 sys.path.append('..')
-from AquaML.Tool import allocate_gpu
+# from AquaML.Tool import allocate_gpu
 # from mpi4py import MPI
 #
 # #
@@ -35,14 +35,14 @@ class SharedActorCritic(tf.keras.Model):
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer1 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer2 = tf.keras.layers.Dense(4, activation='tanh')
+        self.action_layer2 = tf.keras.layers.Dense(8, activation='tanh')
         self.value_layer1 = tf.keras.layers.Dense(64, activation='relu')
         self.value_layer2 = tf.keras.layers.Dense(1, activation='linear')
         # self.log_std = tf.Variable(np.array([0.0]), dtype=tf.float32, trainable=True, name='log_std')
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (4,), 'value': (1,)}
+        self.output_info = {'action': (1,), 'value': (1,)}
 
         self.input_name = ('obs',)
 
@@ -54,7 +54,7 @@ class SharedActorCritic(tf.keras.Model):
                      },
         }
 
-    def call(self, inputs,  mask=None):
+    def call(self, inputs, training=None, mask=None):
         x = self.dense1(inputs)
         x = self.dense2(x)
         action_1 = self.action_layer1(x)
@@ -72,12 +72,12 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(4)
+        self.action_layer = tf.keras.layers.Dense(1)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (4,), }
+        self.output_info = {'action': (1,), }
 
         self.input_name = ('obs',)
 
@@ -106,9 +106,9 @@ class Critic_net(tf.keras.Model):
     def __init__(self):
         super(Critic_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(128, activation='relu',
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
-        self.dense2 = tf.keras.layers.Dense(128, activation='relu',
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
@@ -125,7 +125,7 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 3e-4,
+            'args': {'learning_rate': 2e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      }
@@ -141,10 +141,44 @@ class Critic_net(tf.keras.Model):
 
     def reset(self):
         pass
+class Actor_net2(tf.keras.Model):
 
+    def __init__(self):
+        super(Actor_net2, self).__init__()
+
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(1)
+        # self.log_std = tf.keras.layers.Dense(1)
+
+        # self.learning_rate = 2e-5
+
+        self.output_info = {'action': (1,), }
+
+        self.input_name = ('obs',)
+
+        self.optimizer_info = {
+            'type': 'Adam',
+            'args': {'learning_rate': 3e-4,
+                     # 'epsilon': 1e-5,
+                     # 'clipnorm': 0.5,
+                     },
+        }
+
+    @tf.function
+    def call(self, obs, mask=None):
+        x = self.dense1(obs)
+        x = self.dense2(x)
+        action = self.action_layer(x)
+        # log_std = self.log_std(x)
+
+        return (action,)
+
+    def reset(self):
+        pass
 
 class PendulumWrapper(RLBaseEnv):
-    def __init__(self, env_name="BipedalWalker-v3"):
+    def __init__(self, env_name="Pendulum-v1"):
         super().__init__()
         # TODO: update in the future
         self.step_s = 0
@@ -154,7 +188,7 @@ class PendulumWrapper(RLBaseEnv):
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs', 'step',),
-            shapes=((24,), (1,)),
+            shapes=((3,), (1,)),
             dtypes=np.float32
         )
 
@@ -204,32 +238,28 @@ class PendulumWrapper(RLBaseEnv):
 
 eval_env = PendulumWrapper()
 
-vec_env = RLVectorEnv(PendulumWrapper, 8, normalize_obs=False, )
+vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
 parameters = PPOAgentParameter(
-    rollout_steps=1000,
-    epochs=10000,
-    batch_size=10000,
+    rollout_steps=200,
+    epochs=200,
+    batch_size=1000,
     update_times=4,
-    max_steps=1000,
+    max_steps=200,
     update_actor_times=1,
-    update_critic_times=2,
+    update_critic_times=1,
     eval_episodes=5,
-    eval_interval=100000,
+    eval_interval=10000,
     eval_episode_length=200,
     entropy_coef=0.0,
     batch_advantage_normalization=False,
-    clip_ratio=0.2,
-
-
     checkpoint_interval=20,
-    log_std_init_value=-0.0,
+    log_std_init_value=0.0,
     train_all=True,
-    min_steps=5,
+    min_steps=200,
     target_kl=0.01,
     lamda=0.95,
-    gamma=0.99,
     summary_style='step',
-    summary_steps=1000,
+    summary_steps=200,
 )
 
 agent_info_dict = {
@@ -255,9 +285,7 @@ rl = AquaRL(
     reward_norm=True,
     state_norm=False,
     decay_lr=False,
-    snyc_norm_per=100,
-    distributed_norm=False,
-    reset_norm_per=100,
+    # snyc_norm_per=10,
     # check_point_path='cache',
     # load_flag=load_flag,
 )

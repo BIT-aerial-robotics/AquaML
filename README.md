@@ -115,10 +115,226 @@ rank = comm.Get_rank()
 
 Then add `comm` to the algorithm runner initialization. 
 
-At last, you can run your code with mpi. For example, if you want to use 4 gpus to train your model, you can run the following command.
+At last, you can run your code with mpi. For example, if you want to use 4 cpus to train your model, you can run the following command.
 
 ```bash
 mpirun -np 4 python your_code.py
 ```
 
 **Note**: parallel training will be changed in the future.
+
+## Reinforcement Learning
+
+Our framework provides some reinforcement learning algorithms and supports parallel training. 
+
+We have implemented the following algorithms:
+
+- [1] Proximal Policy Optimization (support LSTM)
+- [2] Adeversarial motion priors
+
+Now we give an example of how to create self defined environment.
+
+We support `gym` environment. But we also need you to wrap the environment. Here we give an example of how to wrap the `gym` environment.
+
+```python
+import gym
+from AquaML.DataType import DataInfo
+from AquaML.core.RLToolKit import RLBaseEnv
+
+class PendulumWrapper(RLBaseEnv):
+    def __init__(self, env_name="Pendulum-v1"):
+        super().__init__()
+       
+
+        self.step_s = 0
+        self.env = gym.make(env_name)
+        self.env_name = env_name
+
+        # our frame work support POMDP env
+        self._obs_info = DataInfo(
+            names=('obs', 'step',),
+            shapes=((3,), (1,)),
+            dtypes=np.float32
+        )
+
+        self._reward_info = ['total_reward', ]
+
+    def reset(self):
+        observation = self.env.reset()
+        observation = observation[0].reshape(1, -1)
+
+        self.step_s = 0
+  
+
+        obs = {'obs': observation, 'step': self.step_s}
+
+        obs = self.initial_obs(obs) # this function is used to initialize the obs(must be called)
+
+        return obs, True  # 2.0.1 new version
+
+    def step(self, action_dict):
+        self.step_s += 1
+        action = action_dict['action']
+        if isinstance(action, tf.Tensor):
+            action = action.numpy()
+        # action *= 2
+        observation, reward, done, tru, info = self.env.step(action)
+        observation = observation.reshape(1, -1)
+
+        obs = {'obs': observation, 'step': self.step_s}
+
+        obs = self.check_obs(obs, action_dict) # this function is used to check the obs(must be called)
+
+        reward = {'total_reward': reward}
+
+        return obs, reward, done, info
+
+    def close(self):
+        self.env.close()
+
+```
+
+Our framework supports two types of parallel training-- parallel model and parallel environment(vectorized enviroment).
+
+default parallel is parallel model.
+
+If you want to use Vectorized environment, you need to add the following code to your code.
+
+```python
+from AquaML.core.RLToolKit import RLVectorEnv
+
+vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
+# create 20 environments in single process
+```
+
+This code will create 20 environments in a single process. The first parameter is the environment class, the second parameter is the number of environments.  
+
+
+### Adversarial motion priors
+
+AMP is usally used to simplify the rewad function if you have expert data. This will be very useful in complex tasks.
+
+We provide an example of how to use AMP. Also see Tutorial2\AMPBugDetect.py.
+
+
+Define discriminator network:
+
+```python
+
+import tensorflow as tf
+
+class Discriminator_net(tf.keras.Model):
+    def __init__(self):
+        super(Discriminator_net, self).__init__()
+
+        self.dense1 = tf.keras.layers.Dense(128, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense2 = tf.keras.layers.Dense(128, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
+
+        self.output_info = {'value': (1,)}
+
+        self.input_name = ('obs', 'next_obs',)
+
+        self.optimizer_info = {
+            'type': 'Adam',
+            'args': {'learning_rate': 3e-4,
+                     'epsilon': 1e-5,
+                     'clipnorm': 0.5,
+                     }
+        }
+
+    @tf.function
+    def call(self, obs, next_obs):
+        input = tf.concat([obs, next_obs], axis=-1)
+        x = self.dense1(input)
+        x = self.dense2(x)
+        value = self.dense3(x)
+
+        return value
+
+    def reset(self):
+        pass
+
+```
+
+Note: AMP agent will load expert data according to `self.input_name = ('obs', 'next_obs',)`
+
+
+Provide AMP parameters:
+
+```python
+from AquaML.rlalgo.AgentParameters import AMPAgentParameter
+
+parameters = AMPAgentParameter(
+    rollout_steps=200,
+    epochs=500,
+    batch_size=256,
+
+    # AMP parameters
+    k_batch_size=256,
+    update_discriminator_times=15,
+    discriminator_replay_buffer_size=int(1e5),
+    gp_coef=10.0,
+    task_rew_coef=0.5,
+    style_rew_coef=0.5,
+
+    update_times=1,
+    max_steps=200,
+    update_actor_times=1,
+    update_critic_times=1,
+    eval_episodes=5,
+    eval_interval=10000,
+    eval_episode_length=200,
+    entropy_coef=0.0,
+    batch_advantage_normalization=False,
+    checkpoint_interval=20,
+    log_std_init_value=0.0,
+    train_all=False,
+    min_steps=200,
+    target_kl=0.01,
+    lamda=0.95,
+    gamma=0.95,
+
+    # config how to calculate reward
+    summary_style='step',  # summary style, 'step' or 'episode'
+    summary_steps=200, # if summary_style is 'step', how many steps to summary
+)
+
+```
+
+Config AMP agent and provide expert data:
+
+```python
+agent_info_dict = {
+    'actor': Actor_net,
+    'critic': Critic_net,
+    'agent_params': parameters,
+    'discriminator': Discriminator_net,
+    'expert_dataset_path': 'ExpertPendulum', # expert data path
+}    
+```
+
+At this situation, we will load expert data from `ExpertPendulum` folder. The expert data should be saved as `obs.npy` and `next_obs.npy`. The shape of `obs.npy` and `next_obs.npy` should be (N, obs_dim) and (N, obs_dim) respectively.
+
+At lats, create AquaRL.
+
+```python
+from AquaML.rlalgo.AqauRL import AquaRL
+from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
+
+rl = AquaRL(
+    env=vec_env,
+    agent=AMPAgent,
+    agent_info_dict=agent_info_dict,
+
+    name='pendulum',
+    reward_norm=False,
+    state_norm=False,
+    decay_lr=False,
+
+)
+
+rl.run()
+```

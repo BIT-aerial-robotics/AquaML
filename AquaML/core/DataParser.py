@@ -148,25 +148,76 @@ class DataInfo:
 class DataSet:
 
     def __init__(self,
-                 data_dict: dict,
-
+                 data_dict: dict or list,
+                 max_size: int = 10000,
                  # for RL
                  rollout_steps: int = 1,
+                 IOInfo=None,
                  num_envs: int = 1,
                  ):
         """
         Args:
             data_dict (dict): data dict.
         """
-        self.data_dict = data_dict
-        names = tuple(self.data_dict.keys())
-        # self.batch_size = 32
 
-        self.buffer_size = self.data_dict[names[0]].shape[0]
+        if isinstance(data_dict, dict):
+            self.data_dict = data_dict
+            names = tuple(self.data_dict.keys())
+            # self.batch_size = 32
+
+            self.buffer_size = self.data_dict[names[0]].shape[0]
+
+
+        elif isinstance(data_dict, list) or isinstance(data_dict, tuple):
+            self.data_dict = dict()
+
+            for name in data_dict:
+                shape = IOInfo.data_info.shape_dict[name]
+                if len(shape) == 2:
+                    shape = (shape[1],)
+
+                else:
+                    shape = shape[1:]
+                self.data_dict[name] = np.zeros((max_size, *shape))
+
+            self.buffer_size = 0
+
+        else:
+            raise TypeError("data_dict must be dict or list")
+
+        self.max_size = max_size
+
+        self.current_new_index = 0
 
         # for RL
         self.rollout_steps = rollout_steps
         self.num_envs = num_envs
+
+    def random_sample(self, batch_size: int, name_list: list, tf_dataset: bool = True):
+
+        indices = np.random.permutation(self.buffer_size)
+
+        required_data = []
+
+        random_indices = indices[:batch_size]
+
+        for name in name_list:
+            if tf_dataset:
+                cache = tf.convert_to_tensor(self.data_dict[name][random_indices], dtype=tf.float32)
+            else:
+                cache = self.data_dict[name][random_indices]
+            required_data.append(cache)
+
+        return required_data
+
+    def get_required_data(self, name_list: list):
+
+        required_data = []
+
+        for name in name_list:
+            required_data.append(self.data_dict[name])
+
+        return required_data
 
     def slice_data(self, start: int, end: int):
         """slice data.
@@ -180,6 +231,48 @@ class DataSet:
             new_data_dict[key] = self.data_dict[key][start:end]
 
         return DataSet(new_data_dict)
+
+    def add_data_by_buffer(self, data_dict: dict):
+
+        # TODO: check bugs
+        # check data_dict size
+
+        sizes = []
+
+        for key, val in data_dict.items():
+            sizes.append(val.shape[0])
+
+        mean_size = np.mean(sizes)
+
+        if abs(mean_size - sizes[0]) > 1e-5:
+            raise ValueError("data_dict size must be equal")
+
+        mean_size = sizes[0]
+
+        # add data
+
+        if mean_size > self.max_size:
+
+            for key, val in self.data_dict.items():
+                self.data_dict[key][:] = data_dict[key][:self.max_size]
+        else:
+            remian_size = self.max_size - self.current_new_index
+
+            cache_size = min(remian_size, mean_size)
+
+            for key, val in self.data_dict.items():
+                self.data_dict[key][self.current_new_index:self.current_new_index + cache_size] = data_dict[key][
+                                                                                                  :cache_size]
+
+                remain_cache_size = mean_size - remian_size
+                # print(remain_cache_size)
+
+                if remain_cache_size > 0:
+                    self.data_dict[key][:remain_cache_size] = data_dict[key][cache_size:]
+
+        self.current_new_index = (self.current_new_index + mean_size) % self.max_size
+
+        self.buffer_size = min(self.buffer_size + mean_size, self.max_size)
 
     def __call__(self, batch_size: int, mode=None, args=None):
         """

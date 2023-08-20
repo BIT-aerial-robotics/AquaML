@@ -16,8 +16,8 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
-        # self.log_std = tf.keras.layers.Dense(1, activation='tanh')
+        self.action_layer = tf.keras.layers.Dense(1)
+        # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
@@ -27,18 +27,18 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 2e-4,
+            'args': {'learning_rate': 3e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      },
         }
 
     @tf.function
-    def call(self, obs):
+    def call(self, obs, mask=None):
         x = self.dense1(obs)
         x = self.dense2(x)
         action = self.action_layer(x)
-        # log_std = self.log_std(x)*10
+        # log_std = self.log_std(x)
 
         return (action,)
 
@@ -56,8 +56,8 @@ class PendulumWrapper(RLBaseEnv):
 
         # our frame work support POMDP env
         self._obs_info = DataInfo(
-            names=('obs', 'id', 'step',),
-            shapes=((3,), (1,), (1,)),
+            names=('obs', 'step',),
+            shapes=((3,), (1,)),
             dtypes=np.float32
         )
 
@@ -72,7 +72,7 @@ class PendulumWrapper(RLBaseEnv):
 
         # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
 
-        obs = {'obs': observation}
+        obs = {'obs': observation, 'step': self.step_s}
 
         obs = self.initial_obs(obs)
 
@@ -83,11 +83,11 @@ class PendulumWrapper(RLBaseEnv):
         action = action_dict['action']
         if isinstance(action, tf.Tensor):
             action = action.numpy()
-        action *= 2
+        # action *= 2
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
-        obs = {'obs': observation}
+        obs = {'obs': observation, 'step': self.step_s}
 
         obs = self.check_obs(obs, action_dict)
 
@@ -101,15 +101,18 @@ class PendulumWrapper(RLBaseEnv):
     def close(self):
         self.env.close()
 
+    # def seed(self, seed):
+    #     gym
+
 
 env = PendulumWrapper()
-obs_shape_dict = {'obs': (1, 3)}
+osb_shape_dict = env.obs_info.shape_dict
 
 policy = CompletePolicy(
     actor=Actor_net,
-    obs_shape_dict=obs_shape_dict,
-    checkpoint_path='cache',
-    using_obs_scale=True,
+    obs_shape_dict=osb_shape_dict,
+    checkpoint_path='Pendulum',
+    using_obs_scale=False,
 )
 
 test_policy = TestPolicy(
@@ -118,7 +121,7 @@ test_policy = TestPolicy(
 )
 
 test_policy.evaluate(
-    episode_num=1,
+    episode_num=50,
     episode_steps=200,
     data_path='traj'
 )

@@ -6,6 +6,7 @@ from AquaML.core.DataParser import DataInfo
 import copy
 from copy import deepcopy
 import os
+import tensorflow as tf
 
 
 class RunningMeanStd:
@@ -292,7 +293,20 @@ class RLStandardDataSet:
 
         self.check_data(data, name)
         setattr(self, name, data)
+    
+    def add_addtional_reward(self, addtional_reward: np.ndarray, name: str):
+        """
+        add addtional reward to the data set.
 
+        check and add the addtional reward to the data set.
+        """
+
+        self.check_data(addtional_reward, name)
+        
+        setattr(self, name, addtional_reward)
+        self.reward_names = [*self.reward_names, name]
+        self._buffer_dict[name] = addtional_reward
+        
     def check_dict(self, dic: dict, name: str):
         """
         check the dict.
@@ -324,6 +338,45 @@ class RLStandardDataSet:
             self.check_dict(data, name)
         else:
             raise TypeError(f'The type of {name} should be np.ndarray or dict, but got {type(data)}.')
+
+
+    def get_data(self, name: str):
+        """
+        get the data by name.
+
+        Args:
+            name: str, the name of the data.
+
+        Return:
+            data: np.ndarray, the data.
+        """
+
+        return self._buffer_dict[name]
+    
+    def change_data(self, data: np.ndarray, name: str):
+        
+        self.check_data(data, name)
+        setattr(self, name, data)
+        self._buffer_dict[name] = data
+    
+    def get_data_by_list(self, name_list: list, tf_data: bool = False):
+        """
+        get the data by name list.
+
+        Args:
+            name_list: list, the name list of the data.
+
+        Return:
+            data: np.ndarray, the data.
+        """
+
+        data = []
+        for name in name_list:
+            if tf_data:
+                data.append(tf.convert_to_tensor(self._buffer_dict[name],dtype=tf.float32))
+            else:
+                data.append(self._buffer_dict[name])
+        return data
 
 
 class MDPCollector:

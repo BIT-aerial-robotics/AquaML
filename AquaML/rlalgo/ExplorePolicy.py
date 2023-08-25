@@ -236,14 +236,15 @@ class GaussianExplorePolicy(ExplorePolicyBase):
     
 
 class ClipGaussianExplorePolicy(ExplorePolicyBase):
-    def __init__(self, shape, action_clip_range=1.0, sigma=0.1):
+    def __init__(self, shape, action_high=1.0, action_low=-1.0, sigma=0.1):
         super().__init__(shape)
         mu = tf.zeros(shape, dtype=tf.float32)
         sigma = tf.ones(shape, dtype=tf.float32) * sigma
         self.dist = tfp.distributions.Normal(loc=mu, scale=sigma)
         self.input_name = ('action', )
         
-        self.clip_range = action_clip_range
+        self.action_high = action_high
+        self.action_low = action_low
 
         self._aditional_output = {
             # 'prob': {
@@ -269,7 +270,7 @@ class ClipGaussianExplorePolicy(ExplorePolicyBase):
         noise, prob = self.noise_and_prob(batch_size)
         action = mu + noise
         
-        action = tf.clip_by_value(action, -self.clip_range, self.clip_range)
+        action = tf.clip_by_value(action, self.action_low, self.action_high) # used for continuous action space
 
         # action = tf.clip_by_value(action, -1, 1)
         #
@@ -277,7 +278,7 @@ class ClipGaussianExplorePolicy(ExplorePolicyBase):
         #
         # prob = self.get_prob(noise)
 
-        return action
+        return action, 1
 
     def resample_prob(self, mu, std, action, sum_axis=1):
         # sigma = tf.exp(log_std)
@@ -305,7 +306,7 @@ class ClipGaussianExplorePolicy(ExplorePolicyBase):
 
         return entropy
 
-    def test_action(self, mu, log_std):
+    def test_action(self, mu):
         return mu, tf.ones((1, *self.shape))
 
     def create_info(self):

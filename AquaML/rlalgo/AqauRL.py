@@ -644,166 +644,12 @@ class AquaRL(BaseAqua):
         if self.optimize_enable:
             self.sync()
 
-        for epoch in range(self.agent_params.epochs):
-
-            self.communicator.thread_manager.Barrier()
-
-            if self.sample_enable:
-                self.sync()
-
-                # sync norm
-                if self.env_type == 'Vec':
-                    if (epoch + 1) % self.snyc_norm_per == 0 and self.distributed_norm:
-                        indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
-                        obs_norm_dict = {}
-
-                        if self.state_norm_flag:
-                            for name in self.obs_names:
-                                mean = indicate_data[name + '_mean'][0]
-                                std = indicate_data[name + '_std'][0]
-
-                                obs_norm_dict[name] = (mean, std)
-
-                                self.obs_normalizer.set_data(obs_norm_dict)
-
-                        if self.reward_norm_flag:
-                            total_reward_mean = indicate_data['total_reward_mean'][0]
-                            total_reward_std = indicate_data['total_reward_std'][0]
-
-                            self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
-
-            self.communicator.thread_manager.Barrier()
-
+        for epoch in range(self.agent_params.epochs+self.agent_params.learning_starts):
             std_data_set = self.sampling()
 
-            # print("{}: {}".format(self.communicator.get_level(), self.agent.log_std.buffer))
+            eval_flag, loss_data = self.agent.optimize(std_data_set)
 
-            if self.sample_enable:
-
-                # 获取子线程normalize的数据
-                if self.env_type == 'Vec':
-                    if self.state_norm_flag:
-                        self.obs_normalizer.push_to_communicator(
-                            communicator=self.communicator,
-                            agent_name=self.agent.name,
-                        )
-                    if self.reward_norm_flag:
-                        self.reward_normalizer.push_to_communicator(
-                            communicator=self.communicator,
-                            agent_name=self.agent.name,
-                        )
-
-            self.communicator.thread_manager.Barrier()
-
-            if self.optimize_enable:
-                print('####################{}####################'.format(epoch + 1))
-                loss_info, reward_info = self.agent.optimize(std_data_set)
-
-                del std_data_set
-
-                for key, value in loss_info.items():
-                    print(key, value)
-
-                for key, value in reward_info.items():
-                    print(key, value)
-
-                current_steps = self.agent_params.rollout_steps * self._total_envs * (epoch + 1)
-
-                if self.decay_lr:
-                    for name, param in self.agent.get_optimizer_pool.items():
-                        optimizer = param['optimizer']
-                        lr = param['lr']
-                        lr_now = lr * (1 - current_steps / self._max_total_steps)
-                        lr_now = max(lr_now, self.min_lr)
-                        optimizer.learning_rate.assign(lr_now)
-                        print('{} lr:{}'.format(name, lr_now))
-
-                self.sync()
-
-                self.recoder.record_scalar(reward_info, epoch + 1)
-                self.recoder.record_scalar(loss_info, epoch + 1)
-
-                if self.env_type == 'Vec':
-
-                    indicate_data = self.communicator.get_indicate_pool_dict(self.agent.name)
-                    obs_norm_dict = {}
-
-                    if self.state_norm_flag and self.distributed_norm:
-                        for name in self.obs_names:
-                            mean = np.mean(indicate_data[name + '_mean'], axis=0)
-
-                            std_2 = np.sum(indicate_data[name + '_std'] ** 2, axis=0)
-                            std = std_2 / self.worker_thread
-                            std = np.sqrt(std)
-
-                            obs_norm_dict[name] = (mean, std)
-
-                            self.communicator.store_indicate_dict(
-                                agent_name=self.agent.name,
-                                indicate_dict={name + '_mean': mean, name + '_std': std},
-                                index=0,
-                            )
-
-                            self.obs_normalizer.set_data(obs_norm_dict)
-
-                    # total_reward = np.mean(indicate_data['total_reward'])
-
-                    if self.reward_norm_flag and self.distributed_norm:
-                        total_reward_mean = np.mean(indicate_data['total_reward_mean'])
-                        total_reward_std = np.mean(indicate_data['total_reward_std'])
-
-                        self.reward_normalizer.set_data((total_reward_mean, total_reward_std))
-
-                        self.communicator.store_indicate_dict(
-                            agent_name=self.agent.name,
-                            indicate_dict={'total_reward_mean': total_reward_mean,
-                                           'total_reward_std': total_reward_std},
-                            index=0,
-                        )
-
-                    if self.reset_norm_per is not None:
-                        if (epoch + 1) % self.reset_norm_per == 0:
-                            # self.obs_normalizer.reset()
-                            if self.reward_norm_flag:
-                                self.reward_normalizer.reset()
-
-                    for key, value in self._tool_dict.items():
-                        cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)
-                        # th_id = self.communicator.thread_manager.get_thread_id
-                        # cache_path = os.path.join(cache_path, str(th_id))
-                        for tool in value:
-                            tool.save(cache_path)
-
-                if epoch % self.agent_params.checkpoint_interval == 0:
-                    self.recoder.save_checkpoint(
-                        model_dict=self.agent.get_all_model_dict,
-                        epoch=epoch + 1,
-                        checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
-                        tool=self._tool_dict,
-                    )
-
-                # sync normalizer
-
-            for key, value in self._tool_dict.items():
-                cache_path = os.path.join(self.file_system.get_cache_path(self.agent.name), key)
-                th_id = self.communicator.thread_manager.get_thread_id
-                cache_path = os.path.join(cache_path, str(th_id))
-                for tool in value:
-                    tool.save(cache_path)
-
-            if epoch % self.agent_params.checkpoint_interval == 0:
-                history = self.file_system.get_history_model_path(self.agent.name)
-                history_path = os.path.join(history, str(epoch + 1))
-                for key, value in self._tool_dict.items():
-                    cache_path = os.path.join(history_path, key)
-                    th_id = self.communicator.thread_manager.get_thread_id
-                    cache_path = os.path.join(cache_path, str(th_id))
-                    for tool in value:
-                        tool.save(cache_path)
-
-            self.communicator.thread_manager.Barrier()
-
-            if (epoch + 1) % self.agent_params.eval_interval == 0:
+            if (epoch + 1) % self.agent_params.eval_interval == 0 and eval_flag :
 
                 if self.sample_enable:
                     self.sync()
@@ -815,10 +661,22 @@ class AquaRL(BaseAqua):
                     # 汇总数据
                     summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
 
+                    print('####################{}####################'.format(epoch + 1))
+
                     # 计算平均值
                     new_summery_dict = {}
                     pre_fix = 'reward/'
                     for key, value in summery_dict.items():
+                        # if 'reward' in key:
+                        if 'max' in key:
+                            new_summery_dict[pre_fix + key] = np.max(value)
+                        elif 'min' in key:
+                            new_summery_dict[pre_fix + key] = np.min(value)
+                        else:
+                            new_summery_dict[pre_fix + key] = np.mean(value)
+
+                    pre_fix = 'loss/'
+                    for key, value in loss_data.items():
                         # if 'reward' in key:
                         if 'max' in key:
                             new_summery_dict[pre_fix + key] = np.max(value)
@@ -854,7 +712,7 @@ class AquaRL(BaseAqua):
 
             self.recoder.record_scalar(summery_dict, epoch + 1)
 
-            self.sync() # 存储最新模型
+            self.sync()  # 存储最新模型
 
             if epoch % self.agent_params.checkpoint_interval == 0:
                 self.recoder.save_checkpoint(
@@ -863,6 +721,3 @@ class AquaRL(BaseAqua):
                     checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
                     tool=self._tool_dict,
                 )
-
-
-

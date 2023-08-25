@@ -1,6 +1,6 @@
 import tensorflow as tf
 from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
-from AquaML.rlalgo.AgentParameters import TD3BCAgentParameters
+from AquaML.rlalgo.AgentParameters import TD3AgentParameters
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.core.DataParser import DataSet
 
@@ -8,14 +8,13 @@ import os
 import numpy as np
 
 
-class TD3BCAgent(BaseRLAgent):
+class TD3Agent(BaseRLAgent):
 
     def __init__(self,
                  name,
                  actor,
                  q_critic,
-                 expert_dataset_path,
-                 agent_params: TD3BCAgentParameters,
+                 agent_params: TD3AgentParameters,
                  level=0
                  ):
 
@@ -35,7 +34,7 @@ class TD3BCAgent(BaseRLAgent):
 
         self.n_update_times = 0
 
-        self.expert_dataset_path = expert_dataset_path
+        # self.expert_dataset_path = expert_dataset_path
 
     def init(self):
 
@@ -88,15 +87,15 @@ class TD3BCAgent(BaseRLAgent):
 
             # 创建优化器
 
-            if hasattr(self.agent_params, 'optimizer_info'):
+            if hasattr(self.actor, 'optimizer_info'):
                 self.create_optimizer(
                     self.actor.optimizer_info,
                     'actor_optimizer'
                 )
             else:
-                raise ValueError('optimizer_info is not defined in agent_params')
+                raise ValueError('optimizer_info is not defined in actor')
 
-            if hasattr(self.agent_params, 'optimizer_info'):
+            if hasattr(self.q_critit1, 'optimizer_info'):
                 self.create_optimizer(
                     self.q_critit1.optimizer_info,
                     'critic_optimizer'
@@ -115,25 +114,10 @@ class TD3BCAgent(BaseRLAgent):
             }
 
             # create replay buffer
-            # self.replay_buffer = DataSet(
-            #     data_dict=self.agent_info.data_info.shape_dict.keys(),
-            #     max_size=self.agent_params.replay_buffer_size,
-            #     IOInfo=self.agent_info,
-            # )
-
-            # 创建expert dataset
-            expert_dataset = {}
-
-            for key in self.actor.input_name:
-                data_file_path = os.path.join(self.expert_dataset_path, key + '.npy')
-                expert_dataset[key] = np.load(data_file_path)
-
-            # load expert action
-            data_file_path = os.path.join(self.expert_dataset_path, 'action.npy')
-            expert_dataset['action'] = np.load(data_file_path)
-
-            self.expert_dataset = DataSet(
-                data_dict=expert_dataset
+            self.replay_buffer = DataSet(
+                data_dict=tuple(self.agent_info.data_info.shape_dict.keys()),
+                max_size=self.agent_params.replay_buffer_size,
+                IOInfo=self.agent_info,
             )
 
         # 创建探索策略
@@ -141,14 +125,15 @@ class TD3BCAgent(BaseRLAgent):
             explore_name = 'ClipGaussian'
             args = {
                 'sigma': self.agent_params.sigma,
-                'clip_range': self.agent_params.clip_range,
+                'action_high': self.agent_params.action_high,
+                'action_low': self.agent_params.action_low,
             }
 
         else:
             explore_name = self.agent_params.explore_policy
             args = {}
 
-        self.explore_policy = self.create_explorer(
+        self.create_explorer(
             explore_name=explore_name,
             shape=self.actor.output_info['action'],
             args=args,
@@ -161,95 +146,108 @@ class TD3BCAgent(BaseRLAgent):
 
     def optimize(self, data_set: RLStandardDataSet):
 
-        train_data, reward_info = self._episode_tool(data_set, shuffle=self.agent_params.shuffle)
+        # train_data, reward_info = self._episode_tool(data_set)
 
-        # self.replay_buffer.add_data_by_buffer(train_data)
+        self.replay_buffer.add_data_by_buffer(data_set.get_all_data(squeeze=True,rollout_steps=self.agent_params.rollout_steps))
 
-        for _ in range(self.agent_params.n_updates):
+        current_buffer_size = self.replay_buffer.buffer_size
 
-            sample_data = self.expert_dataset.random_sample_all(self.agent_params.batch_size, tf_dataset=False)  # dict
+        if current_buffer_size > self.agent_params.learning_starts:
+            for _ in range(self.agent_params.n_updates):
 
-            # compute target y
+                sample_data = self.replay_buffer.random_sample_all(self.agent_params.batch_size,
+                                                                   tf_dataset=False)  # dict
 
-            # get next actor input
+                # compute target y
 
-            next_actor_input = self.get_corresponding_data(sample_data, self.actor.input_name, 'next_')
-            next_q_input = self.get_corresponding_data(sample_data, self.q_critit1.input_name, 'next_',
-                                                       filter='next_action')
-            current_q_input = self.get_corresponding_data(sample_data, self.q_critit1.input_name, filter='action')
-            current_actor_input = self.get_corresponding_data(sample_data, self.actor.input_name)
+                # get next actor input
 
-            reward = tf.convert_to_tensor(sample_data['reward'], dtype=tf.float32)
-            mask = tf.convert_to_tensor(sample_data['mask'], dtype=tf.float32)
+                next_actor_input = self.get_corresponding_data(sample_data, self.actor.input_name, 'next_')
+                next_q_input = self.get_corresponding_data(sample_data, self.q_critit1.input_name, 'next_',
+                                                           filter='next_action')
+                current_q_input = self.get_corresponding_data(sample_data, self.q_critit1.input_name, filter='action')
+                current_actor_input = self.get_corresponding_data(sample_data, self.actor.input_name)
 
-            target_y = self.compute_target_y(
-                next_actor_input=next_actor_input,
-                next_q_input=next_q_input,
-                reward=reward,
-                mask=mask,
-                noise_clip_range=self.agent_params.noise_clip_range,
-                gamma=self.agent_params.gamma,
-            )
+                current_action = tf.convert_to_tensor(sample_data['action'], dtype=tf.float32)
 
-            current_action = self.actor(*current_actor_input)
+                reward = tf.convert_to_tensor(sample_data['total_reward'], dtype=tf.float32)
+                mask = tf.convert_to_tensor(sample_data['mask'], dtype=tf.float32)
 
-            # train critic
-            q1_info = self.train_critic1(
-                current_q_input=current_q_input,
-                target_y=target_y,
-                current_action=current_action,
-            )
-
-            self.loss_tracker.add_data(q1_info)
-
-            q2_info = self.train_critic2(
-                current_q_input=current_q_input,
-                target_y=target_y,
-                current_action=current_action,
-            )
-
-            self.loss_tracker.add_data(q2_info)
-
-            self.n_update_times += 1
-
-            if self.n_update_times % self.agent_params.delay_update == 0:
-                loss = self.train_actor(
-                    current_actor_input=current_actor_input,
+                target_y = self.compute_target_y(
+                    next_actor_input=next_actor_input,
+                    next_q_input=next_q_input,
+                    reward=reward,
+                    mask=mask,
+                    noise_clip_range=self.agent_params.noise_clip_range,
+                    action_low=self.agent_params.action_low,
+                    action_high=self.agent_params.action_high,
+                    gamma=self.agent_params.gamma,
                 )
 
-                self.loss_tracker.add_data(loss)
+                # current_action = self.actor(*current_actor_input)[0]
 
-                # update target model
-
-                self.soft_update(
-                    source_model=self.actor,
-                    target_model=self.target_actor,
-                    tau=self.agent_params.tau,
+                # train critic
+                q1_info = self.train_critic1(
+                    current_q_input=current_q_input,
+                    target_y=target_y,
+                    current_action=current_action,
                 )
 
-                self.soft_update(
-                    source_model=self.q_critit1,
-                    target_model=self.target_q_critic1,
-                    tau=self.agent_params.tau,
+                self.loss_tracker.add_data(q1_info)
+
+                q2_info = self.train_critic2(
+                    current_q_input=current_q_input,
+                    target_y=target_y,
+                    current_action=current_action,
                 )
 
-                self.soft_update(
-                    source_model=self.q_critit2,
-                    target_model=self.target_q_critic2,
-                    tau=self.agent_params.tau,
-                )
+                self.loss_tracker.add_data(q2_info)
 
+                self.n_update_times += 1
+
+                if self.n_update_times % self.agent_params.delay_update == 0:
+                    loss = self.train_actor(
+                        current_actor_input=current_actor_input,
+                    )
+
+                    self.loss_tracker.add_data(loss)
+
+                    # update target model
+
+                    self.soft_update(
+                        source_model=self.actor,
+                        target_model=self.target_actor,
+                        tau=self.agent_params.tau,
+                    )
+
+                    self.soft_update(
+                        source_model=self.q_critit1,
+                        target_model=self.target_q_critic1,
+                        tau=self.agent_params.tau,
+                    )
+
+                    self.soft_update(
+                        source_model=self.q_critit2,
+                        target_model=self.target_q_critic2,
+                        tau=self.agent_params.tau,
+                    )
+
+        loss_info = self.loss_tracker.get_data()
+
+        return current_buffer_size > self.agent_params.learning_starts, loss_info
+    # @tf.function
     def compute_target_y(self,
                          next_actor_input,
                          next_q_input,  # state no action
                          reward,
                          mask,
+                         action_low,
+                         action_high,
                          noise_clip_range=0.5,
                          gamma=0.99
-
                          ):
         # compute next action
-        next_target_action = self.target_actor(*next_actor_input)
+        next_target_action = self.target_actor(*next_actor_input)[0]
 
         size = next_target_action.shape[0]
 
@@ -259,8 +257,10 @@ class TD3BCAgent(BaseRLAgent):
 
         noise_next_target_action = next_target_action + clip_noise
 
-        q1 = self.target_q_critic1(*next_q_input, noise_next_target_action)
-        q2 = self.target_q_critic2(*next_q_input, noise_next_target_action)
+        clip_noise_next_target_action = tf.clip_by_value(noise_next_target_action, action_low, action_high)
+
+        q1 = self.target_q_critic1(*next_q_input, clip_noise_next_target_action)
+        q2 = self.target_q_critic2(*next_q_input, clip_noise_next_target_action)
 
         minmun_q = tf.minimum(q1, q2)
 
@@ -283,7 +283,7 @@ class TD3BCAgent(BaseRLAgent):
 
         grads = tape.gradient(loss, self.q_critit1.trainable_variables)
 
-        self.q_critit1.optimizer.apply_gradients(zip(grads, self.q_critit1.trainable_variables))
+        self.critic_optimizer.apply_gradients(zip(grads, self.q_critit1.trainable_variables))
 
         dict_info = {
             'critic1_loss': loss,
@@ -306,7 +306,7 @@ class TD3BCAgent(BaseRLAgent):
 
         grads = tape.gradient(loss, self.q_critit2.trainable_variables)
 
-        self.q_critit1.optimizer.apply_gradients(zip(grads, self.q_critit2.trainable_variables))
+        self.critic_optimizer.apply_gradients(zip(grads, self.q_critit2.trainable_variables))
 
         dict_info = {
             'critic2_loss': loss,
@@ -321,7 +321,7 @@ class TD3BCAgent(BaseRLAgent):
         with tf.GradientTape() as tape:
             tape.watch(self.actor.trainable_variables)
 
-            current_action = self.actor(*current_actor_input)
+            current_action = self.actor(*current_actor_input)[0]
 
             q1 = self.q_critit1(*current_actor_input, current_action)
 
@@ -329,10 +329,14 @@ class TD3BCAgent(BaseRLAgent):
 
         grads = tape.gradient(loss, self.actor.trainable_variables)
 
-        self.actor.optimizer.apply_gradients(zip(grads, self.actor.trainable_variables))
+        self.actor_optimizer.apply_gradients(zip(grads, self.actor.trainable_variables))
 
         dict_info = {
             'actor_loss': loss,
         }
 
         return dict_info
+
+    @staticmethod
+    def get_algo_name():
+        return 'TD3'

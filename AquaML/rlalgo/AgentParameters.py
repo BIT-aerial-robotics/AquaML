@@ -22,6 +22,7 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
                  summary_style: str = 'episode',
                  summary_steps: int = 1,
                  explore_policy='Default',
+                 train_fusion=False
 
                  ):
         """
@@ -68,6 +69,7 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
         self.summary_steps = summary_steps
 
         self.learning_starts = learning_starts
+        self.train_fusion = train_fusion
 
     def point_adjust_parameter(self, names: list):
         """
@@ -343,24 +345,26 @@ class TD3AgentParameters(BaseAgentParameter):
                  max_steps: int,
                  batch_size: int,
                  update_times: int,
-                 eval_interval: int,
-                 eval_episodes: int,
-                 eval_episode_length: int,
-                 checkpoint_interval: int,
+                 gamma=0.99,
 
                  # off-policy rollout parameters
                  learning_starts: int = 100,
                  replay_buffer_size: int = 1000000,
                  sigma: float = 0.2,
-                 action_clip_range: float = 1.0,
                  noise_clip_range: float = 0.5,
                  delay_update: int = 2,
                  n_updates: int = 1,
                  tau: float = 0.005,
+                 action_high=1.0,
+                 action_low=-1.0,
 
+                 eval_interval: int = 20,
+                 eval_episodes: int = 0,
+                 eval_episode_length: int = 0,
+                 checkpoint_interval: int = 10,
 
                  # rollout parameters
-                 rollout_steps: int = 1,
+                 rollout_steps: int = 1, # off policy
                  min_steps: int = -1,
 
                  summary_style: str = 'step',
@@ -387,12 +391,15 @@ class TD3AgentParameters(BaseAgentParameter):
         self.replay_buffer_size = replay_buffer_size
         self.learning_starts = learning_starts
         self.sigma = sigma
-        self.action_clip_range = action_clip_range
         self.noise_clip_range = noise_clip_range
 
         self.delay_update = delay_update
         self.n_updates = n_updates
         self.tau = tau
+
+        self.action_high = action_high
+        self.action_low = action_low
+        self.gamma = gamma
 
 
 class TD3BCAgentParameters(BaseAgentParameter):
@@ -403,12 +410,11 @@ class TD3BCAgentParameters(BaseAgentParameter):
                  batch_size: int,
                  update_times: int,
 
-
                  # off-policy rollout parameters
                  learning_starts: int = 100,
                  replay_buffer_size: int = 1000000,
                  sigma: float = 0.2,
-                 action_clip_range: float = 1.0,
+                 # action_clip_range: float = 1.0,
                  noise_clip_range: float = 0.5,
                  delay_update: int = 2,
 
@@ -419,15 +425,15 @@ class TD3BCAgentParameters(BaseAgentParameter):
                  # rollout parameters
                  rollout_steps: int = 1,
                  min_steps: int = -1,
-                 max_steps: int=0,
+                 max_steps: int = 0,
                  gamma=0.99,
 
-                 n_updates: int = 1, #暂时不用
+                 n_updates: int = 1,  # 暂时不用
 
-                 eval_interval: int=0,
-                 eval_episodes: int=0,
-                 eval_episode_length: int=0,
-                 checkpoint_interval: int=20,
+                 eval_interval: int = 0,
+                 eval_episodes: int = 0,
+                 eval_episode_length: int = 0,
+                 checkpoint_interval: int = 20,
 
                  summary_style: str = 'step',
                  summary_steps: int = 1,
@@ -453,7 +459,6 @@ class TD3BCAgentParameters(BaseAgentParameter):
         self.replay_buffer_size = replay_buffer_size
         self.learning_starts = learning_starts
         self.sigma = sigma
-        self.action_clip_range = action_clip_range
         self.noise_clip_range = noise_clip_range
 
         self.delay_update = delay_update

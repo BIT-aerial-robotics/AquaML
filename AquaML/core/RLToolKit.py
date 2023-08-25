@@ -378,6 +378,25 @@ class RLStandardDataSet:
                 data.append(self._buffer_dict[name])
         return data
 
+    def get_all_data(self, squeeze=False, rollout_steps=1):
+        """
+        get all the data.
+
+        Return:
+            data: dict, the data.
+        """
+
+        return_dic = {}
+
+        # for key, value in return_dic.items()
+        for key, value in self._buffer_dict.items():
+            if squeeze:
+                return_dic[key] = deepcopy(value.reshape(rollout_steps,-1))
+            else:
+                return_dic[key] = deepcopy(value)
+
+        return return_dic
+
 
 class MDPCollector:
     """

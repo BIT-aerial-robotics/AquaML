@@ -10,7 +10,6 @@ import numpy as np
 from AquaML.buffer.RLPrePlugin import SplitTrajectory
 
 
-
 class BaseAgent(ABC):
 
     @abstractmethod
@@ -50,7 +49,7 @@ class BaseRLAgent(BaseAgent, ABC):
         ##############################
 
         self.loss_tracker = LossTracker()
-        
+
         self._episode_tool = None
 
         ##############################
@@ -271,7 +270,6 @@ class BaseRLAgent(BaseAgent, ABC):
 
         # squeeze
 
-
         # TODO: 这个地方需要优化速度
         policy_out = dict(zip(self.actor.output_info, actor_out))
 
@@ -386,26 +384,26 @@ class BaseRLAgent(BaseAgent, ABC):
         }
 
         # return optimizer
-    
-    def config_default_episode_tool(self,):
+
+    def config_default_episode_tool(self, ):
         if self.agent_params.min_steps <= 1:
-                filter_name = None
-                filter_args = {}
+            filter_name = None
+            filter_args = {}
         else:
-                filter_name = 'len'
-                filter_args = {
-                    'len_threshold': self.agent_params.min_steps
-                }
+            filter_name = 'len'
+            filter_args = {
+                'len_threshold': self.agent_params.min_steps
+            }
 
         # 创建episode处理工具
         self._episode_tool = SplitTrajectory(
-                filter_name=filter_name,
-                filter_args=filter_args,
-                summary_stype=self.agent_params.summary_style,
-                summary_steps=self.agent_params.summary_steps,
-            )
-        
-    def initialize_model(self, model_class, name:str):
+            filter_name=filter_name,
+            filter_args=filter_args,
+            summary_stype=self.agent_params.summary_style,
+            summary_steps=self.agent_params.summary_steps,
+        )
+
+    def initialize_model(self, model_class, name: str):
         """
         初始化模型。
 
@@ -415,30 +413,30 @@ class BaseRLAgent(BaseAgent, ABC):
             name: 模型名称。
         """
         expand_dims_idx = []
-        
+
         self._network_process_info[name] = {}
         rnn_flag = getattr(model_class, 'rnn_flag', False)
-        
+
         if rnn_flag:
             self._network_process_info[name]['rnn_flag'] = True
-            
+
             idx = 0
-            
+
             input_name = model_class.input_name
-            
+
             for name in input_name:
                 if 'hidden' in name:
                     pass
                 else:
                     expand_dims_idx.append(idx)
                 idx += 1
-                
+
             expand_dims_idx = tuple(expand_dims_idx)
         else:
             self._network_process_info[name]['rnn_flag'] = False
-        
-        setattr(self, name+'_expand_dims_idx', expand_dims_idx)
-        
+
+        setattr(self, name + '_expand_dims_idx', expand_dims_idx)
+
         self.initialize_network(
             model=model_class,
             expand_dims_idx=expand_dims_idx,
@@ -516,7 +514,6 @@ class BaseRLAgent(BaseAgent, ABC):
                 indicate_shapes.append(shape_)
 
         if reward_norm_flag:
-
             indicate_names.append('total_reward_mean')
             indicate_dtypes.append(np.float32)
             indicate_shapes.append((woker_num, 1))
@@ -532,10 +529,9 @@ class BaseRLAgent(BaseAgent, ABC):
         )
 
         return agent_data_info, param_info, indicate_info
-    
-    
 
-    def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True, filter=[]):
+    def get_corresponding_data(self, data_dict: dict, names: tuple, prefix: str = '', tf_tensor: bool = True,
+                               filter=[]):
         """
 
         Get corresponding data from data dict.
@@ -653,6 +649,7 @@ class BaseRLAgent(BaseAgent, ABC):
         """
         获取算法名称。
         """
+
     # @abstractmethod
     def get_real_policy_out(self):
 
@@ -664,5 +661,6 @@ class BaseRLAgent(BaseAgent, ABC):
         for name in self.explore_policy.get_aditional_output.keys():
             out_list.append(name)
         return out_list
+
     def __del__(self):
         pass

@@ -234,7 +234,7 @@ agent_info_dict = {
     'critic': Critic_net,
     'agent_params': parameters,
     'discriminator': Discriminator_net,
-    'expert_dataset_path': 'JointTogether',
+    'expert_dataset_path': 'ExpertPendulum',
 }
 
 

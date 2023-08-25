@@ -3,8 +3,8 @@ import sys
 sys.path.append('..')
 
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
-from AquaML.rlalgo.AgentParameters import TD3BCAgentParameters
-from AquaML.rlalgo.TD3BCAgent import TD3BCAgent
+from AquaML.rlalgo.AgentParameters import TD3AgentParameters
+from AquaML.rlalgo.TD3Agent import TD3Agent
 import numpy as np
 import gym
 from AquaML.DataType import DataInfo
@@ -18,9 +18,9 @@ class Actor_net(tf.keras.Model):
     def __init__(self):
         super(Actor_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(128, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(128, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1)
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
@@ -54,9 +54,9 @@ class Critic_net(tf.keras.Model):
     def __init__(self):
         super(Critic_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(128, activation='relu',
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
-        self.dense2 = tf.keras.layers.Dense(128, activation='relu',
+        self.dense2 = tf.keras.layers.Dense(64, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
@@ -129,7 +129,7 @@ class PendulumWrapper(RLBaseEnv):
         action = action_dict['action']
         if isinstance(action, tf.Tensor):
             action = action.numpy()
-        # action *= 2
+        action *= 2
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
 
@@ -147,34 +147,34 @@ class PendulumWrapper(RLBaseEnv):
     def close(self):
         self.env.close()
 
-    # def seed(self, seed):
-    #     gym
-
 
 env = PendulumWrapper()  # need environment provide obs_info and reward_info
+eval_env = PendulumWrapper()
 
-parameters = TD3BCAgentParameters(
-    epochs=1000,
-    batch_size=256,
-    tau=0.005,
-    noise_clip_range=0.5,
-    # action_clip_range=1,
+parameters = TD3AgentParameters(
+    epochs=10000000,
+    max_steps=200,
+    rollout_steps=1,
+    batch_size=128,
     update_times=1,
-    delay_update=4
+    eval_interval=100,
+    eval_episodes=1,
+    eval_episode_length=200,
+    learning_starts=600
 )
 
 agent_info_dict = {
     'actor': Actor_net,
     'q_critic': Critic_net,
     'agent_params': parameters,
-    'expert_dataset_path': 'ExpertPendulum',
+    # 'expert_dataset_path': 'ExpertPendulum',
 }
 
-offline_rl = AquaRL(
+rl = AquaRL(
     env=env,
-    agent=TD3BCAgent,
+    agent=TD3Agent,
     agent_info_dict=agent_info_dict,
-    # eval_env=eval_env,
+    eval_env=eval_env,
     # comm=comm,
     name='debug1',
     # reward_norm=True,
@@ -185,5 +185,4 @@ offline_rl = AquaRL(
     # load_flag=load_flag,
 )
 
-
-offline_rl.run_offline()
+rl.run_off_policy()

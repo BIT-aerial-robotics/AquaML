@@ -155,7 +155,8 @@ class TD3BCAgent(BaseRLAgent):
             explore_name = 'ClipGaussian'
             args = {
                 'sigma': self.agent_params.sigma,
-                'action_clip_range': self.agent_params.action_clip_range,
+                'action_high': self.action_max,
+                'action_low': self.action_min,
             }
 
         else:
@@ -198,6 +199,8 @@ class TD3BCAgent(BaseRLAgent):
 
             target_action = tf.convert_to_tensor(sample_data['action'], dtype=tf.float32)
 
+            current_action = tf.convert_to_tensor(sample_data['action'], dtype=tf.float32)
+
             target_y = self.compute_target_y(
                 next_actor_input=next_actor_input,
                 next_q_input=next_q_input,
@@ -207,7 +210,7 @@ class TD3BCAgent(BaseRLAgent):
                 gamma=self.agent_params.gamma,
             )
 
-            current_action = self.actor(*current_actor_input)[0]
+            # current_action = self.actor(*current_actor_input)[0]
 
             # train critic
             q1_info = self.train_critic1(

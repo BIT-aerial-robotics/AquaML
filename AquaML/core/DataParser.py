@@ -209,24 +209,24 @@ class DataSet:
             required_data.append(cache)
 
         return required_data
-    
-    def random_sample_all(self, batch_size: int, tf_dataset: bool = True)->dict:
-            
-            indices = np.random.permutation(self.buffer_size)
-    
-            return_dict = {}
-            
-            random_indices = indices[:batch_size]
-            
-            for name in self.data_dict.keys():
-                
-                if tf_dataset:
-                    cache = tf.convert_to_tensor(self.data_dict[name][random_indices], dtype=tf.float32)
-                else:
-                    cache = self.data_dict[name][random_indices]
-                return_dict[name] = cache
-                
-            return return_dict
+
+    def random_sample_all(self, batch_size: int, tf_dataset: bool = True) -> dict:
+
+        indices = np.random.permutation(self.buffer_size)
+
+        return_dict = {}
+
+        random_indices = indices[:batch_size]
+
+        for name in self.data_dict.keys():
+
+            if tf_dataset:
+                cache = tf.convert_to_tensor(self.data_dict[name][random_indices], dtype=tf.float32)
+            else:
+                cache = self.data_dict[name][random_indices]
+            return_dict[name] = cache
+
+        return return_dict
 
     def get_required_data(self, name_list: list):
 

@@ -1,11 +1,11 @@
-import numpy as np
+
 import tensorflow as tf
 
 from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
-import copy
+
 import tensorflow_probability as tfp
 
 
@@ -335,6 +335,8 @@ class PPOAgent(BaseRLAgent):
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
 
+            mask_mu = tf.boolean_mask(mu, bool_mask)
+
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                             tf.math.reduce_std(mask_advantage) + 1e-8)
@@ -354,6 +356,8 @@ class PPOAgent(BaseRLAgent):
             mask_critic_l = tf.boolean_mask(critic_l, bool_mask)
             critic_loss = tf.reduce_mean(mask_critic_l)
 
+            # mu_loss = tf.reduce_mean(tf.square(mask_mu))
+
             total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * critic_loss
 
         actor_grads = tape.gradient(total_loss, self.all_train_vars)
@@ -364,6 +368,7 @@ class PPOAgent(BaseRLAgent):
             'actor_surrogate_loss': actor_surrogate_loss,
             'entropy_loss': entropy_loss,
             'critic_loss': critic_loss,
+            # 'mu_loss': mu_loss,
         }
 
         return dic, log_prob

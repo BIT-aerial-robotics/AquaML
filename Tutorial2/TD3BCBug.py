@@ -1,18 +1,22 @@
-from abc import ABC
+import sys
 
-from AquaML.rlalgo.CompletePolicy import CompletePolicy
-from AquaML.rlalgo.TestPolicy import TestPolicy
-import tensorflow as tf
+sys.path.append('..')
+
+from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
+from AquaML.rlalgo.AgentParameters import TD3BCAgentParameters
+from AquaML.rlalgo.TD3BCAgent import TD3BCAgent
+import numpy as np
 import gym
 from AquaML.DataType import DataInfo
 from AquaML.core.RLToolKit import RLBaseEnv
-import numpy as np
+from AquaML.core.RLToolKit import RLVectorEnv
+import tensorflow as tf
 
 
-class TD3Actor_net(tf.keras.Model):
+class Actor_net(tf.keras.Model):
 
     def __init__(self):
-        super(TD3Actor_net, self).__init__()
+        super(Actor_net, self).__init__()
 
         self.dense1 = tf.keras.layers.Dense(128, activation='relu')
         self.dense2 = tf.keras.layers.Dense(128, activation='relu')
@@ -45,38 +49,44 @@ class TD3Actor_net(tf.keras.Model):
     def reset(self):
         pass
 
-class Actor_net(tf.keras.Model):
 
+class Critic_net(tf.keras.Model):
     def __init__(self):
-        super(Actor_net, self).__init__()
+        super(Critic_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1)
-        # self.log_std = tf.keras.layers.Dense(1)
+        self.dense1 = tf.keras.layers.Dense(128, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense2 = tf.keras.layers.Dense(128, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
-        # self.learning_rate = 2e-5
+        # self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
+        #     initial_learning_rate=0.3,
+        #     decay_steps=10,
+        #     decay_rate=0.95,
+        #
+        # )
 
-        self.output_info = {'action': (1,), }
+        self.output_info = {'value': (1,)}
 
-        self.input_name = ('obs',)
+        self.input_name = ('obs', 'action',)
 
         self.optimizer_info = {
             'type': 'Adam',
             'args': {'learning_rate': 3e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
-                     },
+                     }
         }
 
     @tf.function
-    def call(self, obs, mask=None):
-        x = self.dense1(obs)
+    def call(self, obs, action):
+        new_obs = tf.concat([obs, action], axis=-1)
+        x = self.dense1(new_obs)
         x = self.dense2(x)
-        action = self.action_layer(x)
-        # log_std = self.log_std(x)
+        value = self.dense3(x)
 
-        return (action,)
+        return value
 
     def reset(self):
         pass
@@ -141,23 +151,39 @@ class PendulumWrapper(RLBaseEnv):
     #     gym
 
 
-env = PendulumWrapper()
-osb_shape_dict = env.obs_info.shape_dict
+env = PendulumWrapper()  # need environment provide obs_info and reward_info
 
-policy = CompletePolicy(
-    actor=TD3Actor_net,
-    obs_shape_dict=osb_shape_dict,
-    checkpoint_path='TD3BC',
-    using_obs_scale=False,
+parameters = TD3BCAgentParameters(
+    epochs=1000,
+    batch_size=256,
+    tau=0.005,
+    noise_clip_range=0.5,
+    action_clip_range=1,
+    update_times=1,
+    delay_update=4
 )
 
-test_policy = TestPolicy(
+agent_info_dict = {
+    'actor': Actor_net,
+    'q_critic': Critic_net,
+    'agent_params': parameters,
+    'expert_dataset_path': 'ExpertPendulum',
+}
+
+offline_rl = AquaRL(
     env=env,
-    policy=policy,
+    agent=TD3BCAgent,
+    agent_info_dict=agent_info_dict,
+    # eval_env=eval_env,
+    # comm=comm,
+    name='debug1',
+    # reward_norm=True,
+    # state_norm=False,
+    # decay_lr=False,
+    # snyc_norm_per=10,
+    # check_point_path='cache',
+    # load_flag=load_flag,
 )
 
-test_policy.evaluate(
-    episode_num=50,
-    episode_steps=200,
-    data_path='traj'
-)
+
+offline_rl.run_offline()

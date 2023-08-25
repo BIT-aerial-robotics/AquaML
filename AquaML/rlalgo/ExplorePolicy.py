@@ -7,17 +7,19 @@ pi = tf.constant(np.pi)
 e = tf.constant(np.e)
 
 
-def create_explor_policy(explore_policy_name, shape, actor_out_names):
+def create_explor_policy(explore_policy_name, shape, actor_out_names, args={}):
     if explore_policy_name == 'Gaussian':
-        policy = GaussianExplorePolicy(shape)
+        policy = GaussianExplorePolicy(shape, **args)
+    elif explore_policy_name == 'ClipGaussian':
+        policy = ClipGaussianExplorePolicy(shape, **args)
     elif explore_policy_name == 'OrnsteinUhlenbeck':
-        policy = OrnsteinUhlenbeckExplorePolicy(shape)
+        policy = OrnsteinUhlenbeckExplorePolicy(shape, **args)
     elif explore_policy_name == 'NoExplore':
         policy = VoidExplorePolicy(shape)
     elif explore_policy_name == 'Categorical':
-        policy = CategoricalExplorePolicy(shape)
+        policy = CategoricalExplorePolicy(shape, **args)
     elif explore_policy_name == 'Void':
-        policy = VoidExplorePolicy(shape)
+        policy = VoidExplorePolicy(shape, **args)
     else:
         raise NotImplementedError(f'{explore_policy_name} is not implemented.')
 
@@ -231,6 +233,94 @@ class GaussianExplorePolicy(ExplorePolicyBase):
             'log_std': log_std,
         }
         return dict_info
+    
+
+class ClipGaussianExplorePolicy(ExplorePolicyBase):
+    def __init__(self, shape, action_clip_range=1.0, sigma=0.1):
+        super().__init__(shape)
+        mu = tf.zeros(shape, dtype=tf.float32)
+        sigma = tf.ones(shape, dtype=tf.float32) * sigma
+        self.dist = tfp.distributions.Normal(loc=mu, scale=sigma)
+        self.input_name = ('action', )
+        
+        self.clip_range = action_clip_range
+
+        self._aditional_output = {
+            # 'prob': {
+            #     'shape': self.shape,
+            #     'dtype': np.float32,
+            # }
+        }
+
+    @tf.function
+    def noise_and_prob(self, batch_size=1):
+        noise = self.dist.sample(batch_size)
+        prob = self.dist.prob(noise)
+
+        return noise, prob
+
+    def get_prob(self, action):
+        prob = self.dist.prob(action)
+        return prob
+
+    def scale_out(self, mu):
+        # sigma = tf.exp(log_std)
+        batch_size = mu.shape[0]
+        noise, prob = self.noise_and_prob(batch_size)
+        action = mu + noise
+        
+        action = tf.clip_by_value(action, -self.clip_range, self.clip_range)
+
+        # action = tf.clip_by_value(action, -1, 1)
+        #
+        # noise = (action - mu) / sigma
+        #
+        # prob = self.get_prob(noise)
+
+        return action
+
+    def resample_prob(self, mu, std, action, sum_axis=1):
+        # sigma = tf.exp(log_std)
+        noise = (action - mu) / std
+        log_prob = self.dist.log_prob(noise)
+
+        log_prob = tf.reduce_sum(log_prob, axis=sum_axis, keepdims=True)
+
+        # dist = tfp.distributions.Normal(loc=mu, scale=std)
+        # log_prob = dist.log_prob(action)
+
+        return log_prob
+
+    def get_entropy(self, mean, log_std):
+        entropy_ = 0.5 * (1.0 + np.log(2.0 * np.pi)) + log_std
+        entropy = tf.reduce_sum(entropy_, keepdims=True)
+
+        # dist = tfp.distributions.Normal(loc=mean, scale=tf.exp(log_std))
+
+        # entropy = tf.reduce_sum(dist.entropy(), axis=1, keepdims=True)
+        # if len(mean.shape) == 1:
+        #     entropy = tf.reduce_sum(dist.entropy())
+        # else:
+        #     entropy = tf.reduce_sum(dist.entropy(), axis=1)
+
+        return entropy
+
+    def test_action(self, mu, log_std):
+        return mu, tf.ones((1, *self.shape))
+
+    def create_info(self):
+        # log_std = {
+        #     'name': 'log_std',
+        #     'shape': self.shape,
+        #     'trainable': True,
+        #     'dtype': np.float32,
+        # }
+
+        # dict_info = {
+        #     'log_std': log_std,
+        # }
+        return {}
+    
 
 
 class VoidExplorePolicy(ExplorePolicyBase):

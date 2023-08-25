@@ -186,7 +186,7 @@ class AMPAgent(BaseRLAgent):
                 adv_td_error
             )
 
-            self.std_norm = tfp.distributions.Normal(0, 0.8)
+            # self.std_norm = tfp.distributions.Normal(0, 0.8)
 
         # 创建探索策略
         if self.agent_params.explore_policy == 'Default':
@@ -831,7 +831,7 @@ class AMPAgent(BaseRLAgent):
 
     @staticmethod
     def get_algo_name():
-        return 'PPO'
+        return 'AMP'
 
     def get_real_policy_out(self):
 

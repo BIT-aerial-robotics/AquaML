@@ -16,8 +16,11 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
                  eval_episode_length: int,
                  checkpoint_interval: int,
 
-                 summary_style:str = 'episode',
-                 summary_steps:int = 1,
+                 # off-policy rollout parameters
+                 learning_starts: int = 100,
+
+                 summary_style: str = 'episode',
+                 summary_steps: int = 1,
                  explore_policy='Default',
 
                  ):
@@ -35,6 +38,9 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
             eval_episodes (int): 评估回合数。
             eval_episode_length (int): 评估回合长度。
             checkpoint_interval (int): 模型保存间隔.
+            
+            learning_starts (int): The number of steps to rollout the environment before training begins.
+            
             summary_style (str): summary的类型，可选episode和step，默认为episode。当为episode时，每个episode结束后记录一次summary，当为step时，每多少个斯特普求和。
             summary_steps (int): summary的间隔，当summary_style为step时，每多少个step记录一次summary。
             explore_policy (str, optional): 探索策略。默认为'Default'，即使用算法自带的探索策略。
@@ -60,6 +66,8 @@ class BaseAgentParameter(BaseParameter, abc.ABC):
 
         self.summary_style = summary_style
         self.summary_steps = summary_steps
+
+        self.learning_starts = learning_starts
 
     def point_adjust_parameter(self, names: list):
         """
@@ -126,8 +134,8 @@ class PPOAgentParameter(BaseAgentParameter):
                  log_std_init_value: float = -0.0,
 
                  # summary style
-                 summary_style:str = 'episode',
-                 summary_steps:int = 1,
+                 summary_style: str = 'episode',
+                 summary_steps: int = 1,
 
                  # sequential training
                  is_sequential: bool = False,
@@ -201,15 +209,15 @@ class PPOAgentParameter(BaseAgentParameter):
         self.shuffle = shuffle
 
         self.train_fusion = train_fusion
-        
-    
+
+
 class AMPAgentParameter(BaseAgentParameter):
     """
     
     Adversarial motion prior agent parameter
     
     """
-    
+
     def __init__(self,
                  rollout_steps: int,
                  epochs: int,
@@ -240,11 +248,10 @@ class AMPAgentParameter(BaseAgentParameter):
                  explore_policy='Default',
                  max_steps: int = 1000000,
                  log_std_init_value: float = -0.0,
-                 
 
                  # summary style
-                 summary_style:str = 'episode',
-                 summary_steps:int = 1,
+                 summary_style: str = 'episode',
+                 summary_steps: int = 1,
 
                  # sequential training
                  is_sequential: bool = False,
@@ -318,19 +325,146 @@ class AMPAgentParameter(BaseAgentParameter):
         self.shuffle = shuffle
 
         self.train_fusion = train_fusion
-        
+
         # AMP specific parameters
         self.update_discriminator_times = update_discriminator_times
         self.k_batch_size = k_batch_size
         self.gp_coef = gp_coef
         self.discriminator_replay_buffer_size = discriminator_replay_buffer_size
-        
+
         self.task_rew_coef = task_rew_coef
         self.style_rew_coef = style_rew_coef
 
 
+class TD3AgentParameters(BaseAgentParameter):
+    def __init__(self,
+
+                 epochs: int,
+                 max_steps: int,
+                 batch_size: int,
+                 update_times: int,
+                 eval_interval: int,
+                 eval_episodes: int,
+                 eval_episode_length: int,
+                 checkpoint_interval: int,
+
+                 # off-policy rollout parameters
+                 learning_starts: int = 100,
+                 replay_buffer_size: int = 1000000,
+                 sigma: float = 0.2,
+                 action_clip_range: float = 1.0,
+                 noise_clip_range: float = 0.5,
+                 delay_update: int = 2,
+                 n_updates: int = 1,
+                 tau: float = 0.005,
+
+
+                 # rollout parameters
+                 rollout_steps: int = 1,
+                 min_steps: int = -1,
+
+                 summary_style: str = 'step',
+                 summary_steps: int = 1,
+                 explore_policy='Default',
+
+                 ):
+        super().__init__(
+            rollout_steps=rollout_steps,
+            epochs=epochs,
+            batch_size=batch_size,
+            explore_policy=explore_policy,
+            eval_episode_length=eval_episode_length,
+            eval_interval=eval_interval,
+            eval_episodes=eval_episodes,
+            max_steps=max_steps,
+            update_times=update_times,
+            checkpoint_interval=checkpoint_interval,
+            min_steps=min_steps,
+            summary_style=summary_style,
+            summary_steps=summary_steps,
+        )
+
+        self.replay_buffer_size = replay_buffer_size
+        self.learning_starts = learning_starts
+        self.sigma = sigma
+        self.action_clip_range = action_clip_range
+        self.noise_clip_range = noise_clip_range
+
+        self.delay_update = delay_update
+        self.n_updates = n_updates
+        self.tau = tau
+
+
+class TD3BCAgentParameters(BaseAgentParameter):
+    def __init__(self,
+
+                 epochs: int,
+
+                 batch_size: int,
+                 update_times: int,
+
+
+                 # off-policy rollout parameters
+                 learning_starts: int = 100,
+                 replay_buffer_size: int = 1000000,
+                 sigma: float = 0.2,
+                 action_clip_range: float = 1.0,
+                 noise_clip_range: float = 0.5,
+                 delay_update: int = 2,
+
+                 tau: float = 0.005,
+
+                 # TD3BC
+                 alpha=2.5,
+                 # rollout parameters
+                 rollout_steps: int = 1,
+                 min_steps: int = -1,
+                 max_steps: int=0,
+                 gamma=0.99,
+
+                 n_updates: int = 1, #暂时不用
+
+                 eval_interval: int=0,
+                 eval_episodes: int=0,
+                 eval_episode_length: int=0,
+                 checkpoint_interval: int=20,
+
+                 summary_style: str = 'step',
+                 summary_steps: int = 1,
+                 explore_policy='Default',
+
+                 ):
+        super().__init__(
+            rollout_steps=rollout_steps,
+            epochs=epochs,
+            batch_size=batch_size,
+            explore_policy=explore_policy,
+            eval_episode_length=eval_episode_length,
+            eval_interval=eval_interval,
+            eval_episodes=eval_episodes,
+            max_steps=max_steps,
+            update_times=update_times,
+            checkpoint_interval=checkpoint_interval,
+            min_steps=min_steps,
+            summary_style=summary_style,
+            summary_steps=summary_steps,
+        )
+
+        self.replay_buffer_size = replay_buffer_size
+        self.learning_starts = learning_starts
+        self.sigma = sigma
+        self.action_clip_range = action_clip_range
+        self.noise_clip_range = noise_clip_range
+
+        self.delay_update = delay_update
+        self.n_updates = n_updates
+        self.tau = tau
+
+        self.alpha = alpha
+        self.gamma = gamma
+
+
 if __name__ == '__main__':
-    
     ppo_parameter = PPOAgentParameter(
         rollout_steps=10,
         epochs=10,
@@ -353,9 +487,9 @@ if __name__ == '__main__':
         },
         shuffle=False,
     )
-    
+
     amp_parameter = AMPAgentParameter(
         PPO_parameter=ppo_parameter,
     )
-    
+
     print(amp_parameter.batch_size)

@@ -56,6 +56,7 @@ class OrnsteinUhlenbeckActionNoise:
         self.x_prev = self.x0 if self.x0 is not None else np.zeros_like(self.mu)
 
 
+
 # TODO: 探索策略的创建需要优化
 class ExplorePolicyBase(abc.ABC):
     """Explore policy base class.
@@ -151,6 +152,12 @@ class ExplorePolicyBase(abc.ABC):
     def get_aditional_output(self):
         return self._aditional_output
 
+    def decay_exploration(self):
+        """
+        降低探索策略的探索程度
+        """
+        pass
+
 
 class GaussianExplorePolicy(ExplorePolicyBase):
     def __init__(self, shape):
@@ -239,12 +246,14 @@ class ClipGaussianExplorePolicy(ExplorePolicyBase):
     def __init__(self, shape, action_high=1.0, action_low=-1.0, sigma=0.1):
         super().__init__(shape)
         mu = tf.zeros(shape, dtype=tf.float32)
-        sigma = tf.ones(shape, dtype=tf.float32) * sigma
-        self.dist = tfp.distributions.Normal(loc=mu, scale=sigma)
+        self.sigma = tf.ones(shape, dtype=tf.float32) * sigma
+        self.dist = tfp.distributions.Normal(loc=mu, scale=tf.ones(shape, dtype=tf.float32) * sigma)
         self.input_name = ('action', )
         
         self.action_high = action_high
         self.action_low = action_low
+
+
 
         self._aditional_output = {
             # 'prob': {
@@ -268,7 +277,7 @@ class ClipGaussianExplorePolicy(ExplorePolicyBase):
         # sigma = tf.exp(log_std)
         batch_size = mu.shape[0]
         noise, prob = self.noise_and_prob(batch_size)
-        action = mu + noise
+        action = mu + noise * self.sigma
         
         action = tf.clip_by_value(action, self.action_low, self.action_high) # used for continuous action space
 
@@ -321,7 +330,15 @@ class ClipGaussianExplorePolicy(ExplorePolicyBase):
         #     'log_std': log_std,
         # }
         return {}
-    
+
+    # def create_standard_dist(self):
+    #     return tfp.distributions.Normal(loc=mu, scale=sigma):
+
+    def set_exploration(self, exploration):
+        self.sigma = tf.ones(self.shape, dtype=tf.float32) * exploration
+
+    def decay_exploration(self, decay_rate):
+        self.sigma = self.sigma * decay_rate
 
 
 class VoidExplorePolicy(ExplorePolicyBase):

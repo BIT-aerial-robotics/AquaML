@@ -350,7 +350,8 @@ class TD3AgentParameters(BaseAgentParameter):
                  # off-policy rollout parameters
                  learning_starts: int = 100,
                  replay_buffer_size: int = 1000000,
-                 sigma: float = 0.2,
+                 explore_noise: float = 0.2,
+                 policy_noise: float = 0.2,
                  noise_clip_range: float = 0.5,
                  delay_update: int = 2,
                  n_updates: int = 1,
@@ -390,7 +391,7 @@ class TD3AgentParameters(BaseAgentParameter):
 
         self.replay_buffer_size = replay_buffer_size
         self.learning_starts = learning_starts
-        self.sigma = sigma
+        # self.sigma = sigma
         self.noise_clip_range = noise_clip_range
 
         self.delay_update = delay_update
@@ -400,6 +401,9 @@ class TD3AgentParameters(BaseAgentParameter):
         self.action_high = action_high
         self.action_low = action_low
         self.gamma = gamma
+
+        self.policy_noise = policy_noise
+        self.explore_noise = explore_noise
 
 
 class TD3BCAgentParameters(BaseAgentParameter):

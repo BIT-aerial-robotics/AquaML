@@ -3,7 +3,7 @@ from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
 from AquaML.rlalgo.AgentParameters import TD3AgentParameters
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.core.DataParser import DataSet
-
+import tensorflow_probability as tfp
 import os
 import numpy as np
 
@@ -120,11 +120,17 @@ class TD3Agent(BaseRLAgent):
                 IOInfo=self.agent_info,
             )
 
+            # standardize gaussian noise
+            # self.gaussian_noise = tfp.distributions.Normal(
+            #     loc=0.,
+            #     scale=self.agent_params.explore_noise,
+            # )
+
         # 创建探索策略
         if self.agent_params.explore_policy == 'Default':
             explore_name = 'ClipGaussian'
             args = {
-                'sigma': self.agent_params.sigma,
+                'sigma': self.agent_params.explore_noise,
                 'action_high': self.agent_params.action_high,
                 'action_low': self.agent_params.action_low,
             }
@@ -139,16 +145,21 @@ class TD3Agent(BaseRLAgent):
             args=args,
         )
 
+        self.standardize_noise = tfp.distributions.Normal(
+            loc=tf.zeros(self.actor.output_info['action']),
+            scale=tf.ones(self.actor.output_info['action'])
+            )
+
         # 初始化模型同步器
         self._sync_model_dict = {
             'actor': self.actor,
         }
 
-    def optimize(self, data_set: RLStandardDataSet):
+    def optimize(self, data_set: RLStandardDataSet, env_num=1):
 
         # train_data, reward_info = self._episode_tool(data_set)
 
-        self.replay_buffer.add_data_by_buffer(data_set.get_all_data(squeeze=True,rollout_steps=self.agent_params.rollout_steps))
+        self.replay_buffer.add_data_by_buffer(data_set.get_all_data(squeeze=True,rollout_steps=self.agent_params.rollout_steps, env_num=env_num))
 
         current_buffer_size = self.replay_buffer.buffer_size
 
@@ -178,6 +189,7 @@ class TD3Agent(BaseRLAgent):
                     next_q_input=next_q_input,
                     reward=reward,
                     mask=mask,
+                    policy_noise=self.agent_params.policy_noise,
                     noise_clip_range=self.agent_params.noise_clip_range,
                     action_low=self.agent_params.action_low,
                     action_high=self.agent_params.action_high,
@@ -243,6 +255,7 @@ class TD3Agent(BaseRLAgent):
                          mask,
                          action_low,
                          action_high,
+                         policy_noise=0.2,
                          noise_clip_range=0.5,
                          gamma=0.99
                          ):
@@ -252,7 +265,7 @@ class TD3Agent(BaseRLAgent):
         size = next_target_action.shape[0]
 
         # add noise
-        org_noise = self.explore_policy.dist.sample(size)
+        org_noise = self.standardize_noise.sample(size) * policy_noise
         clip_noise = tf.clip_by_value(org_noise, -noise_clip_range, noise_clip_range)
 
         noise_next_target_action = next_target_action + clip_noise
@@ -340,3 +353,4 @@ class TD3Agent(BaseRLAgent):
     @staticmethod
     def get_algo_name():
         return 'TD3'
+

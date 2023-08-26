@@ -148,9 +148,12 @@ class AquaRL(BaseAqua):
             self.env_type = 'Vec'
             self.env.set_max_steps(self.agent_params.max_steps)
 
+            self.env_num = self.env.num_envs
+
             self._communicator_buffer_size = self._total_envs
         elif isinstance(env, RLBaseEnv):
             self.env_type = 'Base'
+            self.env_num = 1
 
             self._communicator_buffer_size = self._total_steps
         else:
@@ -647,7 +650,7 @@ class AquaRL(BaseAqua):
         for epoch in range(self.agent_params.epochs+self.agent_params.learning_starts):
             std_data_set = self.sampling()
 
-            eval_flag, loss_data = self.agent.optimize(std_data_set)
+            eval_flag, loss_data = self.agent.optimize(std_data_set, self.env_num)
 
             if epoch % self.agent_params.checkpoint_interval == 0 and eval_flag:
                 self.recoder.save_checkpoint(

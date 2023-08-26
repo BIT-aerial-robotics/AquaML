@@ -171,6 +171,7 @@ class TestPolicy:
                     break
 
             traj_data = traj_tracker.get_data()
+            data_tracker.add_data(traj_data)
 
             # judge = traj_data['judge'][-1]
             #

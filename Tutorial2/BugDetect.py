@@ -148,7 +148,7 @@ class PendulumWrapper(RLBaseEnv):
         super().__init__()
         # TODO: update in the future
         self.step_s = 0
-        self.env = gym.make(env_name)
+        self.env = gym.make(env_name,hardcore=True)
         self.env_name = env_name
 
         # our frame work support POMDP env
@@ -187,6 +187,14 @@ class PendulumWrapper(RLBaseEnv):
         obs = {'obs': observation, 'step': self.step_s}
 
         obs = self.check_obs(obs, action_dict)
+
+        # done = done or tru
+
+        if reward <= -100:
+            done = True
+        #
+        # if done:
+        #     print('terminate')
 
         reward = {'total_reward': reward}
 

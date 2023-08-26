@@ -151,7 +151,7 @@ class PendulumWrapper(RLBaseEnv):
     #     gym
 
 
-env = PendulumWrapper()  # need environment provide obs_info and reward_info
+env = RLVectorEnv(PendulumWrapper, 20)  # need environment provide obs_info and reward_info
 
 parameters = TD3BCAgentParameters(
     epochs=1000,

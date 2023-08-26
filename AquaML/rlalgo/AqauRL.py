@@ -649,15 +649,13 @@ class AquaRL(BaseAqua):
 
             eval_flag, loss_data = self.agent.optimize(std_data_set)
 
-            if epoch % self.agent_params.checkpoint_interval == 0:
-                history = self.file_system.get_history_model_path(self.agent.name)
-                history_path = os.path.join(history, str(epoch + 1))
-                for key, value in self._tool_dict.items():
-                    cache_path = os.path.join(history_path, key)
-                    th_id = self.communicator.thread_manager.get_thread_id
-                    cache_path = os.path.join(cache_path, str(th_id))
-                    for tool in value:
-                        tool.save(cache_path)
+            if epoch % self.agent_params.checkpoint_interval == 0 and eval_flag:
+                self.recoder.save_checkpoint(
+                    model_dict=self.agent.get_all_model_dict,
+                    epoch=epoch + 1,
+                    checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
+                    tool=self._tool_dict,
+                )
 
             if (epoch + 1) % self.agent_params.eval_interval == 0 and eval_flag :
 

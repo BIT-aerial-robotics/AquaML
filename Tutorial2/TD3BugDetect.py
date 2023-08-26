@@ -160,7 +160,8 @@ parameters = TD3AgentParameters(
     eval_interval=400,
     eval_episodes=1,
     eval_episode_length=200,
-    learning_starts=600
+    learning_starts=600,
+    checkpoint_interval=10
 )
 
 agent_info_dict = {

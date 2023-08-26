@@ -3,8 +3,8 @@ import sys
 sys.path.append('..')
 
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
-from AquaML.rlalgo.AgentParameters import TD3AgentParameters
-from AquaML.rlalgo.TD3Agent import TD3Agent
+from AquaML.rlalgo.AgentParameters import TD3BCAgentParameters
+from AquaML.rlalgo.TD3BCAgent import TD3BCAgent
 import numpy as np
 import gym
 from AquaML.DataType import DataInfo
@@ -18,14 +18,14 @@ class Actor_net(tf.keras.Model):
     def __init__(self):
         super(Actor_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1)
+        self.dense1 = tf.keras.layers.Dense(256, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(256, activation='relu')
+        self.action_layer = tf.keras.layers.Dense(4)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), }
+        self.output_info = {'action': (4,), }
 
         self.input_name = ('obs',)
 
@@ -54,9 +54,9 @@ class Critic_net(tf.keras.Model):
     def __init__(self):
         super(Critic_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu',
+        self.dense1 = tf.keras.layers.Dense(256, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
-        self.dense2 = tf.keras.layers.Dense(64, activation='relu',
+        self.dense2 = tf.keras.layers.Dense(256, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
@@ -81,7 +81,7 @@ class Critic_net(tf.keras.Model):
 
     @tf.function
     def call(self, obs, action):
-        new_obs = tf.concat([obs, action], axis=-1)
+        new_obs = tf.concat([obs, action], axis=1)
         x = self.dense1(new_obs)
         x = self.dense2(x)
         value = self.dense3(x)
@@ -92,22 +92,22 @@ class Critic_net(tf.keras.Model):
         pass
 
 
-class PendulumWrapper(RLBaseEnv):
-    def __init__(self, env_name="Pendulum-v1"):
+class BipedalWalker(RLBaseEnv):
+    def __init__(self, env_name="BipedalWalker-v3"):
         super().__init__()
         # TODO: update in the future
         self.step_s = 0
-        self.env = gym.make(env_name)
+        self.env = gym.make(env_name, hardcore=True)
         self.env_name = env_name
 
         # our frame work support POMDP env
         self._obs_info = DataInfo(
             names=('obs', 'step',),
-            shapes=((3,), (1,)),
+            shapes=((24,), (1,)),
             dtypes=np.float32
         )
 
-        self._reward_info = ['total_reward', ]
+        self._reward_info = ['total_reward', 'indicate_1']
 
     def reset(self):
         observation = self.env.reset()
@@ -129,15 +129,21 @@ class PendulumWrapper(RLBaseEnv):
         action = action_dict['action']
         if isinstance(action, tf.Tensor):
             action = action.numpy()
-        action *= 2
+        # action *= 2
         observation, reward, done, tru, info = self.env.step(action)
         observation = observation.reshape(1, -1)
+
+        indicate_1 = reward
+        #
+        if reward <= -100:
+            reward = -1
+            done = True
 
         obs = {'obs': observation, 'step': self.step_s}
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': reward}
+        reward = {'total_reward': reward, 'indicate_1': indicate_1}
 
         # if self.id == 0:
         #     print('reward', reward)
@@ -148,35 +154,30 @@ class PendulumWrapper(RLBaseEnv):
         self.env.close()
 
 
-env = RLVectorEnv(PendulumWrapper,20) # need environment provide obs_info and reward_info
-eval_env = RLVectorEnv(PendulumWrapper,20)
+env = BipedalWalker()  # need environment provide obs_info and reward_info
 
-parameters = TD3AgentParameters(
-    epochs=10000000,
-    max_steps=200,
-    rollout_steps=200,
+parameters = TD3BCAgentParameters(
+    epochs=10000,
     batch_size=256,
-    update_times=4,
-    eval_interval=400,
-    eval_episodes=1,
-    eval_episode_length=200,
-    learning_starts=600,
-    checkpoint_interval=10,
-    summary_style='episode',
+    tau=0.005,
+    noise_clip_range=0.25,
+    # action_clip_range=1,
+    update_times=1,
+    delay_update=4
 )
 
 agent_info_dict = {
     'actor': Actor_net,
     'q_critic': Critic_net,
     'agent_params': parameters,
-    # 'expert_dataset_path': 'ExpertPendulum',
+    'expert_dataset_path': 'ExpertBipedalWalker',
 }
 
-rl = AquaRL(
+offline_rl = AquaRL(
     env=env,
-    agent=TD3Agent,
+    agent=TD3BCAgent,
     agent_info_dict=agent_info_dict,
-    eval_env=eval_env,
+    # eval_env=eval_env,
     # comm=comm,
     name='debug1',
     # reward_norm=True,
@@ -187,4 +188,5 @@ rl = AquaRL(
     # load_flag=load_flag,
 )
 
-rl.run()
+
+offline_rl.run_offline()

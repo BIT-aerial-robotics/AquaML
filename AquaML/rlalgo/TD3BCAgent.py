@@ -174,7 +174,7 @@ class TD3BCAgent(BaseRLAgent):
             'actor': self.actor,
         }
 
-    def optimize(self):
+    def optimize(self, **kwargs):
 
         # train_data, reward_info = self._episode_tool(data_set, shuffle=self.agent_params.shuffle)
 
@@ -267,8 +267,8 @@ class TD3BCAgent(BaseRLAgent):
                     target_model=self.target_q_critic2,
                     tau=self.agent_params.tau,
                 )
-        summary = self.loss_tracker.get_data()
-        return summary
+        # summary = self.loss_tracker.get_data()
+        return self.loss_tracker, {}
 
     @tf.function
     def compute_target_y(self,

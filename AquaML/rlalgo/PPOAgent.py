@@ -1,7 +1,7 @@
 
 import tensorflow as tf
 
-from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
+from AquaML.rlalgo.BaseRLAgent import BaseRLAgent, LossTracker
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
@@ -669,7 +669,7 @@ class PPOAgent(BaseRLAgent):
     def all_train_vars(self):
         return self._all_train_vars
 
-    def optimize(self, data_set: RLStandardDataSet):
+    def optimize(self, data_set: RLStandardDataSet, run_mode='on-policy'):
 
         # # 检查当前是否为主线程
         # if self.level != 0:
@@ -826,11 +826,11 @@ class PPOAgent(BaseRLAgent):
             if early_stop:
                 break
 
-        summary = self.loss_tracker.get_data()
+        # summary = self.loss_tracker.get_data()
 
         del data_set
 
-        return summary, reward_info
+        return self.loss_tracker, reward_info
 
     def _resample_log_prob_no_std(self, obs, action, mask=None):
 

@@ -1,5 +1,5 @@
 import tensorflow as tf
-from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
+from AquaML.rlalgo.BaseRLAgent import BaseRLAgent, LossTracker
 from AquaML.rlalgo.AgentParameters import TD3AgentParameters
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.core.DataParser import DataSet
@@ -104,6 +104,8 @@ class TD3Agent(BaseRLAgent):
             else:
                 raise ValueError('optimizer_info is not defined in agent_params')
 
+            self.config_default_episode_tool() # will be used in traj collect mode
+
             self._all_model_dict = {
                 'actor': self.actor,
                 'target_actor': self.target_actor,
@@ -148,20 +150,32 @@ class TD3Agent(BaseRLAgent):
         self.standardize_noise = tfp.distributions.Normal(
             loc=tf.zeros(self.actor.output_info['action']),
             scale=tf.ones(self.actor.output_info['action'])
-            )
+        )
 
         # 初始化模型同步器
         self._sync_model_dict = {
             'actor': self.actor,
         }
 
-    def optimize(self, data_set: RLStandardDataSet, env_num=1):
+    def optimize(self, data_set: RLStandardDataSet, run_mode='off-policy') -> (LossTracker, dict):
+
+        if run_mode == 'off-policy':
+            train_data = data_set.get_all_data(squeeze=True, rollout_steps=self.agent_params.rollout_steps, env_num=self.env_num)
+            reward_info = {}
+
+        elif run_mode == 'on-policy':
+            train_data_, reward_info = self._episode_tool(data_set)
+            train_data = train_data_.data_dict
+        else:
+            raise ValueError('run_mode must be off-policy or on-policy')
 
         # train_data, reward_info = self._episode_tool(data_set)
 
-        self.replay_buffer.add_data_by_buffer(data_set.get_all_data(squeeze=True,rollout_steps=self.agent_params.rollout_steps, env_num=env_num))
+        self.replay_buffer.add_data_by_buffer(train_data)
 
         current_buffer_size = self.replay_buffer.buffer_size
+
+        self.eval_flag = current_buffer_size > self.agent_params.learning_starts
 
         if current_buffer_size > self.agent_params.learning_starts:
             for _ in range(self.agent_params.n_updates):
@@ -244,9 +258,10 @@ class TD3Agent(BaseRLAgent):
                         tau=self.agent_params.tau,
                     )
 
-        loss_info = self.loss_tracker.get_data()
+        # loss_info = self.loss_tracker.get_data()
 
-        return current_buffer_size > self.agent_params.learning_starts, loss_info
+        return self.loss_tracker, reward_info
+
     @tf.function
     def compute_target_y(self,
                          next_actor_input,
@@ -280,6 +295,7 @@ class TD3Agent(BaseRLAgent):
         target_y = reward + gamma * mask * minmun_q
 
         return target_y
+
     @tf.function
     def train_critic1(self,
                       current_q_input,  # state no action
@@ -303,6 +319,7 @@ class TD3Agent(BaseRLAgent):
         }
 
         return dict_info
+
     @tf.function
     def train_critic2(self,
                       current_q_input,  # state no action
@@ -326,6 +343,7 @@ class TD3Agent(BaseRLAgent):
         }
 
         return dict_info
+
     @tf.function
     def train_actor(self,
                     current_actor_input,

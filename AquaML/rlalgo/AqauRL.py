@@ -159,6 +159,8 @@ class AquaRL(BaseAqua):
         else:
             raise TypeError('Env type error!')
 
+        self.agent.env_num = self.env_num
+
         # 初始化transformer和RNN信息
 
         actor_out_info = self.agent.actor.output_info
@@ -444,7 +446,7 @@ class AquaRL(BaseAqua):
 
         if self.optimize_enable:
             self.sync()
-
+        runner_mode = 'on-policy'
         for epoch in range(self.agent_params.epochs):
 
             self.communicator.thread_manager.Barrier()
@@ -498,8 +500,9 @@ class AquaRL(BaseAqua):
 
             if self.optimize_enable:
                 print('####################{}####################'.format(epoch + 1))
-                loss_info, reward_info = self.agent.optimize(std_data_set)
+                loss_tracker, reward_info = self.agent.optimize(std_data_set, runner_mode)
 
+                loss_info = loss_tracker.get_data()
                 del std_data_set
 
                 for key, value in loss_info.items():
@@ -647,12 +650,18 @@ class AquaRL(BaseAqua):
         if self.optimize_enable:
             self.sync()
 
-        for epoch in range(self.agent_params.epochs+self.agent_params.learning_starts):
+        runner_mod = 'off-policy'
+
+        for epoch in range(self.agent_params.epochs + self.agent_params.learning_starts):
             std_data_set = self.sampling()
 
-            eval_flag, loss_data = self.agent.optimize(std_data_set, self.env_num)
+            loss_tracker, _ = self.agent.optimize(std_data_set, runner_mod)
 
-            if epoch % self.agent_params.checkpoint_interval == 0 and eval_flag:
+            # 每十次保存最新模型
+            if epoch % 10 == 0:
+                self.sync()
+
+            if epoch % self.agent_params.checkpoint_interval == 0 and self.agent.eval_flag:
                 self.recoder.save_checkpoint(
                     model_dict=self.agent.get_all_model_dict,
                     epoch=epoch + 1,
@@ -660,7 +669,7 @@ class AquaRL(BaseAqua):
                     tool=self._tool_dict,
                 )
 
-            if (epoch + 1) % self.agent_params.eval_interval == 0 and eval_flag :
+            if (epoch + 1) % self.agent_params.eval_interval == 0 and self.agent.eval_flag:
 
                 if self.sample_enable:
                     self.sync()
@@ -669,6 +678,8 @@ class AquaRL(BaseAqua):
                 self.communicator.thread_manager.Barrier()
 
                 if self.optimize_enable:
+
+                    loss_data = loss_tracker.get_data()
                     # 汇总数据
                     summery_dict = self.communicator.get_indicate_pool_dict(self.agent.name)
 
@@ -702,7 +713,7 @@ class AquaRL(BaseAqua):
 
                     self.recoder.record_scalar(new_summery_dict, epoch + 1)
 
-    def run_offline(self):
+    def run_offline(self, display_times=10):
         """
         运行。
         """
@@ -714,21 +725,24 @@ class AquaRL(BaseAqua):
 
         for epoch in range(self.agent_params.epochs):
             # print("{}: {}".format(self.communicator.get_level(), self.agent.log_std.buffer))
-            summery_dict = self.agent.optimize()
+            loss_tracker, _ = self.agent.optimize()
+            self.sync()
 
-            print('####################{}####################'.format(epoch + 1))
+            if (epoch + 1) % display_times == 0:
+                summery_dict = loss_tracker.get_data()
+                print('####################{}####################'.format(epoch + 1))
 
-            for key, value in summery_dict.items():
-                print(key, value)
+                for key, value in summery_dict.items():
+                    print(key, value)
 
-            self.recoder.record_scalar(summery_dict, epoch + 1)
+                self.recoder.record_scalar(summery_dict, epoch + 1)
 
-            self.sync()  # 存储最新模型
+                # 存储最新模型
 
-            if epoch % self.agent_params.checkpoint_interval == 0:
-                self.recoder.save_checkpoint(
-                    model_dict=self.agent.get_all_model_dict,
-                    epoch=epoch + 1,
-                    checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
-                    tool=self._tool_dict,
-                )
+                if epoch % self.agent_params.checkpoint_interval == 0:
+                    self.recoder.save_checkpoint(
+                        model_dict=self.agent.get_all_model_dict,
+                        epoch=epoch + 1,
+                        checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
+                        tool=self._tool_dict,
+                    )

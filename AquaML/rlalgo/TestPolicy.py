@@ -66,15 +66,15 @@ class DataSetTracker:
             data = np.vstack(value)
             file = os.path.join(path, key + '.npy')
             np.save(file, data)
-            if 'reward' in key:
-                value = np.reshape(value, (-1, episode_steps))
-                sum_value = np.sum(value, axis=1)
-                max_value = np.max(sum_value)
-                min_value = np.min(sum_value)
-                avg_value = np.mean(sum_value)
-                print("{}:{}".format(key, avg_value))
-                print("{}:{}".format(key, max_value))
-                print("{}:{}".format(key, min_value))
+            # if 'reward' in key:
+            #     value = np.reshape(value, (-1, episode_steps))
+            #     sum_value = np.sum(value, axis=1)
+            #     max_value = np.max(sum_value)
+            #     min_value = np.min(sum_value)
+            #     avg_value = np.mean(sum_value)
+            #     print("{}:{}".format(key, avg_value))
+            #     print("{}:{}".format(key, max_value))
+            #     print("{}:{}".format(key, min_value))
 
     def get_data(self):
 
@@ -151,7 +151,7 @@ class TestPolicy:
             obs, _ = self.env.reset()
             done = False
             traj_tracker = DataSetTracker()
-            for _ in range(episode_steps):
+            for i in range(episode_steps):
                 action = self.policy.get_action(obs)
                 obs_, reward, done, _ = self.env.step(action)
 
@@ -159,6 +159,16 @@ class TestPolicy:
                 traj_tracker.add_data(deepcopy(obs_), 'next')
                 traj_tracker.add_data(deepcopy(action))
                 traj_tracker.add_data(reward, 'reward')
+
+                mask = 1 - done
+
+                if i == episode_steps - 1:
+                    mask = 0
+
+                mask_dict = {
+                    'mask': mask,
+                }
+                data_tracker.add_data(mask_dict)
 
                 # judge_dict = {
                 #     'judge': self.env.dis_judge,

@@ -43,6 +43,9 @@ class BaseRLAgent(BaseAgent, ABC):
         self.agent_params = agent_params
         self.level = level
 
+        self.env_num = 1  # 开启了多少个环境，在off policy里面帮助agent收集数据
+        self.eval_flag = True  # 判断是否收集到了足够的数据并且开始优化，可以进行评估
+
         ##############################
         # 插件
         # 基础插件
@@ -650,6 +653,18 @@ class BaseRLAgent(BaseAgent, ABC):
         获取算法名称。
         """
 
+    @abstractmethod
+    def optimize(self, dataset, run_mode) -> (LossTracker, dict):
+        """
+        优化算法。
+        Args:
+            dataset: RLDataSet
+            run_mode:  on or off policy
+
+        Returns: LossTracker, dict
+
+        """
+
     # @abstractmethod
     def get_real_policy_out(self):
 
@@ -660,7 +675,12 @@ class BaseRLAgent(BaseAgent, ABC):
             out_list.append(name)
         for name in self.explore_policy.get_aditional_output.keys():
             out_list.append(name)
-        return out_list
+        return
+
+    def set_data(self, value_dict: dict):
+
+        for name, value in value_dict.items():
+            setattr(self, name, value)
 
     def __del__(self):
         pass

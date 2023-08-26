@@ -189,7 +189,7 @@ osb_shape_dict = env.obs_info.shape_dict
 policy = CompletePolicy(
     actor=Actor_net,
     obs_shape_dict=osb_shape_dict,
-    checkpoint_path='TD3',
+    checkpoint_path='ExpertBipedalWalker',
     using_obs_scale=False,
 )
 

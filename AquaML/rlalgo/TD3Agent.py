@@ -235,7 +235,7 @@ class TD3Agent(BaseRLAgent):
         loss_info = self.loss_tracker.get_data()
 
         return current_buffer_size > self.agent_params.learning_starts, loss_info
-    # @tf.function
+    @tf.function
     def compute_target_y(self,
                          next_actor_input,
                          next_q_input,  # state no action
@@ -267,7 +267,7 @@ class TD3Agent(BaseRLAgent):
         target_y = reward + gamma * mask * minmun_q
 
         return target_y
-
+    @tf.function
     def train_critic1(self,
                       current_q_input,  # state no action
                       current_action,
@@ -290,7 +290,7 @@ class TD3Agent(BaseRLAgent):
         }
 
         return dict_info
-
+    @tf.function
     def train_critic2(self,
                       current_q_input,  # state no action
                       current_action,
@@ -313,7 +313,7 @@ class TD3Agent(BaseRLAgent):
         }
 
         return dict_info
-
+    @tf.function
     def train_actor(self,
                     current_actor_input,
                     ):

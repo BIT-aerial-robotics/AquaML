@@ -226,11 +226,11 @@ class Evaluator(BaseWorker):
 
         self.episode_step_count += 1
 
-        if done:
-            self.reset_flag = True
-            mask = 0
-        else:
-            mask = 1
+        # if done:
+        #     self.reset_flag = True
+        #     mask = 0
+        # else:
+        #     mask = 1
 
         # TODO: 数据存储策略设计
 
@@ -246,7 +246,7 @@ class Evaluator(BaseWorker):
 
         for _ in range(episodes):
 
-            self.obs, flag = env.reset()
+            self.obs = env.reset()
 
             for _ in range(episode_length):
                 self.step(

@@ -44,13 +44,15 @@ class SummaryRewardCollector:
 
     def store_data(self, reward: dict):
         for name in self.reward_names:
-            if name != 'indicate':
-                self.reward_dict[name].append(reward[name])
+            # if name != 'indicate':
+            self.reward_dict[name].append(np.expand_dims(reward[name], axis=1))
 
     def summary_episode(self):
 
         for name in self.reward_names:
-            self.summary_dict[name].append(np.sum(self.reward_dict[name]))
+            reward = np.hstack(self.reward_dict[name])
+            mean_ep_reward = np.sum(reward, axis=1)
+            self.summary_dict[name].append(mean_ep_reward)
 
         self.reset_step()
 

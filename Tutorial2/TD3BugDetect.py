@@ -20,7 +20,7 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(1, activation='tanh')
+        self.action_layer = tf.keras.layers.Dense(1)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
@@ -149,7 +149,7 @@ class PendulumWrapper(RLBaseEnv):
 
 
 env = PendulumWrapper()  # need environment provide obs_info and reward_info
-eval_env = PendulumWrapper()
+eval_env = RLVectorEnv(PendulumWrapper,20)
 
 parameters = TD3AgentParameters(
     epochs=10000000,
@@ -157,7 +157,7 @@ parameters = TD3AgentParameters(
     rollout_steps=1,
     batch_size=128,
     update_times=1,
-    eval_interval=100,
+    eval_interval=400,
     eval_episodes=1,
     eval_episode_length=200,
     learning_starts=600

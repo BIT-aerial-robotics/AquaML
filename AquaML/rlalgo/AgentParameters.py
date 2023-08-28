@@ -368,6 +368,8 @@ class TD3AgentParameters(BaseAgentParameter):
                  rollout_steps: int = 1, # off policy
                  min_steps: int = -1,
 
+                 # normlize reward
+
                  summary_style: str = 'step',
                  summary_steps: int = 1,
                  explore_policy='Default',
@@ -439,6 +441,9 @@ class TD3BCAgentParameters(BaseAgentParameter):
                  eval_episode_length: int = 0,
                  checkpoint_interval: int = 20,
 
+                 # normalize reward
+                 normalize_reward=False,
+
                  summary_style: str = 'step',
                  summary_steps: int = 1,
                  explore_policy='Default',
@@ -471,6 +476,8 @@ class TD3BCAgentParameters(BaseAgentParameter):
 
         self.alpha = alpha
         self.gamma = gamma
+
+        self.normalize_reward = normalize_reward
 
 
 if __name__ == '__main__':

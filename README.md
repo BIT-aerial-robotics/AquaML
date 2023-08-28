@@ -131,6 +131,14 @@ We have implemented the following algorithms:
 
 - [1] Proximal Policy Optimization (support LSTM)
 - [2] Adeversarial motion priors
+- [3] Twin Delayed Deep Deterministic Policy Gradient
+
+We also implement offline reinforcement learning algorithms:
+
+- [1] Twin Delayed Deep Deterministic Policy Gradient & Behavior Cloning
+
+We provide two rollout methods: `run()` and `run_off_policy()`. `run()` collect data by trajectory. `run_off_policy()` collect data by step. `run()` methods can use trajectory filter tools.
+
 
 Now we give an example of how to create self defined environment.
 
@@ -199,6 +207,8 @@ Our framework supports two types of parallel training-- parallel model and paral
 default parallel is parallel model.
 
 If you want to use Vectorized environment, you need to add the following code to your code.
+
+**Note**: Currently, we only support A2C parallel training. We will support A3C parallel training in the future.
 
 ```python
 from AquaML.core.RLToolKit import RLVectorEnv
@@ -338,3 +348,113 @@ rl = AquaRL(
 
 rl.run()
 ```
+
+### Twin Delayed Deep Deterministic Policy Gradient
+
+We give an example of how to use TD3. Also see Tutorial2\TD3BipedalWalker.py.
+
+Step 1: Define actor network and critic network. 
+Step 2: Wrap the environment.
+
+```python
+class BipedalWalker(RLBaseEnv):
+    def __init__(self, env_name="BipedalWalker-v3"):
+        super().__init__()
+        # TODO: update in the future
+        self.step_s = 0
+        self.env = gym.make(env_name, hardcore=True)
+        self.env_name = env_name
+
+        # our frame work support POMDP env
+        self._obs_info = DataInfo(
+            names=('obs', 'step',),
+            shapes=((24,), (1,)),
+            dtypes=np.float32
+        )
+
+        self._reward_info = ['total_reward', 'indicate_1']
+
+    def reset(self):
+        observation = self.env.reset()
+        observation = observation[0].reshape(1, -1)
+
+        self.step_s = 0
+        # observation = observation.
+
+        # observation = tf.convert_to_tensor(observation, dtype=tf.float32)
+
+        obs = {'obs': observation, 'step': self.step_s}
+
+        obs = self.initial_obs(obs)
+
+        return obs, True  # 2.0.1 new version
+
+    def step(self, action_dict):
+        self.step_s += 1
+        action = action_dict['action']
+        if isinstance(action, tf.Tensor):
+            action = action.numpy()
+        # action *= 2
+        observation, reward, done, tru, info = self.env.step(action)
+        observation = observation.reshape(1, -1)
+
+        indicate_1 = reward
+        #
+        if reward <= -100:
+            reward = -1
+            done = True
+
+        obs = {'obs': observation, 'step': self.step_s}
+
+        obs = self.check_obs(obs, action_dict)
+
+        reward = {'total_reward': reward, 'indicate_1': indicate_1}
+
+        # if self.id == 0:
+        #     print('reward', reward)
+
+        return obs, reward, done, info
+
+    def close(self):
+        self.env.close()
+
+```
+
+Step 3: Define TD3 parameters.
+
+```python
+parameters = TD3AgentParameters(
+    epochs=100000000,
+    max_steps=1000,
+    rollout_steps=1,
+    batch_size=256,
+    update_times=1,
+    eval_interval=2000,
+    eval_episodes=1,
+    eval_episode_length=1000,
+    learning_starts=1000,
+    checkpoint_interval=1000,
+    explore_noise=0.25,
+    policy_noise=0.2,
+    delay_update=1,
+)
+```
+
+Step 4: Config TD3 agent.
+
+Step 5: Create AquaRL.
+
+Step 6: Run.
+
+```python
+rl.run_off_policy()
+```
+### Twin Delayed Deep Deterministic Policy Gradient & Behavior Cloning
+
+We give an example of how to use TD3BC. Also see Tutorial2\TD3BCBipedalWalker.py.
+This tutorial can be also used for other offline RL algorithms.
+
+As before, we need to define actor network and critic network. Then we need to wrap the environment. But offline RL do not need to interact with the environment. So we do not need to define `step` and `reset` method. We just need to define `__init__` method. But if you want to test your policy by interacting with the environment, you need to define `step` and `reset` method.
+
+### Benchmark
+### Create your own reinforcement learning algorithm

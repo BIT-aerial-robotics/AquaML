@@ -18,7 +18,7 @@ class Actor_net(tf.keras.Model):
     def __init__(self):
         super(Actor_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(256, activation='relu')
+        self.dense1 = tf.keras.layers.Dense(512, activation='relu')
         self.dense2 = tf.keras.layers.Dense(256, activation='relu')
         self.action_layer = tf.keras.layers.Dense(4)
         # self.log_std = tf.keras.layers.Dense(1)
@@ -31,8 +31,8 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 1e-3,
-                     # 'epsilon': 1e-5,
+            'args': {'learning_rate': 3e-4,
+                     # 'epsilon': 1e-54
                      # 'clipnorm': 0.5,
                      },
         }
@@ -54,7 +54,7 @@ class Critic_net(tf.keras.Model):
     def __init__(self):
         super(Critic_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(256, activation='relu',
+        self.dense1 = tf.keras.layers.Dense(512, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense2 = tf.keras.layers.Dense(256, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
@@ -73,7 +73,7 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 1e-3,
+            'args': {'learning_rate': 3e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      }
@@ -157,13 +157,16 @@ class BipedalWalker(RLBaseEnv):
 env = BipedalWalker()  # need environment provide obs_info and reward_info
 
 parameters = TD3BCAgentParameters(
-    epochs=10000,
-    batch_size=256,
+    epochs=150000,
+    batch_size=1024,
     tau=0.005,
-    noise_clip_range=0.25,
+    noise_clip_range=0.5,
+    sigma=0.2,
+    # policy_noise=0.2,
     # action_clip_range=1,
     update_times=1,
-    delay_update=4
+    delay_update=2,
+    normalize_reward=False,
 )
 
 agent_info_dict = {

@@ -50,9 +50,9 @@ class Actor_net(tf.keras.Model):
     def __init__(self):
         super(Actor_net, self).__init__()
 
-        self.dense1 = tf.keras.layers.Dense(256, activation='relu')
+        self.dense1 = tf.keras.layers.Dense(512, activation='relu')
         self.dense2 = tf.keras.layers.Dense(256, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(4, activation='tanh')
+        self.action_layer = tf.keras.layers.Dense(4)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
@@ -63,8 +63,8 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 1e-4,
-                     # 'epsilon': 1e-5,
+            'args': {'learning_rate': 3e-4,
+                     # 'epsilon': 1e-54
                      # 'clipnorm': 0.5,
                      },
         }
@@ -85,20 +85,55 @@ class Actor_net(tf.keras.Model):
 #     def __init__(self):
 #         super(Actor_net, self).__init__()
 #
-#         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-#         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-#         self.action_layer = tf.keras.layers.Dense(1)
+#         self.dense1 = tf.keras.layers.Dense(256, activation='relu')
+#         self.dense2 = tf.keras.layers.Dense(256, activation='relu')
+#         self.action_layer = tf.keras.layers.Dense(4, activation='tanh')
 #         # self.log_std = tf.keras.layers.Dense(1)
 #
 #         # self.learning_rate = 2e-5
 #
-#         self.output_info = {'action': (1,), }
+#         self.output_info = {'action': (4,), }
 #
 #         self.input_name = ('obs',)
 #
 #         self.optimizer_info = {
 #             'type': 'Adam',
-#             'args': {'learning_rate': 3e-4,
+#             'args': {'learning_rate': 1e-4,
+#                      # 'epsilon': 1e-5,
+#                      # 'clipnorm': 0.5,
+#                      },
+#         }
+#
+#     @tf.function
+#     def call(self, obs, mask=None):
+#         x = self.dense1(obs)
+#         x = self.dense2(x)
+#         action = self.action_layer(x)
+#         # log_std = self.log_std(x)
+#
+#         return (action,)
+#
+#     def reset(self):
+#         pass
+# class Actor_net(tf.keras.Model):
+#
+#     def __init__(self):
+#         super(Actor_net, self).__init__()
+#
+#         self.dense1 = tf.keras.layers.Dense(256, activation='relu')
+#         self.dense2 = tf.keras.layers.Dense(256, activation='relu')
+#         self.action_layer = tf.keras.layers.Dense(4)
+#         # self.log_std = tf.keras.layers.Dense(1)
+#
+#         # self.learning_rate = 2e-5
+#
+#         self.output_info = {'action': (4,), }
+#
+#         self.input_name = ('obs',)
+#
+#         self.optimizer_info = {
+#             'type': 'Adam',
+#             'args': {'learning_rate': 1e-3,
 #                      # 'epsilon': 1e-5,
 #                      # 'clipnorm': 0.5,
 #                      },
@@ -122,7 +157,7 @@ class BipedalWalker(RLBaseEnv):
         super().__init__()
         # TODO: update in the future
         self.step_s = 0
-        self.env = gym.make(env_name,hardcore=True)
+        self.env = gym.make(env_name,hardcore=True, render_mode="human")
         self.env_name = env_name
 
         # our frame work support POMDP env
@@ -189,7 +224,7 @@ osb_shape_dict = env.obs_info.shape_dict
 policy = CompletePolicy(
     actor=Actor_net,
     obs_shape_dict=osb_shape_dict,
-    checkpoint_path='ExpertBipedalWalker',
+    checkpoint_path='TD3BC',
     using_obs_scale=False,
 )
 
@@ -199,7 +234,7 @@ test_policy = TestPolicy(
 )
 
 test_policy.collect(
-    episode_num=50,
+    episode_num=2000,
     episode_steps=1000,
     data_path='traj'
 )

@@ -364,6 +364,7 @@ class TD3Agent(BaseRLAgent):
 
         dict_info = {
             'actor_loss': loss,
+            'actor_q': q1,
         }
 
         return dict_info

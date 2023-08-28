@@ -136,7 +136,14 @@ class TD3BCAgent(BaseRLAgent):
 
             # load reward
             data_file_path = os.path.join(self.expert_dataset_path, 'total_reward.npy')
-            expert_dataset['total_reward'] = np.load(data_file_path)
+
+            total_reward =  np.load(data_file_path)
+
+            if self.agent_params.normalize_reward:
+                total_reward = (total_reward - np.mean(total_reward)) / np.std(total_reward)
+            expert_dataset['total_reward'] = total_reward
+
+
 
             # load mask
             data_file_path = os.path.join(self.expert_dataset_path, 'mask.npy')
@@ -379,7 +386,7 @@ class TD3BCAgent(BaseRLAgent):
 
         dict_info = {
             'actor_loss': loss,
-            'q_loss': q_loss,
+            'actor_q': q_loss,
             'bc_loss': bc_loss,
             'lamb': lamb,
         }

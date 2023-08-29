@@ -3,8 +3,8 @@ import sys
 sys.path.append('..')
 
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
-from AquaML.rlalgo.AgentParameters import TD3BCAgentParameters
-from AquaML.rlalgo.TD3BCAgent import TD3BCAgent
+from AquaML.rlalgo.AgentParameters import AMPAgentParameter
+from AquaML.rlalgo.AMPAgent import AMPAgent
 import numpy as np
 import gym
 from AquaML.DataType import DataInfo
@@ -31,7 +31,7 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 3e-4,
+            'args': {'learning_rate': 4e-6,
                      # 'epsilon': 1e-54
                      # 'clipnorm': 0.5,
                      },
@@ -56,7 +56,7 @@ class Critic_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(512, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
-        self.dense2 = tf.keras.layers.Dense(256, activation='relu',
+        self.dense2 = tf.keras.layers.Dense(512, activation='relu',
                                             kernel_initializer=tf.keras.initializers.orthogonal())
         self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
 
@@ -69,20 +69,61 @@ class Critic_net(tf.keras.Model):
 
         self.output_info = {'value': (1,)}
 
-        self.input_name = ('obs', 'action',)
+        self.input_name = ('obs',)
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 3e-4,
+            'args': {'learning_rate': 1e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      }
         }
 
     @tf.function
-    def call(self, obs, action):
-        new_obs = tf.concat([obs, action], axis=1)
-        x = self.dense1(new_obs)
+    def call(self, obs):
+        x = self.dense1(obs)
+        x = self.dense2(x)
+        value = self.dense3(x)
+
+        return value
+
+    def reset(self):
+        pass
+
+
+class Discriminator_net(tf.keras.Model):
+    def __init__(self):
+        super(Discriminator_net, self).__init__()
+
+        self.dense1 = tf.keras.layers.Dense(512, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense2 = tf.keras.layers.Dense(512, activation='relu',
+                                            kernel_initializer=tf.keras.initializers.orthogonal())
+        self.dense3 = tf.keras.layers.Dense(1, activation=None, kernel_initializer=tf.keras.initializers.orthogonal())
+
+        # self.learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
+        #     initial_learning_rate=0.3,
+        #     decay_steps=10,
+        #     decay_rate=0.95,
+        #
+        # )
+
+        self.output_info = {'value': (1,)}
+
+        self.input_name = ('obs', 'next_obs',)
+
+        self.optimizer_info = {
+            'type': 'Adam',
+            'args': {'learning_rate': 1e-5,
+                     # 'epsilon': 1e-5,
+                     # 'clipnorm': 0.5,
+                     }
+        }
+
+    @tf.function
+    def call(self, obs, next_obs):
+        input = tf.concat([obs, next_obs], axis=-1)
+        x = self.dense1(input)
         x = self.dense2(x)
         value = self.dense3(x)
 
@@ -154,41 +195,74 @@ class BipedalWalker(RLBaseEnv):
         self.env.close()
 
 
-env = BipedalWalker()  # need environment provide obs_info and reward_info
+vec_env = RLVectorEnv(BipedalWalker, 4, normalize_obs=False, )
 
-parameters = TD3BCAgentParameters(
-    epochs=150000,
-    batch_size=1024,
-    tau=0.005,
-    noise_clip_range=0.5,
-    sigma=0.2,
-    # policy_noise=0.2,
-    # action_clip_range=1,
+# load_flag = LoadFlag(
+#     actor=True
+# )
+parameters = AMPAgentParameter(
+    rollout_steps=1000,
+    epochs=5000,
+    batch_size=256,
+
+    # AMP parameters
+    k_batch_size=256,
+    update_discriminator_times=15,
+    discriminator_replay_buffer_size=int(1e5),
+    gp_coef=25.0,
+    task_rew_coef=0.5,
+    style_rew_coef=0.5,
+
     update_times=1,
-    delay_update=2,
-    normalize_reward=False,
+    max_steps=1000,
+    update_actor_times=1,
+    update_critic_times=1,
+    eval_episodes=5,
+    eval_interval=10000,
+    eval_episode_length=200,
+    entropy_coef=0.005,
+    batch_advantage_normalization=False,
+    checkpoint_interval=20,
+    log_std_init_value=-0.5,
+    train_all=False,
+    min_steps=24,
+    target_kl=0.01,
+    lamda=0.95,
+    gamma=0.99,
+    summary_style='step',
+    summary_steps=1000,
 )
+
 
 agent_info_dict = {
     'actor': Actor_net,
-    'q_critic': Critic_net,
+    'critic': Critic_net,
     'agent_params': parameters,
+    'discriminator': Discriminator_net,
     'expert_dataset_path': 'ExpertBipedalWalker',
 }
 
-offline_rl = AquaRL(
-    env=env,
-    agent=TD3BCAgent,
+
+load_flag = LoadFlag(
+    actor=True,
+    critic=False,
+    state_normalizer=False,
+    reward_normalizer=False
+)
+
+rl = AquaRL(
+    env=vec_env,
+    agent=AMPAgent,
     agent_info_dict=agent_info_dict,
     # eval_env=eval_env,
     # comm=comm,
-    name='debug1',
-    # reward_norm=True,
-    # state_norm=False,
-    # decay_lr=False,
+    name='AMPB',
+    reward_norm=False,
+    state_norm=False,
+    decay_lr=False,
     # snyc_norm_per=10,
-    # check_point_path='cache',
-    # load_flag=load_flag,
+    check_point_path='TD3BC',
+    load_flag=load_flag,
 )
 
-offline_rl.run_offline()
+rl.run()

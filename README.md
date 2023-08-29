@@ -133,6 +133,8 @@ We have implemented the following algorithms:
 - [2] Adeversarial motion priors
 - [3] Twin Delayed Deep Deterministic Policy Gradient
 
+- [4] Soft Actor Critic (Testing)
+
 We also implement offline reinforcement learning algorithms:
 
 - [1] Twin Delayed Deep Deterministic Policy Gradient & Behavior Cloning
@@ -141,6 +143,19 @@ We provide two rollout methods: `run()` and `run_off_policy()`. `run()` collect 
 
 
 Now we give an example of how to create self defined environment.
+
+Features of our framework:
+
+1. Heterogeneous actor critic. The input of actor and critic can be different.
+
+2. Multimodal input. Different data types can be trained directly.
+
+3. EnvPool is implemented by pure python. It is easy to use and modify.
+
+4. Faster and more stable than stable-baselines3.
+
+5. The model can be used by all algorithms. For example, a model trained with TD3 can then be trained with PPO.
+
 
 We support `gym` environment. But we also need you to wrap the environment. Here we give an example of how to wrap the `gym` environment.
 

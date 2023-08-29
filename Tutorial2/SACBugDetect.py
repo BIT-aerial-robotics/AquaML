@@ -3,8 +3,8 @@ import sys
 sys.path.append('..')
 
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
-from AquaML.rlalgo.AgentParameters import TD3AgentParameters
-from AquaML.rlalgo.TD3Agent import TD3Agent
+from AquaML.rlalgo.AgentParameters import SACAgentParameters
+from AquaML.rlalgo.SACAgent import SACAgent
 import numpy as np
 import gym
 from AquaML.DataType import DataInfo
@@ -20,12 +20,14 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense3 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1)
+        self.log_std_layer = tf.keras.layers.Dense(1)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (1,), }
+        self.output_info = {'action': (1,), 'log_std': (1,), }
 
         self.input_name = ('obs',)
 
@@ -41,10 +43,12 @@ class Actor_net(tf.keras.Model):
     def call(self, obs, mask=None):
         x = self.dense1(obs)
         x = self.dense2(x)
+        x = self.dense3(x)
         action = self.action_layer(x)
+        log_std = self.log_std_layer(x)
         # log_std = self.log_std(x)
 
-        return (action,)
+        return (action, log_std,)
 
     def reset(self):
         pass
@@ -107,7 +111,7 @@ class PendulumWrapper(RLBaseEnv):
             dtypes=np.float32
         )
 
-        self._reward_info = ['total_reward', ]
+        self._reward_info = ['total_reward', 'er' ]
 
     def reset(self):
         observation = self.env.reset()
@@ -137,7 +141,10 @@ class PendulumWrapper(RLBaseEnv):
 
         obs = self.check_obs(obs, action_dict)
 
-        reward = {'total_reward': reward}
+        er = reward
+        reward = (reward + 8) / 8
+
+        reward = {'total_reward': reward, 'er':er}
 
         # if self.id == 0:
         #     print('reward', reward)
@@ -148,21 +155,25 @@ class PendulumWrapper(RLBaseEnv):
         self.env.close()
 
 
-env = RLVectorEnv(PendulumWrapper,20) # need environment provide obs_info and reward_info
-eval_env = RLVectorEnv(PendulumWrapper,20)
+env = RLVectorEnv(PendulumWrapper, 4)  # need environment provide obs_info and reward_info
+eval_env = RLVectorEnv(PendulumWrapper, 20)
 
-parameters = TD3AgentParameters(
+parameters = SACAgentParameters(
     epochs=10000000,
     max_steps=200,
     rollout_steps=1,
     batch_size=256,
-    update_times=4,
+    update_times=1,
     eval_interval=400,
     eval_episodes=1,
     eval_episode_length=200,
     learning_starts=600,
     checkpoint_interval=10,
     summary_style='episode',
+    replay_buffer_size=1e6,
+    delay_update=1,
+    tau=0.005,
+    target_entropy=-1.0,
 )
 
 agent_info_dict = {
@@ -174,7 +185,7 @@ agent_info_dict = {
 
 rl = AquaRL(
     env=env,
-    agent=TD3Agent,
+    agent=SACAgent,
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,

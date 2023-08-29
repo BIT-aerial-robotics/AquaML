@@ -668,7 +668,7 @@ class AquaRL(BaseAqua):
                     checkpoint_dir=self.file_system.get_history_model_path(self.agent.name),
                     tool=self._tool_dict,
                 )
-
+            # print(epoch)
             if (epoch + 1) % self.agent_params.eval_interval == 0 and self.agent.eval_flag:
 
                 if self.sample_enable:

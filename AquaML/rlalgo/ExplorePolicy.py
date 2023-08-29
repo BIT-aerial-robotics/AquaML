@@ -160,7 +160,7 @@ class ExplorePolicyBase(abc.ABC):
 
 
 class GaussianExplorePolicy(ExplorePolicyBase):
-    def __init__(self, shape):
+    def __init__(self, shape, tanh=False):
         super().__init__(shape)
         mu = tf.zeros(shape, dtype=tf.float32)
         sigma = tf.ones(shape, dtype=tf.float32)
@@ -173,6 +173,9 @@ class GaussianExplorePolicy(ExplorePolicyBase):
                 'dtype': np.float32,
             }
         }
+        self.tanh = tanh
+
+        self.activate_fn = tf.nn.tanh if tanh else tf.identity
 
     @tf.function
     def noise_and_prob(self, batch_size=1):
@@ -190,6 +193,8 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         batch_size = mu.shape[0]
         noise, prob = self.noise_and_prob(batch_size)
         action = mu + sigma * noise
+        
+        action = self.activate_fn(action)
 
         # action = tf.clip_by_value(action, -1, 1)
         #
@@ -226,7 +231,7 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         return entropy
 
     def test_action(self, mu, log_std):
-        return mu, tf.ones((1, *self.shape))
+        return mu, tf.ones_like(mu)
 
     def create_info(self):
         log_std = {
@@ -316,7 +321,8 @@ class ClipGaussianExplorePolicy(ExplorePolicyBase):
         return entropy
 
     def test_action(self, mu):
-        return mu, tf.ones((1, *self.shape))
+        size = mu.shape[0]
+        return mu, tf.ones_like(mu)
 
     def create_info(self):
         # log_std = {
@@ -363,7 +369,7 @@ class VoidExplorePolicy(ExplorePolicyBase):
         return tf.ones((1, *self.shape))
 
     def test_action(self, mu):
-        return mu, tf.ones((1, *self.shape))
+        return mu, tf.ones_like(mu)
 
     def get_entropy(self, mean, log_std):
         return 1
@@ -394,7 +400,7 @@ class CategoricalExplorePolicy(ExplorePolicyBase):
     def test_action(self, action):
         action = tf.argmax(action, axis=-1)
 
-        return action, tf.ones((1, *self.shape))
+        return action, tf.ones_like(action)
 
 
 class OrnsteinUhlenbeckExplorePolicy(ExplorePolicyBase):
@@ -419,7 +425,7 @@ class OrnsteinUhlenbeckExplorePolicy(ExplorePolicyBase):
         pass
 
     def test_action(self, action):
-        return action, tf.ones((1, *self.shape))
+        return action, tf.ones_like(action)
 
     def reset(self):
         self.noise.reset()

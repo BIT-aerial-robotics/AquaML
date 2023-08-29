@@ -123,10 +123,15 @@ class PPOAgent(BaseRLAgent):
             explore_name = self.agent_params.explore_policy
             log_std_init = {}
 
+        if 'log_std' in self.actor.output_info:
+            ex_filter = ['log_std', ]
+        else:
+            ex_filter = []
         self.create_explorer(
             explore_name=explore_name,
             shape=self.actor.output_info['action'],
             pointed_value=log_std_init,
+            filter=ex_filter
         )
 
         if self.level == 0:

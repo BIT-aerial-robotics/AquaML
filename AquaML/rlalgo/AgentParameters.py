@@ -408,6 +408,68 @@ class TD3AgentParameters(BaseAgentParameter):
         self.explore_noise = explore_noise
 
 
+class SACAgentParameters(BaseAgentParameter):
+
+    def __init__(self,
+                 rollout_steps: int,
+                 max_steps: int,
+
+                 epochs: int,
+                 batch_size: int,
+                 update_times: int,
+                 gamma: float = 0.99,
+                 replay_buffer_size:int=1e6,
+                 delay_update=2,
+                 eval_interval: int=10000,
+                 eval_episodes: int=1,
+                 eval_episode_length: int=1000,
+                 checkpoint_interval: int=1000,
+                 target_entropy='default',
+                 min_steps: int=1,
+                 tau=0.005,
+
+                 # off-policy rollout parameters
+                 learning_starts: int = 1000,
+                 
+                 # SAC parameters
+                 alpha_optimizer_info: dict = {
+                     'type': 'Adam',
+                     'args': {
+                            'learning_rate': 0.0003,
+                        }
+                 },
+
+                 # reward 计算方式
+                 summary_style: str = 'episode',
+                 summary_steps: int = 1,
+                 explore_policy='Default',
+
+                 ):
+        super().__init__(
+            rollout_steps=rollout_steps,
+            epochs=epochs,
+            batch_size=batch_size,
+            explore_policy=explore_policy,
+            eval_episode_length=eval_episode_length,
+            eval_interval=eval_interval,
+            eval_episodes=eval_episodes,
+            max_steps=max_steps,
+            update_times=update_times,
+            checkpoint_interval=checkpoint_interval,
+            min_steps=min_steps,
+            summary_style=summary_style,
+            summary_steps=summary_steps,
+            learning_starts=learning_starts,
+        )
+        
+        self.alpha_optimizer_info = alpha_optimizer_info
+        self.gamma = gamma
+        self.target_entropy = target_entropy
+        self.delay_update = delay_update
+        self.replay_buffer_size = int(replay_buffer_size)
+        self.tau = tau
+
+
 class TD3BCAgentParameters(BaseAgentParameter):
     def __init__(self,
 

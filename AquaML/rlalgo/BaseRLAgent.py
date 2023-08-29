@@ -312,7 +312,17 @@ class BaseRLAgent(BaseAgent, ABC):
 
         return names
 
-    def create_explorer(self, explore_name, shape, pointed_value={}, args={}):
+    def create_explorer(self, explore_name, shape, pointed_value={}, args={}, filter=[]):
+        """
+        创建探索策略。
+        
+        Args:
+            explore_name (str): 探索策略名称。
+            shape (tuple): 探索策略输出的shape。
+            pointed_value (dict, optional): 指定探索策略的初始值。Defaults to {}.
+            args (dict, optional): 探索策略的参数。Defaults to {}.
+            filter (list, optional): explorer不需要同步的参数。Defaults to [].
+        """
 
         policy, infos = create_explor_policy(
             explore_policy_name=explore_name,
@@ -323,6 +333,9 @@ class BaseRLAgent(BaseAgent, ABC):
 
         for item in infos:
             name = item['name']
+
+            if name in filter:
+                continue
 
             bu = DataUnit(
                 name=self.name + '_' + name,
@@ -633,6 +646,8 @@ class BaseRLAgent(BaseAgent, ABC):
                 batch_data[key] = values[start_index:end_index]
 
         return batch_data
+    
+    # def optimizer_creater(self,)
 
     @property
     def get_param_dict(self):

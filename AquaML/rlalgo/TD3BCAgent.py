@@ -127,23 +127,41 @@ class TD3BCAgent(BaseRLAgent):
             for key in self.actor.input_name:
                 data_file_path = os.path.join(self.expert_dataset_path, key + '.npy')
                 next_data_file_path = os.path.join(self.expert_dataset_path, 'next_' + key + '.npy')
-                expert_dataset[key] = np.load(data_file_path)
-                expert_dataset['next_' + key] = np.load(next_data_file_path)
+
+                obs = np.load(data_file_path)
+                next_obs = np.load(next_data_file_path)
+
+                if self.agent_params.normalize:
+                    mean = np.mean(obs,axis=0)
+                    std = np.std(obs, axis=0)
+                    obs = (obs - mean) / (std + 1e-8)
+                    next_obs = (next_obs - mean) / (std + 1e-8)
+                expert_dataset[key] = obs
+                expert_dataset['next_' + key] = next_obs
 
             # load expert action
             data_file_path = os.path.join(self.expert_dataset_path, 'action.npy')
-            expert_dataset['action'] = np.load(data_file_path)
+
+            action = np.load(data_file_path)
+
+            if self.agent_params.normalize:
+                mean = np.mean(action, axis=0)
+                std = np.std(action, axis=0)
+                action = (action - mean) / (std+1e-8)
+
+            expert_dataset['action'] = action
+
+            # if self.agent_params.normalize:
+            #     expert_dataset
 
             # load reward
             data_file_path = os.path.join(self.expert_dataset_path, 'total_reward.npy')
 
-            total_reward =  np.load(data_file_path)
+            total_reward = np.load(data_file_path)
 
             if self.agent_params.normalize_reward:
                 total_reward = (total_reward - np.mean(total_reward)) / np.std(total_reward)
             expert_dataset['total_reward'] = total_reward
-
-
 
             # load mask
             data_file_path = os.path.join(self.expert_dataset_path, 'mask.npy')
@@ -355,6 +373,7 @@ class TD3BCAgent(BaseRLAgent):
         }
 
         return dict_info
+
     @tf.function
     def train_actor(self,
                     current_actor_input,
@@ -378,7 +397,7 @@ class TD3BCAgent(BaseRLAgent):
             q_loss = tf.reduce_mean(q1)
             bc_loss = tf.reduce_mean(tf.square(current_action - target_action))
 
-            loss = -lamb *q_loss +  bc_loss
+            loss = -lamb * q_loss + bc_loss
 
         grads = tape.gradient(loss, self.actor.trainable_variables)
 

@@ -11,8 +11,8 @@ sys.path.append('..')
 # allocate_gpu(comm, 0)
 
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
-from AquaML.rlalgo.AgentParameters import PPOAgentParameter
-from AquaML.rlalgo.PPOAgent import PPOAgent
+from AquaML.rlalgo.AgentParameters import COPGAgentParameter
+from AquaML.rlalgo.COPGAgent import COPGAgent
 import numpy as np
 import gym
 from AquaML.DataType import DataInfo
@@ -239,7 +239,7 @@ class PendulumWrapper(RLBaseEnv):
 eval_env = PendulumWrapper()
 
 vec_env = RLVectorEnv(PendulumWrapper, 20, normalize_obs=False, )
-parameters = PPOAgentParameter(
+parameters = COPGAgentParameter(
     rollout_steps=200,
     epochs=200,
     batch_size=1000,
@@ -278,7 +278,7 @@ load_flag = LoadFlag(
 
 rl = AquaRL(
     env=vec_env,
-    agent=PPOAgent,
+    agent=COPGAgent,
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,

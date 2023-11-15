@@ -1,19 +1,19 @@
 import tensorflow as tf
 
-from AquaML.rlalgo.BaseRLAgent import BaseRLAgent, LossTracker
-from AquaML.rlalgo.AgentParameters import PPOAgentParameter
+from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
+from AquaML.rlalgo.AgentParameters import COPGAgentParameter
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
 
 import tensorflow_probability as tfp
 
 
-class PPOAgent(BaseRLAgent):
+class COPGAgent(BaseRLAgent):
 
     def __init__(self,
                  name: str,
                  actor,
-                 agent_params: PPOAgentParameter,
+                 agent_params: COPGAgentParameter,
                  level: int = 0,  # 控制是否创建不交互的agent
                  critic=None,
                  ):
@@ -895,7 +895,7 @@ class PPOAgent(BaseRLAgent):
 
     @staticmethod
     def get_algo_name():
-        return 'PPO'
+        return 'COPG'
 
     def get_real_policy_out(self):
 

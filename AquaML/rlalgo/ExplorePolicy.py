@@ -248,7 +248,7 @@ class GaussianExplorePolicy(ExplorePolicyBase):
     
 
 class ClipGaussianExplorePolicy(ExplorePolicyBase):
-    def __init__(self, shape, action_high=1.0, action_low=-1.0, sigma=0.1):
+    def __init__(self, shape, action_high=1.0, action_low=-1.0, sigma=0.5):
         super().__init__(shape)
         mu = tf.zeros(shape, dtype=tf.float32)
         self.sigma = tf.ones(shape, dtype=tf.float32) * sigma

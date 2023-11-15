@@ -8,7 +8,7 @@ from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitT
 import tensorflow_probability as tfp
 
 
-class PPOAgent(BaseRLAgent):
+class COPGAgent(BaseRLAgent):
 
     def __init__(self,
                  name: str,

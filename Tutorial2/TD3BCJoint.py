@@ -20,12 +20,12 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(512, activation='relu')
         self.dense2 = tf.keras.layers.Dense(256, activation='relu')
-        self.action_layer = tf.keras.layers.Dense(4)
+        self.action_layer = tf.keras.layers.Dense(8)
         # self.log_std = tf.keras.layers.Dense(1)
 
         # self.learning_rate = 2e-5
 
-        self.output_info = {'action': (4,), }
+        self.output_info = {'action': (8,), }
 
         self.input_name = ('obs',)
 
@@ -102,8 +102,8 @@ class BipedalWalker(RLBaseEnv):
 
         # our frame work support POMDP env
         self._obs_info = DataInfo(
-            names=('obs', 'step',),
-            shapes=((24,), (1,)),
+            names=('obs', ),
+            shapes=((42,), ),
             dtypes=np.float32
         )
 
@@ -157,8 +157,8 @@ class BipedalWalker(RLBaseEnv):
 env = BipedalWalker()  # need environment provide obs_info and reward_info
 
 parameters = TD3BCAgentParameters(
-    epochs=150000,
-    batch_size=1024,
+    epochs=15000,
+    batch_size=256,
     tau=0.005,
     noise_clip_range=0.5,
     sigma=0.2,
@@ -166,16 +166,16 @@ parameters = TD3BCAgentParameters(
     # action_clip_range=1,
     update_times=1,
     delay_update=2,
-    normalize_reward=False,
-    # checkpoint_interval=
-
+    normalize_reward=True,
+    normalize=True,
+    alpha=5
 )
 
 agent_info_dict = {
     'actor': Actor_net,
     'q_critic': Critic_net,
     'agent_params': parameters,
-    'expert_dataset_path': 'ExpertBipedalWalker',
+    'expert_dataset_path': 'Joint200',
 }
 
 offline_rl = AquaRL(
@@ -184,7 +184,7 @@ offline_rl = AquaRL(
     agent_info_dict=agent_info_dict,
     # eval_env=eval_env,
     # comm=comm,
-    name='debug1',
+    name='Joint',
     # reward_norm=True,
     # state_norm=False,
     # decay_lr=False,

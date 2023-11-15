@@ -1,19 +1,19 @@
 import tensorflow as tf
 
-from AquaML.rlalgo.BaseRLAgent import BaseRLAgent, LossTracker
-from AquaML.rlalgo.AgentParameters import PPOAgentParameter
+from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
+from AquaML.rlalgo.AgentParameters import COPGAgentParameter
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
 
 import tensorflow_probability as tfp
 
 
-class PPOAgent(BaseRLAgent):
+class COPGAgent(BaseRLAgent):
 
     def __init__(self,
                  name: str,
                  actor,
-                 agent_params: PPOAgentParameter,
+                 agent_params: COPGAgentParameter,
                  level: int = 0,  # 控制是否创建不交互的agent
                  critic=None,
                  ):
@@ -211,13 +211,20 @@ class PPOAgent(BaseRLAgent):
 
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
+            
+            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
+            
+            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
 
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
-
-            surr1 = mask_ratio * mask_advantage
-            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
+                
+            surr1 = mask_log_prob * mask_advantage
+            
+            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1+ clip_ratio)) + mask_old_log_prob
+            surr2 = surr2_1 * mask_advantage
+            
             surr = tf.minimum(surr1, surr2)
 
             actor_surrogate_loss = tf.reduce_mean(surr)
@@ -270,13 +277,19 @@ class PPOAgent(BaseRLAgent):
 
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
+            
+            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
+            
+            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
 
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
 
-            surr1 = mask_ratio * mask_advantage
-            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
+            surr1 = mask_log_prob * mask_advantage
+            
+            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1+ clip_ratio)) + mask_old_log_prob
+            surr2 = surr2_1 * mask_advantage
 
             surr = tf.minimum(surr1, surr2)
 
@@ -317,7 +330,6 @@ class PPOAgent(BaseRLAgent):
                   entropy_coef: float,
                   vf_coef: float,
                   normalize_advantage: bool = True,
-                  minimize_kl=0.0
                   ):
 
         old_log_prob = tf.reduce_sum(tf.math.log(old_log_prob), axis=self.sum_axis, keepdims=True)
@@ -334,17 +346,14 @@ class PPOAgent(BaseRLAgent):
             # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=
 
             # 动作是独立的
-            log_ratio = log_prob - old_log_prob
+            ratio = tf.exp(log_prob - old_log_prob)
 
-            # compute KL
-
-
-            ratio = tf.exp(log_ratio)
-            mask_log_ratio = tf.boolean_mask(log_ratio, bool_mask)
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
-
-            approx_kl = tf.reduce_mean(tf.exp(mask_log_ratio) - 1.0 - mask_log_ratio)
+            
+            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
+            
+            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
 
             # mask_approx_kl = tf.boolean_mask(approx_kl, bool_mask)
 
@@ -354,9 +363,12 @@ class PPOAgent(BaseRLAgent):
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
 
-            surr1 = mask_ratio * mask_advantage
-            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
-
+            surr1 = mask_log_prob * mask_advantage
+            
+            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1+ clip_ratio)) + mask_old_log_prob
+            surr2 = surr2_1 * mask_advantage
+            
+            
             surr = tf.minimum(surr1, surr2)
 
             # mask_surr = tf.boolean_mask(surr, bool_mask)
@@ -383,7 +395,6 @@ class PPOAgent(BaseRLAgent):
             'actor_surrogate_loss': actor_surrogate_loss,
             'entropy_loss': entropy_loss,
             'critic_loss': critic_loss,
-            'approx_kl_loss': approx_kl,
             # 'mu_loss': mu_loss,
         }
 
@@ -546,8 +557,13 @@ class PPOAgent(BaseRLAgent):
             f_v = out[3]
 
             ratio = tf.exp(log_prob - old_log_prob)
+
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
+            
+            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
+            
+            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
@@ -895,7 +911,7 @@ class PPOAgent(BaseRLAgent):
 
     @staticmethod
     def get_algo_name():
-        return 'PPO'
+        return 'COPG'
 
     def get_real_policy_out(self):
 

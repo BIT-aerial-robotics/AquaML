@@ -1,19 +1,19 @@
 import tensorflow as tf
 
-from AquaML.rlalgo.BaseRLAgent import BaseRLAgent, LossTracker
-from AquaML.rlalgo.AgentParameters import PPOAgentParameter
+from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
+from AquaML.rlalgo.AgentParameters import COPGAgentParameter
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
 
 import tensorflow_probability as tfp
 
 
-class PPOAgent(BaseRLAgent):
+class COPGAgent(BaseRLAgent):
 
     def __init__(self,
                  name: str,
                  actor,
-                 agent_params: PPOAgentParameter,
+                 agent_params: COPGAgentParameter,
                  level: int = 0,  # 控制是否创建不交互的agent
                  critic=None,
                  ):
@@ -211,13 +211,18 @@ class PPOAgent(BaseRLAgent):
 
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
+            
+            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
 
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
-
-            surr1 = mask_ratio * mask_advantage
-            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
+                
+            surr1 = mask_log_prob * mask_advantage
+            
+            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1+ clip_ratio)) + old_log_prob
+            surr2 = surr2_1 * mask_advantage
+            
             surr = tf.minimum(surr1, surr2)
 
             actor_surrogate_loss = tf.reduce_mean(surr)
@@ -895,7 +900,7 @@ class PPOAgent(BaseRLAgent):
 
     @staticmethod
     def get_algo_name():
-        return 'PPO'
+        return 'COPG'
 
     def get_real_policy_out(self):
 

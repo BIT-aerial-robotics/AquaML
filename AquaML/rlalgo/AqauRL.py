@@ -739,7 +739,7 @@ class AquaRL(BaseAqua):
 
                 # 存储最新模型
 
-                if epoch % self.agent_params.checkpoint_interval == 0:
+                if (epoch + 1) % self.agent_params.checkpoint_interval == 0:
                     self.recoder.save_checkpoint(
                         model_dict=self.agent.get_all_model_dict,
                         epoch=epoch + 1,

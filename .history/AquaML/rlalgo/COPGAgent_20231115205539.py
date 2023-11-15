@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from AquaML.rlalgo.BaseRLAgent import BaseRLAgent, LossTracker
+from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
@@ -8,7 +8,7 @@ from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitT
 import tensorflow_probability as tfp
 
 
-class PPOAgent(BaseRLAgent):
+class COPGAgent(BaseRLAgent):
 
     def __init__(self,
                  name: str,

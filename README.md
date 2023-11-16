@@ -140,8 +140,8 @@ We have implemented the following algorithms:
 - [1] Proximal Policy Optimization (support LSTM)
 - [2] Adeversarial motion priors
 - [3] Twin Delayed Deep Deterministic Policy Gradient
-
 - [4] Soft Actor Critic (Testing)
+- [5] Clipped-Objective Policy Gradient(support LSTM)
 
 We also implement offline reinforcement learning algorithms:
 
@@ -480,4 +480,21 @@ This tutorial can be also used for other offline RL algorithms.
 As before, we need to define actor network and critic network. Then we need to wrap the environment. But offline RL do not need to interact with the environment. So we do not need to define `step` and `reset` method. We just need to define `__init__` method. But if you want to test your policy by interacting with the environment, you need to define `step` and `reset` method.
 
 ### Benchmark
+
+#### PPO vs COPG
+
+<!-- 插入图片 -->
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0             rgba(34,36,38,.08);" 
+    src="src/figs/PPOvsCOPG.jpg">   
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;ss
+    padding: 2px;">PPOvsCOPG</div>
+</center>
+
+
 ### Create your own reinforcement learning algorithm

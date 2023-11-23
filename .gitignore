@@ -25,3 +25,4 @@ test/analyze.ipynb
 *.ipynb
 test/analyze.ipynb
 *.docx
+*.md

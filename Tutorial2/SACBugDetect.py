@@ -20,7 +20,7 @@ class Actor_net(tf.keras.Model):
 
         self.dense1 = tf.keras.layers.Dense(64, activation='relu')
         self.dense2 = tf.keras.layers.Dense(64, activation='relu')
-        self.dense3 = tf.keras.layers.Dense(64, activation='relu')
+        # self.dense3 = tf.keras.layers.Dense(64, activation='relu')
         self.action_layer = tf.keras.layers.Dense(1)
         self.log_std_layer = tf.keras.layers.Dense(1)
         # self.log_std = tf.keras.layers.Dense(1)
@@ -33,7 +33,7 @@ class Actor_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 1e-3,
+            'args': {'learning_rate': 3e-4,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      },
@@ -43,7 +43,7 @@ class Actor_net(tf.keras.Model):
     def call(self, obs, mask=None):
         x = self.dense1(obs)
         x = self.dense2(x)
-        x = self.dense3(x)
+        # x = self.dense3(x)
         action = self.action_layer(x)
         log_std = self.log_std_layer(x)
         # log_std = self.log_std(x)
@@ -77,7 +77,7 @@ class Critic_net(tf.keras.Model):
 
         self.optimizer_info = {
             'type': 'Adam',
-            'args': {'learning_rate': 1e-3,
+            'args': {'learning_rate': 3e-3,
                      # 'epsilon': 1e-5,
                      # 'clipnorm': 0.5,
                      }
@@ -142,7 +142,7 @@ class PendulumWrapper(RLBaseEnv):
         obs = self.check_obs(obs, action_dict)
 
         er = reward
-        reward = (reward + 8) / 8
+        # reward = (reward + 8) / 8
 
         reward = {'total_reward': reward, 'er':er}
 
@@ -155,25 +155,25 @@ class PendulumWrapper(RLBaseEnv):
         self.env.close()
 
 
-env = RLVectorEnv(PendulumWrapper, 4)  # need environment provide obs_info and reward_info
+env = RLVectorEnv(PendulumWrapper, 1)  # need environment provide obs_info and reward_info
 eval_env = RLVectorEnv(PendulumWrapper, 20)
 
 parameters = SACAgentParameters(
     epochs=10000000,
     max_steps=200,
-    rollout_steps=1,
+    rollout_steps=200,
     batch_size=256,
     update_times=1,
-    eval_interval=400,
+    eval_interval=1,
     eval_episodes=1,
     eval_episode_length=200,
-    learning_starts=600,
+    learning_starts=1000,
     checkpoint_interval=10,
     summary_style='episode',
-    replay_buffer_size=1e6,
+    replay_buffer_size=1e5,
     delay_update=1,
     tau=0.005,
-    target_entropy=-1.0,
+    target_entropy=0.0,
 )
 
 agent_info_dict = {

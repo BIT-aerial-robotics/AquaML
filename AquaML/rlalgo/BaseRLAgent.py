@@ -59,6 +59,9 @@ class BaseRLAgent(BaseAgent, ABC):
         # 接口变量
         ##############################
 
+        # test接口函数
+
+        self._test_action_fn = lambda x: x
         # base里面根据配置创建的值，除特殊情况外，不允许修改
         self._explore_dict = {}
         self._tf_explore_dict = {}

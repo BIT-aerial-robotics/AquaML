@@ -12,7 +12,7 @@ sys.path.append('..')
 
 from AquaML.rlalgo.AqauRL import AquaRL, LoadFlag
 from AquaML.rlalgo.AgentParameters import PPOAgentParameter
-from AquaML.rlalgo.PPOAgent import PPOAgent
+from AquaML.rlalgo.MICOPGAgent import PPOAgent
 import numpy as np
 import gym
 from AquaML.DataType import DataInfo
@@ -284,7 +284,7 @@ rl = AquaRL(
     agent_info_dict=agent_info_dict,
     eval_env=eval_env,
     # comm=comm,
-    name='debug1',
+    name='debug2',
     reward_norm=True,
     state_norm=False,
     decay_lr=False,

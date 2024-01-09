@@ -66,15 +66,15 @@ class DataSetTracker:
             data = np.vstack(value)
             file = os.path.join(path, key + '.npy')
             np.save(file, data)
-            # if 'reward' in key:
-            #     value = np.reshape(value, (-1, episode_steps))
-            #     sum_value = np.sum(value, axis=1)
-            #     max_value = np.max(sum_value)
-            #     min_value = np.min(sum_value)
-            #     avg_value = np.mean(sum_value)
-            #     print("{}:{}".format(key, avg_value))
-            #     print("{}:{}".format(key, max_value))
-            #     print("{}:{}".format(key, min_value))
+            if 'reward' in key:
+                value = np.reshape(value, (-1, episode_steps))
+                sum_value = np.sum(value, axis=1)
+                # max_value = np.max(sum_value)
+                # min_value = np.min(sum_value)
+                avg_value = np.mean(sum_value)
+                print("{}:{}".format(key, avg_value))
+                # print("{}:{}".format(key, max_value))
+                # print("{}:{}".format(key, min_value))
 
     def get_data(self):
 
@@ -136,6 +136,61 @@ class TestPolicy:
                 #     break
 
         data_tracker.save_data(data_path, episode_steps)
+
+    def evaluate2(self,
+                  episode_steps,
+                  episode_num,
+                  data_path,
+                  ):
+        """
+        Evaluate the policy.
+        """
+        data_tracker = DataSetTracker()
+
+        success_times = 0
+        total_pos_error = np.zeros((3))
+        total_action_error = np.zeros((4))
+
+        for j in range(1, episode_num + 1):
+            obs, _ = self.env.reset()
+            done = False
+
+            traj_tracker = DataSetTracker()
+
+            for i in range(episode_steps):
+                action = self.policy.get_action(obs)
+                obs_, reward, done, _ = self.env.step(action)
+                # traj_tracker.add_data(deepcopy(obs))
+                # traj_tracker.add_data(deepcopy(obs_), 'next')
+                traj_tracker.add_data(deepcopy(action))
+                # traj_tracker.add_data(reward, 'reward')
+
+                traj_tracker.add_data(obs)
+
+                if done:
+                    break
+
+                obs = obs_
+
+            if not done:
+                success_times += 1
+
+                data = traj_tracker.get_data()
+
+                # 计算600次以后的x，y，z平均位置误差
+                pos_error = data['critic_obs'][600:, :3]
+                pos_error = np.mean(np.abs(pos_error), axis=0)
+                total_pos_error += pos_error
+
+                # print(data.keys())
+
+                action_error = data['action'][600:]
+                action_error = np.mean(np.abs(action_error), axis=0)
+                total_action_error += action_error
+
+            print('{} th times success_rate: {}'.format(j, success_times / j))
+            print('{} th times total_pos_error: {}'.format(j, total_pos_error / j))
+            print('{} th times total_action_error: {}'.format(j, total_action_error / j))
 
     def collect(self,
                 episode_steps,

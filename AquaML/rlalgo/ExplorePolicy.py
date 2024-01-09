@@ -231,7 +231,7 @@ class GaussianExplorePolicy(ExplorePolicyBase):
         return entropy
 
     def test_action(self, mu, log_std):
-        return mu, tf.ones_like(mu)
+        return self.activate_fn(mu), tf.ones_like(mu)
 
     def create_info(self):
         log_std = {

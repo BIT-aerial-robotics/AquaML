@@ -5,11 +5,37 @@
 ```bash
 conda create -n AquaML python=3.8
 conda activate AquaML
-conda install tensorflow-gpu
+conda install -c conda-forge tensorflow-gpu
 pip install tensorflow-probability==0.12.2
 pip install mpi4py
 pip install gym
 pip install keras-core
+```
+
+<!-- ### ananconda创建环境
+    
+```bash
+    conda create -n AquaML python=3.10
+    conda activate AquaML
+```
+### step2 安装cuda版本的tensorflow
+
+最好参考官网的安装教程，安装对应版本的cuda和cudnn -->
+
+
+## Citation
+
+If you use AquaML in your research, please cite our repository:
+
+```bibtex
+@misc{aquaml,
+  author = {Yang Tao, Yushu Yu},
+  title = {{AqauML}: Distributed Deep Learning framework based on Tensorflow2},
+  year = {2023},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/BIT-aerial-robotics/AquaML/tree/2.1.11}},
+}
 ```
 
 ## Usage

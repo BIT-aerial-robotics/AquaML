@@ -163,7 +163,8 @@ class SACAgent(BaseRLAgent):
         noise = self.explore_policy.dist.sample(size)
         log_prob = self.explore_policy.dist.log_prob(noise)
 
-        next_action = mu + noise * tf.exp(log_std)
+        next_action = tf.nn.tanh(mu + noise * tf.exp(log_std))
+
 
         q1 = self.target_q_critic1(*next_q_input, next_action)
         q2 = self.target_q_critic2(*next_q_input, next_action)
@@ -174,7 +175,7 @@ class SACAgent(BaseRLAgent):
 
         target_q = reward + mask * gamma * next_q
 
-        return target_q, log_prob, noise
+        return target_q
     @tf.function
     def train_critic1(self,
                       current_q_input,
@@ -224,7 +225,7 @@ class SACAgent(BaseRLAgent):
 
         with tf.GradientTape() as tape:
             tape.watch(self.log_alpha)
-            loss = -tf.reduce_mean(self.log_alpha * (log_prob + target_entropy))
+            loss = -tf.exp(self.log_alpha) * tf.reduce_mean((log_prob + target_entropy))
 
         grads = tape.gradient(loss, self.log_alpha)
         self.alpha_optimizer.apply_gradients(zip([grads,], [self.log_alpha,]))
@@ -260,6 +261,7 @@ class SACAgent(BaseRLAgent):
         grads = tape.gradient(actor_loss, self.actor.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(grads, self.actor.trainable_variables))
 
+        tf.stop_gradient(log_prob)
         alpha_loss = self.train_alpha(
             log_prob=log_prob,
             target_entropy=target_entropy,
@@ -337,6 +339,8 @@ class SACAgent(BaseRLAgent):
                     target_entropy=self.target_entropy
                 )
                 self.loss_tracker.add_data(actor_info)
+
+                # self.train_alpha()
 
                 self.n_update_times += 1
 

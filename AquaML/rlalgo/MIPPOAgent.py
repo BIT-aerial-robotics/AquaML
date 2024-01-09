@@ -1,19 +1,19 @@
 import tensorflow as tf
 
-from AquaML.rlalgo.BaseRLAgent import BaseRLAgent
-from AquaML.rlalgo.AgentParameters import COPGAgentParameter
+from AquaML.rlalgo.BaseRLAgent import BaseRLAgent, LossTracker
+from AquaML.rlalgo.AgentParameters import PPOAgentParameter
 from AquaML.core.RLToolKit import RLStandardDataSet
 from AquaML.buffer.RLPrePlugin import ValueFunctionComputer, GAEComputer, SplitTrajectory
 
 import tensorflow_probability as tfp
 
 
-class COPGAgent(BaseRLAgent):
+class PPOAgent(BaseRLAgent):
 
     def __init__(self,
                  name: str,
                  actor,
-                 agent_params: COPGAgentParameter,
+                 agent_params: PPOAgentParameter,
                  level: int = 0,  # 控制是否创建不交互的agent
                  critic=None,
                  ):
@@ -69,6 +69,10 @@ class COPGAgent(BaseRLAgent):
                     'critic': self.critic,
                 }
                 self.initialize_critic()
+
+            # 最小动作参数
+            self.min_action_param = tf.Variable(-7.0, trainable=True, dtype=tf.float32, name='min_action_param')
+            self.min_action_param_opt = tf.keras.optimizers.Adam(self.actor.optimizer_info['args']['learning_rate'] * 5)
 
             ########################################
             # 创建buffer,及其计算插件
@@ -212,19 +216,12 @@ class COPGAgent(BaseRLAgent):
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
 
-            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
-
-            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
-
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
 
-            surr1 = mask_log_prob * mask_advantage
-
-            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio)) + mask_old_log_prob
-            surr2 = surr2_1 * mask_advantage
-
+            surr1 = mask_ratio * mask_advantage
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
             surr = tf.minimum(surr1, surr2)
 
             actor_surrogate_loss = tf.reduce_mean(surr)
@@ -278,18 +275,12 @@ class COPGAgent(BaseRLAgent):
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
 
-            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
-
-            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
-
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
 
-            surr1 = mask_log_prob * mask_advantage
-
-            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio)) + mask_old_log_prob
-            surr2 = surr2_1 * mask_advantage
+            surr1 = mask_ratio * mask_advantage
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
 
             surr = tf.minimum(surr1, surr2)
 
@@ -330,6 +321,7 @@ class COPGAgent(BaseRLAgent):
                   entropy_coef: float,
                   vf_coef: float,
                   normalize_advantage: bool = True,
+                  minimize_kl=0.0
                   ):
 
         old_log_prob = tf.reduce_sum(tf.math.log(old_log_prob), axis=self.sum_axis, keepdims=True)
@@ -346,14 +338,17 @@ class COPGAgent(BaseRLAgent):
             # ratio = tf.reduce_sum(tf.exp(log_prob - old_log_prob), axis=1, keepdims=
 
             # 动作是独立的
-            ratio = tf.exp(log_prob - old_log_prob)
+            log_ratio = log_prob - old_log_prob
 
+            # compute KL
+
+            ratio = tf.exp(log_ratio)
+            mask_log_ratio = tf.boolean_mask(log_ratio, bool_mask)
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
+            mask_mu = tf.boolean_mask(mu, bool_mask)
 
-            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
-
-            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
+            approx_kl = tf.reduce_mean(tf.exp(mask_log_ratio) - 1.0 - mask_log_ratio)
 
             # mask_approx_kl = tf.boolean_mask(approx_kl, bool_mask)
 
@@ -363,16 +358,15 @@ class COPGAgent(BaseRLAgent):
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
 
-            surr1 = mask_log_prob * mask_advantage
-
-            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio)) + mask_old_log_prob
-            surr2 = surr2_1 * mask_advantage
+            surr1 = mask_ratio * mask_advantage
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
 
             surr = tf.minimum(surr1, surr2)
 
             # mask_surr = tf.boolean_mask(surr, bool_mask)
 
             actor_surrogate_loss = tf.reduce_mean(surr)
+            actor_action_penalty_loss = tf.reduce_mean(tf.norm(mask_mu, axis=1))
 
             entropy_loss = self.explore_policy.get_entropy(mu, log_std)
 
@@ -384,7 +378,9 @@ class COPGAgent(BaseRLAgent):
 
             # approx_kl = tf.clip_by_value(approx_kl, 0, 20)
 
-            total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * critic_loss
+            total_loss = -actor_surrogate_loss - entropy_coef * entropy_loss + vf_coef * critic_loss + tf.exp(
+                tf.clip_by_value(self.min_action_param, clip_value_min=-9.0,
+                                 clip_value_max=-6.5)) * actor_action_penalty_loss
 
         actor_grads = tape.gradient(total_loss, self.all_train_vars)
         self.actor_optimizer.apply_gradients(zip(actor_grads, self.all_train_vars))
@@ -394,6 +390,8 @@ class COPGAgent(BaseRLAgent):
             'actor_surrogate_loss': actor_surrogate_loss,
             'entropy_loss': entropy_loss,
             'critic_loss': critic_loss,
+            'approx_kl_loss': approx_kl,
+            'actor_action_penalty_loss': actor_action_penalty_loss,
             # 'mu_loss': mu_loss,
         }
 
@@ -556,22 +554,15 @@ class COPGAgent(BaseRLAgent):
             f_v = out[3]
 
             ratio = tf.exp(log_prob - old_log_prob)
-
             mask_ratio = tf.boolean_mask(ratio, bool_mask)
             mask_advantage = tf.boolean_mask(advantage, bool_mask)
-
-            mask_log_prob = tf.boolean_mask(log_prob, bool_mask)
-
-            mask_old_log_prob = tf.boolean_mask(old_log_prob, bool_mask)
             if normalize_advantage:
                 mask_advantage = (mask_advantage - tf.reduce_mean(mask_advantage)) / (
                         tf.math.reduce_std(mask_advantage) + 1e-8)
-            surr1 = mask_log_prob * mask_advantage
+            surr1 = mask_ratio * mask_advantage
+            surr2 = tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio) * mask_advantage
 
-            surr2_1 = tf.math.log(tf.clip_by_value(mask_ratio, 1 - clip_ratio, 1 + clip_ratio)) + mask_old_log_prob
-            surr2 = surr2_1 * mask_advantage
             surr = tf.minimum(surr1, surr2)
-
             # mask_surr = tf.boolean_mask(surr, bool_mask)
             actor_surrogate_loss = tf.reduce_mean(surr)
 
@@ -597,6 +588,23 @@ class COPGAgent(BaseRLAgent):
         }
 
         return dic, log_prob
+
+    @tf.function
+    def train_min_action(self, advantage, action):
+
+        with tf.GradientTape() as tape:
+            tape.watch(self.min_action_param)
+            min_action_loss = tf.reduce_mean(advantage * self.min_action_param * tf.norm(action, axis=1))
+
+        grads = tape.gradient(min_action_loss, self.min_action_param)
+        self.min_action_param_opt.apply_gradients(zip([grads, ], [self.min_action_param, ]))
+
+        dic = {
+            'min_action_loss': min_action_loss,
+            'min_action': self.min_action_param,
+        }
+
+        return dic
 
     # @tf.function
     # def train_fusion(self,
@@ -794,7 +802,7 @@ class COPGAgent(BaseRLAgent):
                                 entropy_coef=self.agent_params.entropy_coef,
                                 vf_coef=self.agent_params.vf_coef,
                                 normalize_advantage=self.agent_params.batch_advantage_normalization,
-                                # minimize_kl=self.agent_params.minimize_kl
+                                minimize_kl=self.agent_params.minimize_kl
                             )
 
                         self.loss_tracker.add_data(all_optimize_info, prefix='all')
@@ -820,6 +828,8 @@ class COPGAgent(BaseRLAgent):
                             )
                             self.loss_tracker.add_data(actor_optimize_info, prefix='actor')
 
+                    min_info = self.train_min_action(batch_data['advantage'], batch_data['action'])
+                    self.loss_tracker.add_data(min_info, prefix='all')
                     # compute kl divergence, general type
                     old_log_prob = tf.reduce_sum(tf.math.log(batch_data['prob']), axis=self.sum_axis, keepdims=True)
                     log_ratio = log_prob - old_log_prob  # 多维分布
@@ -912,7 +922,7 @@ class COPGAgent(BaseRLAgent):
 
     @staticmethod
     def get_algo_name():
-        return 'COPG'
+        return 'PPO'
 
     def get_real_policy_out(self):
 

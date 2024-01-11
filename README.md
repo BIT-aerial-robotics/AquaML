@@ -29,7 +29,7 @@ If you use AquaML in your research, please cite our repository:
 
 ```bibtex
 @misc{aquaml,
-  author = {Yang Tao, Yushu Yu},
+  author = {Yang Tao, Yushu Yu, Yuting Feng},
   title = {{AqauML}: Distributed Deep Learning framework based on Tensorflow2},
   year = {2023},
   publisher = {GitHub},

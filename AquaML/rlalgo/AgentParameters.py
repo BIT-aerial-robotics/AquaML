@@ -656,6 +656,92 @@ class TD3BCAgentParameters(BaseAgentParameter):
         self.normalize = normalize
 
 
+class IQLAgentParameters(BaseAgentParameter):
+    def __init__(self,
+
+                 epochs: int,
+
+                 batch_size: int,
+                 update_times: int,
+
+                 # off-policy rollout parameters
+                 learning_starts: int = 100,
+                 replay_buffer_size: int = 1000000,
+                 sigma: float = 0.2,
+                 # action_clip_range: float = 1.0,
+                 noise_clip_range: float = 0.5,
+                 delay_update: int = 2,
+
+                 tau: float = 0.005,
+                 normalize=False,
+
+
+
+                 # TD3BC
+                 alpha=2.5,
+                 # rollout parameters
+                 rollout_steps: int = 1,
+                 min_steps: int = -1,
+                 max_steps: int = 0,
+                 gamma=0.99,
+                 temperature=3,
+
+                 n_updates: int = 1,  # 暂时不用
+
+                 eval_interval: int = 10000000,  # 0
+                 eval_episodes: int = 10000000,  # 0
+                 eval_episode_length: int = 0,
+                 checkpoint_interval: int = 500,
+
+                 # normalize reward
+                 normalize_reward=False,
+
+                 summary_style: str = 'step',
+                 summary_steps: int = 1,
+                 explore_policy='Default',
+
+                 
+                 ):
+        super().__init__(
+            rollout_steps=rollout_steps,
+            epochs=epochs,
+            batch_size=batch_size,
+            explore_policy=explore_policy,
+            eval_episode_length=eval_episode_length,
+            eval_interval=eval_interval,
+            eval_episodes=eval_episodes,
+            max_steps=max_steps,
+            update_times=update_times,
+            checkpoint_interval=checkpoint_interval,
+            min_steps=min_steps,
+            summary_style=summary_style,
+            summary_steps=summary_steps,
+
+        )
+
+        self.replay_buffer_size = replay_buffer_size
+        self.learning_starts = learning_starts
+        self.sigma = sigma
+        self.temperature = temperature
+        self.noise_clip_range = noise_clip_range
+
+        self.delay_update = delay_update
+        self.n_updates = n_updates
+        self.tau = tau
+
+        
+
+        self.alpha = alpha
+        self.gamma = gamma
+
+        self.normalize_reward = normalize_reward
+
+        self.normalize = normalize
+
+        
+
+
+
 if __name__ == '__main__':
     ppo_parameter = PPOAgentParameter(
         rollout_steps=10,

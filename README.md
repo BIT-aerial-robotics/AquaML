@@ -172,6 +172,7 @@ We have implemented the following algorithms:
 We also implement offline reinforcement learning algorithms:
 
 - [1] Twin Delayed Deep Deterministic Policy Gradient & Behavior Cloning
+- [2] Implicit Q Learning
 
 We provide two rollout methods: `run()` and `run_off_policy()`. `run()` collect data by trajectory. `run_off_policy()` collect data by step. `run()` methods can use trajectory filter tools.
 

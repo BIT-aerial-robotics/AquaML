@@ -5,7 +5,7 @@
 ```bash
 conda create -n AquaML python=3.8
 conda activate AquaML
-conda install -c conda-forge tensorflow-gpu
+conda install tensorflow-gpu=2.4.1
 pip install tensorflow-probability==0.12.2
 pip install mpi4py
 pip install gym

@@ -1,10 +1,10 @@
 import sys
-sys.path.append('/Users/yangtao/Documents/code.nosync/EvolutionRL')
+# sys.path.append('/Users/yangtao/Documents/code.nosync/EvolutionRL')
 # sys.path.append('/home/yangtao/CODE/EvolutionRL')
 # import os
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
-# sys.path.append('C:/Users/29184/Documents/GitHub/EvolutionRL')
+sys.path.append('C:/Users/29184/Documents/GitHub/AquaML') # TODO： 运行时请修改路径
 import AquaML
 from AquaML.torch.OnlineRL import PPOAlgo, PPOParam
 from AquaML.framework import RL

@@ -87,12 +87,23 @@ torch, gymnasium, pynvml, loguru, wandb, mpi4py
 网络结构均为两层全连接层，每层256个神经元，激活函数为ReLU。
 ### Ant
 
-<img src="Doc/Fig/Ant_time.png" alt="Image description" width="600" style="vertical-align: top;">
-
-
-<img src="Doc/Fig/Ant_step.png" alt="Image description" width="600" style="vertical-align: top;">
+<table>
+  <tr>
+    <td><img src="Doc/Fig/Ant_time.png" alt="Image description" width="600" style="vertical-align: top;"></td>
+    <td><img src="Doc/Fig/Ant_step.png" alt="Image description" width="600" style="vertical-align: top;"></td>
+  </tr>
+</table>
 
 ### Humanoid
 
-<img src="Doc/Fig/humoid_time.png" alt="Image description" width="600" style="vertical-align: top;">
-<img src="Doc/Fig/humoid_step.png" alt="Image description" width="600" style="vertical-align: top;">
+<table>
+  <tr>
+    <td><img src="Doc/Fig/humoid_time.png" alt="Image description" width="600" style="vertical-align: top;"></td>
+    <td><img src="Doc/Fig/humoid_step.png" alt="Image description" width="600" style="vertical-align: top;"></td>
+  </tr>
+</table>
+
+<!-- <div style="display: flex;">
+  <img src="Doc/Fig/humoid_time.png" alt="Image description" width="300" style="vertical-align: top;">
+  <img src="Doc/Fig/humoid_step.png" alt="Image description" width="200" style="vertical-align: top;">
+</div> -->

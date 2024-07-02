@@ -1,39 +1,41 @@
-# AquaML <img src="Doc/Fig/AquaML.webp" alt="Image description" width="60" style="vertical-align: top;">
+<p align="center">
+  <img src="Doc/Fig/AquaML.jpeg" alt="Image description" width=250"" style="vertical-align: middle;">
+</p>
+
+# AquaML
 
 ## Overview
 
+AquaML是一个分布式深度学习框架，该框架像水一样灵活，主要为**机器人学习任务**而设计的，能够实现多种深度学习任务。并且结构简单，方便修改。AquaML还能够支持多种主流深度学习框架，如tensorflow、torch等。未来将支持jax等框架。
+
 AquaML V3版本在整体上对V2版本进行了重构，我们希望未来的智能体是能够持续进化持续学习。仿真和现实中的差距很难进行缩小，针对任务构建仿真器工作量巨大。我们希望智能体能够在仿真里面学习一些基础技能，利用此套架构再现实中持续进化。
-另外我们希望能利用机载计算机集群在真机中能够实时进行大模型的推理甚至训练。
 
 AquaML3目前能够支持torch、tensorflow，未来将尝试支持更多的深度学习框架。
+同时支持Linux、Windows、MacOS。
 此外AquaML3具有良好的兼容性，能够在python3.7-3.11的环境下运行，但是完整版本需要python3.8以上。
+AquaML3支持了Isaac gym。
 
-AquaML支持Isaac，为了能够支持更多不同的环境并行，AquaML3采用OpenMPI进行并发（正在完善），这也让AquaML3能够支持多机多卡。
 
 
 
 ## Installation
-### python环境必须的库
 
-pynvml, loguru，Gym（gymnasium），wandb，tensorflow-gpu（torch）
+### 必须安装的软件
 
-### 安装方法
+pynvml, loguru，wandb，mpi4py
 
-#### 1. 创建虚拟环境
-
+mpi4py推荐使用conda安装，
 ```bash
-conda create -n AquaML python=3.8
-conda activate AquaML
+conda install -c conda-forge mpi4py
 ```
 
-#### 2. 安装tensorflow-gpu(可选择torch)
+其余的库可以使用pip安装。
 
-```bash
-conda install tensorflow-gpu=2.6 
-```
-Pytorch安装方法请参考官网。
+### 可选安装软件
 
-#### 3. 安装gymnasium
+#### gymnasium或gym
+
+推荐使用gymnasium，安装方法如下：
 
 ```bash
 pip install gymnasium[all]
@@ -43,16 +45,20 @@ conda install -c conda-forge box2d-py
 pip install gymnasium[all]
 ```
 
+#### tensorflow或torch
 
-#### 4. 安装其他依赖库
+安装方法可以参考官网。
 
-```bash
-pip install pynvml
-pip install loguru
-pip install wandb
-conda install -c conda-forge mpi4py
-```
+### 常见使用案例
 
+#### torch基础版
+
+安装顺序如下：
+torch, gymnasium, pynvml, loguru, wandb, mpi4py
+
+#### Issac gym
+
+按照Isaac gym官网安装完以后，额外安装pynvml, loguru, wandb, mpi4py。
 
 ## Introduction
  

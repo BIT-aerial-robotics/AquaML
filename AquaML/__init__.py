@@ -42,7 +42,7 @@ data_module = DataModule()
 from AquaML.algo.ModelBase import ModelBase
 from AquaML.core.DataInfo import DataInfo
 from AquaML.core.Recorder import Recorder
-from AquaML.tool import AquaTool
+from AquaML.Tool.AquaTool import AquaTool
 
 
 aqua_tool = AquaTool()
@@ -243,6 +243,7 @@ def init(
     logger.info('Using ' + engine + ' as compute engine')
     settings.set_engine(engine)
     aqua_tool.set_convert_numpy_fn(engine)
+    aqua_tool.set_save_weights_fn(engine)
     
     # if engine == 'tensorflow':
     #     convert_numpy_fn = lambda x: x.numpy()

@@ -8,7 +8,7 @@ from AquaML import settings, logger, communicator
 from AquaML.core.Recorder import Recorder
 from AquaML.core.DataInfo import DataInfo
 import numpy as np
-from AquaML.Tool import LossTracker
+from AquaML.Tool.Tracker import LossTracker
 
 class AlgoBase(abc.ABC):
     """

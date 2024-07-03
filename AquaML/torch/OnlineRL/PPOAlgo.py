@@ -23,6 +23,7 @@ class PPOParam(RLParmBase):
                  log_std: float = -0.0,
                  reward_norm: bool = True,
                  target_kl: float = 0.01,
+                 checkpoints_store_interval: int = 5,
                  independent_model: bool = True,
                  ):
         """
@@ -51,6 +52,7 @@ class PPOParam(RLParmBase):
             independent_model=independent_model,
             summary_steps=summary_steps,
             algo_name='PPO',
+            checkpoints_store_interval=checkpoints_store_interval,
         )
         
         self.log_std = log_std

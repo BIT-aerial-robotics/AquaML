@@ -216,4 +216,7 @@ class RL(FrameWorkBase):
             tracker = self._algo.train(data_dict)
             # if summary_flag:
             recorder.record_scalar(tracker.get_data(),step=current_step)
+            
+            if (epoch+1) % self._hyper_params.checkpoints_store_interval == 0:
+                self.save_history_checkpoint(self._algo,epoch=epoch+1)
         

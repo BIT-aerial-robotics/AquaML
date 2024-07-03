@@ -10,7 +10,7 @@ from AquaML.core.old.DataModule import DataModule
 import tensorflow.keras as keras
 import numpy as np
 from AquaML.core.old.FileSystem import FileSystemBase
-from AquaML.core.Tool import LossTracker
+from AquaML.Tool.Tracker import LossTracker
 
 
 class AlgoBase(abc.ABC):

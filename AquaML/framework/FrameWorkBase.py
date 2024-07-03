@@ -3,7 +3,7 @@
 '''
 
 import abc
-from AquaML import logger, communicator, settings, file_system, data_module
+from AquaML import logger, communicator, settings, file_system, data_module, aqua_tool, mkdir
 from AquaML.algo.AlgoBase import AlgoBase
 import os
 
@@ -208,6 +208,40 @@ class FrameWorkBase(abc.ABC):
         
 
         
+    ########################################
+    # 模型存储与加载
+    ########################################
+    def save_cache_checkpoint(self,algo:AlgoBase,epoch:int):
+        """
+        保存缓存的检查点。
+        """
+        
+        model_dict = algo.model_dict
+        cache_path = file_system.query_cache(algo.name)
+        
+        for name, model in model_dict.items():
+            aqua_tool.save_weights_fn(
+                model=model,
+                name=name,
+                path=cache_path
+            )
+    
+    def save_history_checkpoint(self,algo:AlgoBase,epoch:int):
+        """
+        保存历史的检查点。
+        """
+        
+        model_dict = algo.model_dict
+        history_path = file_system.query_history_model(algo.algo_name)
+        current_path = os.path.join(history_path, str(epoch))
+        mkdir(current_path)
+        
+        for name, model in model_dict.items():
+            aqua_tool.save_weights_fn(
+                model=model,
+                name=name,
+                path=current_path
+            )
         
         
     ########################################

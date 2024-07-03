@@ -19,5 +19,8 @@
 *.json
 *.json
 /Example/wandb
+/test
 
 /data/FashionMNIST
+test/history_model/PPO/10/actor.pth
+test/history_model/PPO/45/actor.pth

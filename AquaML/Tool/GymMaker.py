@@ -9,7 +9,7 @@ from AquaML.worker import RLEnvBase
 import numpy as np
 # from AquaML.core import DataInfo
 
-class GymnasiumMaker(RLEnvBase):
+class GymMaker(RLEnvBase):
     
     def __init__(self, env_name:str, env_args:dict):
         """
@@ -20,7 +20,7 @@ class GymnasiumMaker(RLEnvBase):
             env_args (dict): 环境的参数。
         """
         
-        super(GymnasiumMaker, self).__init__()
+        super(GymMaker, self).__init__()
         
         self._env = gym.make(env_name, **env_args)
         

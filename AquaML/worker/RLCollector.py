@@ -334,8 +334,8 @@ class RLIsaacCollector(RLCollector):
                next_obs: dict,
                action: dict,
                reward: dict,
-               terminal: torch.Tensor,
-               truncated: torch.Tensor
+               terminal,
+               truncated
                ):
             self.summary_count += 1
 

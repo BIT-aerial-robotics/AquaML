@@ -18,7 +18,13 @@ class AquaTool:
             engine (str): 计算引擎。
         """
         if engine == 'tensorflow':
-            self.convert_numpy_fn = lambda x: x.numpy()
+            def convert_numpy_fn(x):
+                if isinstance(x, np.ndarray):
+                    return x
+                elif isinstance(x, np.float32):
+                    return x
+                return x.numpy()
+            self.convert_numpy_fn = convert_numpy_fn
         if engine == 'torch':
             self.convert_numpy_fn = lambda x: x.cpu().numpy()
         logger.info('convert_numpy_fn set for engine:' + engine)

@@ -6,7 +6,12 @@ except:
 from numpy import inf
 from AquaML.worker import RLEnvBase
 import numpy as np
-import torch
+
+try:
+    import torch
+except:
+    print('PyTorch is not installed!')
+    print('current env is not support IsaacGym!')
 
 class IsaacGymMaker(RLEnvBase):
     

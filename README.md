@@ -48,6 +48,7 @@ pip install gymnasium[all]
 #### tensorflow或torch
 
 安装方法可以参考官网。
+在安装tensorflow的时候，需要额外安装tensorflow-probability。
 
 ### 常见使用案例
 

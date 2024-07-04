@@ -7,6 +7,9 @@ from AquaML.algo.ModelBase import ModelBase
 import numpy as np
 from AquaML.tf.Dataset import RLDataset
 import copy
+import math
+
+
 
 class PPOParam(RLParmBase):
     def __init__(self, 
@@ -23,7 +26,11 @@ class PPOParam(RLParmBase):
                  envs_args: dict={},
                  lamda: float=0.95,
                  log_std: float = -0.0,
-                 independent_model: bool = True):
+                 reward_norm: bool = True,
+                 target_kl: float = 0.01,
+                 checkpoints_store_interval: int = 5,
+                 independent_model: bool = True,
+                 ):
         """
         PPO算法的超参数。
 
@@ -50,6 +57,7 @@ class PPOParam(RLParmBase):
             independent_model=independent_model,
             summary_steps=summary_steps,
             algo_name='PPO',
+            checkpoints_store_interval=checkpoints_store_interval,
         )
         
         self.log_std = log_std
@@ -58,6 +66,8 @@ class PPOParam(RLParmBase):
         self.batch_size = batch_size
         self.clip_ratio = clip_ratio
         self.ent_coef = ent_coef
+        self.reward_norm = reward_norm
+        self.target_kl = target_kl
 
 class PPOAlgo(TFRLAlgoBase):
     
@@ -116,6 +126,14 @@ class PPOAlgo(TFRLAlgoBase):
             dtype=np.float32,
         )
         
+        self._fix_log = math.log(2 * math.pi)
+
+        
+        self.reward_mu = None
+        self.reward_s = None
+        self.reward_std = None
+        
+        self.epoch = 0
         # self._action_size = settings.env_num
         
     
@@ -239,7 +257,7 @@ class PPOAlgo(TFRLAlgoBase):
             'entropy_loss': entropy_loss,
         }
         
-        return loss_dict
+        return loss_dict,importance_ratio
 
     
     def train(self, data_dict:dict):
@@ -273,10 +291,26 @@ class PPOAlgo(TFRLAlgoBase):
         
         # 获取reward和mask
         rewards = data_dict['reward']
-        # masks = data_dict['mask']
-        terminateds = data_dict['terminal']
-        # truncated = data_dict['truncated']
 
+        
+        # masks = data_dict['mask']
+        if self._hyper_params.reward_norm:
+            if self.reward_mu is None:
+                self.reward_mu = np.mean(rewards)
+                self.reward_std = np.std(rewards)
+                self.reward_s = np.sqrt(self.reward_std)
+            else:
+                # new_std = rewards.std()
+                new_mean = rewards.mean()
+                old_mean = copy.deepcopy(self.reward_mu)
+                self.reward_mu = (self.reward_mu * self.epoch  + new_mean) / (self.epoch + 1)
+                self.reward_s = self.reward_s + (new_mean - old_mean) * (new_mean - self.reward_mu) 
+                self.reward_std = np.sqrt(self.reward_s / (self.epoch + 1))
+                
+            rewards = (rewards - self.reward_mu) / self.reward_std
+            self.epoch += 1
+        # truncated = data_dict['truncated']
+        terminateds = data_dict['terminal']
         done = 1 - terminateds
              
         gae = np.zeros_like(rewards)
@@ -311,7 +345,12 @@ class PPOAlgo(TFRLAlgoBase):
         ############################
         self.loss_tracker.reset()
         
+        early_stop = False
+        
         for _ in range(self.hyper_params.update_times):
+            
+            if early_stop:
+                break
         
             for batch_data in data_set.get_batch(self.hyper_params.batch_size):
                 
@@ -332,7 +371,7 @@ class PPOAlgo(TFRLAlgoBase):
                     target=batch_data['target'],
                 )
                 
-                actor_loss = self.train_actor(
+                actor_loss, ratio = self.train_actor(
                     actor_inputs=actor_inputs,
                     advantage=advantage,
                     old_prob=old_prob,
@@ -341,8 +380,20 @@ class PPOAlgo(TFRLAlgoBase):
                     entropy_coef=self.hyper_params.ent_coef,
                 )
                 
-                self.loss_tracker.add_data(critic_loss, prefix=self.algo_name)
-                self.loss_tracker.add_data(actor_loss, prefix=self.algo_name)
+                
+                self.loss_tracker.add_data(critic_loss)
+                self.loss_tracker.add_data(actor_loss)
+                
+                log_ratio = np.log(ratio)
+                approx_kl = np.mean(np.exp(log_ratio)- 1 - log_ratio)
+                self.loss_tracker.add_data({'approx_kl': approx_kl})
+                
+                if self._hyper_params.target_kl is not None:
+                    if approx_kl > 1.5 * self._hyper_params.target_kl:
+                        # logger.info(f'Early stopping at epoch {_} due to reaching max kl')
+                        early_stop = True
+                        break
+
         
         return self.loss_tracker
         

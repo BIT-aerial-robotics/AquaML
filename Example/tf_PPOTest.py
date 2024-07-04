@@ -1,10 +1,11 @@
 import sys
 # sys.path.append('/Users/yangtao/Documents/code.nosync/EvolutionRL')
-sys.path.append('C:/Users/29184/Documents/GitHub/EvolutionRL')
+# sys.path.append('C:/Users/29184/Documents/GitHub/EvolutionRL')
+sys.path.append('/home/yangtao/CODE/AquaML')
 import AquaML
 from AquaML.tf.OnlineRL import PPOAlgo, PPOParam
 from AquaML.framework import RL
-from AquaML.Tool import GymnasiumMaker
+from AquaML.Tool import GymnasiumMaker as GymMaker
 import tensorflow as tf
 import numpy as np
 
@@ -19,7 +20,7 @@ env_args = {
 
 param = PPOParam(
     rollout_steps=200,
-    epoch=200,
+    epoch=100,
     batch_size=1000,
     env_num=20,
     envs_args=env_args,
@@ -99,7 +100,7 @@ model_dict = {
 }
 
 rl = RL(
-    env_class=GymnasiumMaker,
+    env_class=GymMaker,
     algo=PPOAlgo,
     hyper_params=param,
     model_dict=model_dict,

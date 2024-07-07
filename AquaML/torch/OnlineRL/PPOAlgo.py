@@ -311,7 +311,7 @@ class PPOAlgo(TorchRLAlgoBase):
         
         early_stop = False
         
-        for _ in range(self.hyper_params.epoch):
+        for _ in range(self.hyper_params.update_times):
             if early_stop:
                 break
             for bath_data in data_set.get_batch(self.hyper_params.batch_size):

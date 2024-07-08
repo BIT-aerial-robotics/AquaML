@@ -132,3 +132,18 @@ class TorchRLAlgoBase(TorchAlgoBase, RLAlgoBase):
         
         for name, model in self._model_dict.items():
             self.initialize_network(model)
+            
+    def test_action(self, state):
+        """
+        测试动作。
+        
+        Args:
+            state (np.ndarray): 状态。
+        
+        Returns:
+            np.ndarray: 动作。
+        """
+        state = torch.tensor(state, dtype=torch.float32).to(settings.device)
+        action = self._model_dict['actor'](state)
+        
+        return action.cpu().detach().numpy()

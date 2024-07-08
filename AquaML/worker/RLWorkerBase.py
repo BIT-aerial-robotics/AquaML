@@ -101,7 +101,7 @@ class RLWorkerBase(abc.ABC):
             summary_flag: 是否需要进行汇总。
         """
 
-        action_dict = self.algo.get_action(self.obs)
+        action_dict,mu = self.algo.get_action(self.obs)
         
         
         next_obs, computing_obs, rewards, terminated, truncated, _ = self.env.auto_step(action_dict,max_step=self.max_step)

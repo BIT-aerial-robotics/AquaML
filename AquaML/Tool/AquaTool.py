@@ -64,11 +64,13 @@ class AquaTool:
             def load_weights_fn(model, name, path):
                 file = os.path.join(path, name+'.h5')
                 model.load_weights(file)
+                logger.success('model {} loaded from {}'.format(name, file))
         elif engine == 'torch':
             import torch
             def load_weights_fn(model, name, path):
                 file = os.path.join(path, name+'.pth')
                 model.load_state_dict(torch.load(file))
+                logger.success('model {} loaded from {}'.format(name, file))
         logger.info('load_weights_fn set for engine:' + engine)
                 
         self._load_weights_fn = load_weights_fn

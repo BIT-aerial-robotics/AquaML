@@ -183,7 +183,7 @@ class PPOAlgo(TFRLAlgoBase):
         actor_out['action'] = action
         actor_out['prob'] = prob
         
-        return actor_out
+        return actor_out,mu
         
     
     @tf.function

@@ -153,7 +153,7 @@ class PPOAlgo(TorchRLAlgoBase):
         actor_out['action'] = action
         actor_out['log_prob'] = log_prob
         
-        return actor_out
+        return actor_out,mu
     
     def train_critic(self,
                      critic_inputs:tuple,

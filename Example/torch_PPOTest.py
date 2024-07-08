@@ -1,10 +1,10 @@
 import sys
 # sys.path.append('/Users/yangtao/Documents/code.nosync/EvolutionRL')
-sys.path.append('/home/yangtao/CODE/AquaML')
+# sys.path.append('/home/yangtao/CODE/AquaML')
 # import os
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
-# sys.path.append('C:/Users/29184/Documents/GitHub/AquaML') # TODO： 运行时请修改路径
+sys.path.append('C:/Users/29184/Documents/GitHub/AquaML') # TODO： 运行时请修改路径
 import AquaML
 from AquaML.torch.OnlineRL import PPOAlgo, PPOParam
 from AquaML.framework import RL
@@ -115,6 +115,7 @@ rl = RL(
     algo=PPOAlgo,
     hyper_params=param,
     model_dict=model_dict,
+    checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/PPO/100'
 )
 
 rl.run()

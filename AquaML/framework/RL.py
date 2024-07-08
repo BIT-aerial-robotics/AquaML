@@ -25,6 +25,7 @@ class RL(FrameWorkBase):
                  model_dict: dict,
                  env_type:str='normal',
                  task_config_yaml:str=None,
+                 checkpoint_path:str=None,
                  ):
         """
         RL的构造函数。
@@ -165,6 +166,12 @@ class RL(FrameWorkBase):
             reward_names=self._reward_info.names,
             algo=self._algo,
         )
+        
+        if checkpoint_path is not None:
+            self.load_checkpoint(
+                algo=self._algo,
+                file_path=checkpoint_path
+            )
 
         
         

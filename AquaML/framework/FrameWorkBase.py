@@ -242,7 +242,26 @@ class FrameWorkBase(abc.ABC):
                 name=name,
                 path=current_path
             )
+    
+    def load_checkpoint(self,algo:AlgoBase,file_path:str):
+        """
+        加载检查点。
         
+        args:
+            algo (AlgoBase): 算法。
+            file_path (str): 文件路径。
+        """
+        
+        # 为模型加载权重
+        
+        for name, model in algo.model_dict.items():
+            aqua_tool.load_weights_fn(
+                model=model,
+                name=name,
+                path=file_path
+            )
+        
+
         
     ########################################
     # 必须实现的接口

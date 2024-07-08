@@ -45,6 +45,7 @@ class RLAlgoBase(AlgoBase):
         
         Returns:
             dict: 动作。
+            mu: 动作的均值,返回不加探索的噪声。
         """
         pass
     

@@ -112,7 +112,7 @@ def init(
     
     # run_name = hyper_params.env_args['env_name']
     # os.path.basename(__file__)[: -len(".py")
-    run_name = f"{hyper_params.algo_name}__{hyper_params.wandb_other_name}__{int(time.time())}"
+    run_name = f"{hyper_params.algo_name}_{engine}_{hyper_params.wandb_other_name}_{int(time.time())}"
 
     recorder.init(wandb_project=wandb_project, config=wandb_config,run_name=run_name)
     
@@ -244,6 +244,7 @@ def init(
     settings.set_engine(engine)
     aqua_tool.set_convert_numpy_fn(engine)
     aqua_tool.set_save_weights_fn(engine)
+    aqua_tool.set_load_weights_fn(engine)
     
     # if engine == 'tensorflow':
     #     convert_numpy_fn = lambda x: x.numpy()

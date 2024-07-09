@@ -26,6 +26,7 @@ class RL(FrameWorkBase):
                  env_type:str='normal',
                  task_config_yaml:str=None,
                  checkpoint_path:str=None,
+                 testing:bool=False
                  ):
         """
         RL的构造函数。
@@ -42,6 +43,8 @@ class RL(FrameWorkBase):
         """
         
         super(RL, self).__init__()
+        
+        self.testing = testing
         
         ##############################
         # 1. 配置每个进程的资源使用
@@ -172,6 +175,10 @@ class RL(FrameWorkBase):
                 algo=self._algo,
                 file_path=checkpoint_path
             )
+            
+        
+            
+        self._algo.set_get_action(testing=testing)
 
         
         
@@ -216,14 +223,20 @@ class RL(FrameWorkBase):
         """
         运行RL任务。
         """
-        
-        for epoch in range(self.epoch):
-            logger.info(f'Epoch {epoch} start')
-            data_dict, current_step= self._worker.roll()
-            tracker = self._algo.train(data_dict)
-            # if summary_flag:
-            recorder.record_scalar(tracker.get_data(),step=current_step)
-            
-            if (epoch+1) % self._hyper_params.checkpoints_store_interval == 0:
-                self.save_history_checkpoint(self._algo,epoch=epoch+1)
+        if self.testing:
+            for epoch in range(self.epoch):
+                logger.info(f'Test Epoch {epoch} start')
+                data_dict, current_step= self._worker.roll()
+                # tracker = self._algo.train(data_dict)
+                # recorder.record_scalar(tracker.get_data(),step=current_step)
+        else:
+            for epoch in range(self.epoch):
+                logger.info(f'Epoch {epoch} start')
+                data_dict, current_step= self._worker.roll()
+                tracker = self._algo.train(data_dict)
+                # if summary_flag:
+                recorder.record_scalar(tracker.get_data(),step=current_step)
+                
+                if (epoch+1) % self._hyper_params.checkpoints_store_interval == 0:
+                    self.save_history_checkpoint(self._algo,epoch=epoch+1)
         

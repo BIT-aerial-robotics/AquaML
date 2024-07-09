@@ -126,7 +126,7 @@ class PPOAlgo(TorchRLAlgoBase):
         
         self.epoch = 0
         
-    def get_action(self, state):
+    def _train_action(self, state):
         
         input_data = []
         

@@ -26,6 +26,7 @@ param = PPOParam(
     env_num=20,
     envs_args=env_args,
     summary_steps=200,
+    reward_norm=False
 )
 
 AquaML.init(
@@ -115,7 +116,8 @@ rl = RL(
     algo=PPOAlgo,
     hyper_params=param,
     model_dict=model_dict,
-    checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/PPO/100'
+    checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/PPO/100',
+    testing=True
 )
 
 rl.run()

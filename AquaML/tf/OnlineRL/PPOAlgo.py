@@ -158,7 +158,7 @@ class PPOAlgo(TFRLAlgoBase):
         return log_prob
         
     
-    def get_action(self, state):
+    def _train_action(self, state):
 
         # state = copy.deepcopy(state)
         

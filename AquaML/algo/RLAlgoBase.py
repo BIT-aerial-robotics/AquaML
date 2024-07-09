@@ -33,9 +33,18 @@ class RLAlgoBase(AlgoBase):
         # TODO：未来优化这一部分代码。
         pass
     
-    
-    
-    @abc.abstractmethod
+    def set_get_action(self, testing=False):
+        """
+        设置动作函数。
+        
+        Args:
+            action_fn (function): 动作函数。
+        """
+        if testing:
+            self._get_action_fn = self._test_action
+        else:
+            self._get_action_fn = self._train_action
+            
     def get_action(self, state):
         """
         获取动作。
@@ -47,7 +56,40 @@ class RLAlgoBase(AlgoBase):
             dict: 动作。
             mu: 动作的均值,返回不加探索的噪声。
         """
+        return self._get_action_fn(state)
+            
+        
+    
+    @abc.abstractmethod
+    def _train_action(self, state):
+        """
+        获取动作。
+        
+        Args:
+            state (np.ndarray): 状态。
+        
+        Returns:
+            dict: 动作。
+            mu: 动作的均值,返回不加探索的噪声。
+        """
         pass
+    
+    def _test_action(self, state):
+        """
+        测试动作。
+        
+        Args:
+            state (np.ndarray): 状态。
+        
+        Returns:
+            np.ndarray: 动作。
+        """
+        
+        action_dict, mu = self._train_action(state)
+        
+        action_dict['action'] = mu
+        
+        return action_dict, mu
     
     @property
     def action_info(self)->DataInfo:

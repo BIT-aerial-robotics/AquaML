@@ -134,6 +134,25 @@ class FileSystem:
         
         return path
     
+    def query_trajectory(self, name: str)-> str:
+        """
+        查询轨迹对应的文件夹位置，如果不存在则创建。
+        一般用于存储测试轨迹。
+
+        Args:
+            name (str): 算法名称。
+
+        Returns:
+            str: 文件夹位置。
+        """
+        
+        path = os.path.join(self._root_path, 'trajectory', name)
+        if not os.path.exists(path):
+            mkdir(path)
+            logger.info('Create folder: ' + path+'.')
+        return path
+        
+    
     def write_yaml(self, path: str, data: dict):
         """
         写入yaml文件。

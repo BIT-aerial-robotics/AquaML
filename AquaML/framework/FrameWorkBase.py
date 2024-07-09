@@ -5,6 +5,7 @@
 import abc
 from AquaML import logger, communicator, settings, file_system, data_module, aqua_tool, mkdir
 from AquaML.algo.AlgoBase import AlgoBase
+import numpy as np
 import os
 
 class FrameWorkBase(abc.ABC):
@@ -261,7 +262,19 @@ class FrameWorkBase(abc.ABC):
                 path=file_path
             )
         
-
+    def save_trajectory(self,algo:AlgoBase,epoch:int, trajectory:dict):
+        """
+        保存轨迹。
+        """
+        
+        trajectory_root_path = file_system.query_trajectory(algo.algo_name)
+        trajectory_path = os.path.join(trajectory_root_path, str(epoch))
+        mkdir(trajectory_path)
+        
+        for name, data in trajectory.items():
+            if not isinstance(data, np.ndarray):
+                data = aqua_tool.convert_numpy_fn(data)
+            np.save(os.path.join(trajectory_path, name+'.npy'), data)
         
     ########################################
     # 必须实现的接口

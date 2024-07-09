@@ -26,7 +26,8 @@ class RL(FrameWorkBase):
                  env_type:str='normal',
                  task_config_yaml:str=None,
                  checkpoint_path:str=None,
-                 testing:bool=False
+                 testing:bool=False,
+                 save_trajectory:bool=False
                  ):
         """
         RL的构造函数。
@@ -40,11 +41,19 @@ class RL(FrameWorkBase):
                             框架会自动配置所需worker。当选择'isaacgym'时，
                             会启用固定配置模式。
             task_config_yaml (str): 任务配置文件。
+            checkpoint_path (str): 检查点路径。
+            —————————————————————————————————
+            与test相关的参数
+            —————————————————————————————————
+            testing (bool): 是否测试模式。
+            save_trajectory (bool): 是否保存numpy数组。
+            
         """
         
         super(RL, self).__init__()
         
         self.testing = testing
+        self.save_trajectory_flag = save_trajectory
         
         ##############################
         # 1. 配置每个进程的资源使用
@@ -227,8 +236,10 @@ class RL(FrameWorkBase):
             for epoch in range(self.epoch):
                 logger.info(f'Test Epoch {epoch} start')
                 data_dict, current_step= self._worker.roll()
-                # tracker = self._algo.train(data_dict)
-                # recorder.record_scalar(tracker.get_data(),step=current_step)
+                # save trajectory
+                if self.save_trajectory_flag:
+                    self.save_trajectory(algo=self._algo, trajectory=data_dict, epoch=epoch+1)
+                
         else:
             for epoch in range(self.epoch):
                 logger.info(f'Epoch {epoch} start')

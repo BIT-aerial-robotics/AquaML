@@ -117,7 +117,8 @@ rl = RL(
     hyper_params=param,
     model_dict=model_dict,
     checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/PPO/100',
-    testing=True
+    testing=True,
+    save_trajectory=True
 )
 
 rl.run()

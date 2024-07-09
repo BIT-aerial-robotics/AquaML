@@ -1,7 +1,7 @@
 import sys
 # sys.path.append('/Users/yangtao/Documents/code.nosync/EvolutionRL')
-# sys.path.append('C:/Users/29184/Documents/GitHub/EvolutionRL')
-sys.path.append('/home/yangtao/CODE/AquaML')
+sys.path.append('C:/Users/29184/Documents/GitHub/AquaML')
+# sys.path.append('/home/yangtao/CODE/AquaML')
 import AquaML
 from AquaML.tf.OnlineRL import PPOAlgo, PPOParam
 from AquaML.framework import RL
@@ -25,8 +25,8 @@ param = PPOParam(
     env_num=20,
     envs_args=env_args,
     summary_steps=200,
+    # reward_norm=False
 )
-
 AquaML.init(
     hyper_params=param,
     root_path='test',

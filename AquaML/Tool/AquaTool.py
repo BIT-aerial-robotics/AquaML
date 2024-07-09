@@ -41,7 +41,7 @@ class AquaTool:
         if engine == 'tensorflow':
             def save_weights_fn(model, name, path):
                 file = os.path.join(path, name+'.h5')
-                model.save_weights(file,overwrite=True)
+                model.save_weights(file)
         elif engine == 'torch':
             import torch
             def save_weights_fn(model, name, path):

@@ -1,9 +1,31 @@
-import torch
+import torch # 引用PyTorch包
+
+##############################################
+# TorchRLAlgoBase包
+##############################################
 from AquaML.torch.TorchAlgoBase import TorchRLAlgoBase
-from AquaML.param.ParamBase import RLParmBase
-from AquaML import logger, settings, data_module, communicator
+
+# 该包是torch强化学习的基础包，提供了一些基础工具和必要实现的接口。
+# —————————————————
+# 提供的工具有：
+# self.loss_tracker，用于记录损失的模块，使用self.loss_tracker.add_data(loss_dict)添加需要记录的损失函数。
+# def initialize_network(self, model:nn.Module)，用于初始化网络，提前发现网络的结构中的一些问题，对算法进行检查。
+# def create_optimizer(self, model: nn.Module, other_params=None)，用于创建优化器，other_param其他需要被优化的参数。该函数会根据model中的optimizer_type、learning_rate以及optimizer_other_args创建并返回一个torch优化器和一个优化器的step函数。
+# —————————————————
+# 提供的接口有：
+# self._model_dict将模型放在该字典中，框架会自动对该模型进行保存等操作。
+# self._action_info，算法产生的动作除去action之外，有没有产生其他的信息，比如PPO算法中，产生随机动作会有log_prob信息。
+# —————————————————
+# 提供的抽象方法有：
+# def _train_action(self, state)，训练动作，返回动作和mu，是进行rollout的函数。
+# def train(self, data_dict)，训练函数，返回loss_tracker。data_dict是从环境中采集的数据，是一个字典，包含了obs、action、reward等信息。
+
+##############################################
+
+from AquaML.param.ParamBase import RLParmBase # 超参数基类
+from AquaML import settings # settings是全局设置，提供了一些全局的设置，比如device等。
 import numpy as np
-from AquaML.torch.Dataset import RLDataSet
+from AquaML.torch.Dataset import RLDataSet # RLDataSet是强化学习的数据集，用于存储强化学习的数据。
 import math
 
 class PPOParam(RLParmBase):
@@ -15,10 +37,10 @@ class PPOParam(RLParmBase):
                  clip_ratio: float=0.2,
                  update_times: int=4,
                  gamma: float=0.99,
-                 summary_steps: int=1000,
-                 env_num: int=1,
-                 max_step: int=np.inf,
-                 envs_args: dict={},
+                 summary_steps: int=1000, # 用于计算总奖励时需要的步数，如1000时，每1000步计算一次总奖励。
+                 env_num: int=1, # 环境数量
+                 max_step: int=np.inf, # 环境最大步数
+                 envs_args: dict={}, # 环境参数
                  lamda: float=0.95,
                  log_std: float = -0.0,
                  reward_norm: bool = True,
@@ -76,40 +98,39 @@ class PPOAlgo(TorchRLAlgoBase):
         """
         super().__init__(hyper_params, model_dict)
         
-        self._algo_name = 'PPO'
+        self._algo_name = 'PPO' # 算法的名称，必须赋值。
         
-        self.actor = model_dict['actor']().to(settings.device)
-        self.critic = model_dict['critic']().to(settings.device)
+        self.actor = model_dict['actor']().to(settings.device) # 创建actor模型，在model_dict中的‘actor’键对应的值是一个模型的类。
+        self.critic = model_dict['critic']().to(settings.device) # 创建critic模型，在model_dict中的‘critic’键对应的值是一个模型的类。
         
         
         ##############################
         # 1. 初始化数据集
         ##############################
         
-         # 模型接口
+         # 将模型添加到模型字典_model_dict中
         self._model_dict['actor'] = self.actor
         self._model_dict['critic'] = self.critic
         
-        # 创建额外的参数
+        # 创建可训练参数log_std，该版本PPO将该值与actor模型分开。分开和放一起主要由算法的设计决定。
         action_shape = self.actor.output_info.last_shape_dict['action']
         self._torch_log_std = torch.nn.Parameter(torch.ones(action_shape,dtype=torch.float32,device=settings.device) * hyper_params.log_std).to(settings.device)
-        # self._torch_log_std.detach()
         self._torch_log_std.requires_grad = True
         
         
-        # 创建优化器
+        # 创建优化器，返回优化器和优化器的step函数
         self.actor_optimizer, self.actor_optimizer_step_fn = self.create_optimizer(self.actor,other_params=self._torch_log_std)
         self.critic_optimizer, self.critic_optimizer_step_fn = self.create_optimizer(self.critic)
         
         ##############################
-        # 2. 创建高斯分布
+        # 2. 创建高斯分布，探索函数
         ##############################
         mu = torch.zeros(action_shape, dtype=torch.float32).to(settings.device)
         sigma = torch.ones(action_shape, dtype=torch.float32).to(settings.device)
         self._dist = torch.distributions.Normal(mu, sigma)
         
         ##############################
-        # PPO算法需要的额外数据
+        # PPO算法和环境交互部分产生的额外输出添加到_action_info中，框架根据_action_info中的信息创建对应的数据模块。
         ##############################
         self._action_info.add_info(
             name='log_prob',
@@ -117,27 +138,42 @@ class PPOAlgo(TorchRLAlgoBase):
             dtype=np.float32,
         )
         
+        
+        # 一些固定的数值
         self._fix_log = math.log(2 * math.pi)
         self._torch_fix_log = torch.tensor(self._fix_log, dtype=torch.float32, device=settings.device)
         
+        # 初始化reward的均值和方差
         self.reward_mu = None
         self.reward_s = None
         self.reward_std = None
-        
         self.epoch = 0
-        
+    
+    
     def _train_action(self, state):
         
+        """
+        
+        该函数为必须实现的接口，用于训练动作，返回动作和mu，是进行rollout的函数，其输出必须包含action和mu。
+        
+        Args:
+            state (dict): 状态数据。
+        Returns:
+            actor_out (dict): actor模型的输出。
+            mu (torch.Tensor): 动作的均值。
+        """
+        
+        #  1. 获取actor的输入数据
         input_data = []
         
-        for name in self.actor.input_names:
+        for name in self.actor.input_names: # 获取actor的输入信息
             data = state[name]
             if isinstance(data, np.ndarray):
                 data = torch.from_numpy(data).to(settings.device)
-            input_data.append(data)
+            input_data.append(data) # 将数据添加到input_data中
         
-        # self.actor.eval()
-            
+    
+        # 2. 计算输出
         with torch.no_grad():
             actor_out_ = self.actor(*input_data)
         
@@ -159,6 +195,17 @@ class PPOAlgo(TorchRLAlgoBase):
                      critic_inputs:tuple,
                      target:torch.Tensor,
                      ):
+        """
+        
+        训练critic模型。
+
+        Args:
+            critic_inputs (tuple): critic模型的输入。
+            target (torch.Tensor): 目标值。
+
+        Returns:
+            dic (dict): 损失字典。
+        """
         
         critic_out = self.critic(*critic_inputs)[0]
         critic_loss = torch.nn.functional.mse_loss(critic_out, target)
@@ -179,6 +226,22 @@ class PPOAlgo(TorchRLAlgoBase):
                     clip_ratio:float,
                     ent_coef:float,
                     ):
+        
+        """
+        
+        训练actor模型。
+        
+        args:
+            actor_inputs (tuple): actor模型的输入。
+            advantage (torch.Tensor): 优势值。
+            old_log_prob (torch.Tensor): 旧的log_prob。
+            action (torch.Tensor): 动作。
+            clip_ratio (float): clip比率。
+            ent_coef (float): 熵系数。
+
+        Returns:
+            dic (dict): 损失字典。
+        """
         
         old_log_prob = torch.sum(old_log_prob,dim=-1,keepdim=True)
         
@@ -223,12 +286,12 @@ class PPOAlgo(TorchRLAlgoBase):
     def train(self, data_dict: dict):
         
         data_set = RLDataSet(
-            data_dict=data_dict,
-            env_nums=settings.env_num,
-            rollout_steps=self._hyper_params.rollout_steps,
-            default_type='tensor',
-            default_device=settings.device,
-        )
+            data_dict=data_dict, # 从环境中采集的数据
+            env_nums=settings.env_num, # 环境数量
+            rollout_steps=self._hyper_params.rollout_steps, # 每次rollout的步数，和num_envs共同确定每次采集的数据量。
+            default_type='tensor', # 默认数据类型,如果数据类型不是tensor，会自动转换为tensor。
+            default_device=settings.device, # 默认设备，如果数据不在该设备上，会自动转移到该设备上。
+        ) # 创建数据集
         
         
         
@@ -239,7 +302,7 @@ class PPOAlgo(TorchRLAlgoBase):
         # 获取critic的输入
         critic_inputs = data_set.get_corresponding_data(
             names=self.critic.input_names,
-        )
+        ) # 获取critic的输入
         
         next_citic_inputs = data_set.get_corresponding_data(
             names=self.critic.input_names,
@@ -255,7 +318,7 @@ class PPOAlgo(TorchRLAlgoBase):
                # 获取reward和mask
         rewards = data_dict['reward']
         
-        # 处理reward
+        # 处理reward，不同的算法可能不一样，这个属于PPO trick
         if self._hyper_params.reward_norm:
             if self.reward_mu is None:
                 self.reward_mu = torch.mean(rewards)
@@ -271,19 +334,16 @@ class PPOAlgo(TorchRLAlgoBase):
                 
             rewards = (rewards - self.reward_mu) / self.reward_std
             self.epoch += 1
-        # masks = data_dict['mask']
         terminateds = data_dict['terminal']
-        # truncated = data_dict['truncated']
+
 
         done = 1 - terminateds
              
         gae = torch.zeros_like(rewards).to(settings.device)
         n_steps_target = torch.zeros_like(rewards).to(settings.device)
         cumulated_advantage = torch.zeros_like(rewards[:, 0]).to(settings.device)
-        # np.zeros_like(rewards[:, 0])
-        # for env_num in range(settings.env_num):
-        # self.actor.train()
-        # self.critic.train()
+
+
         for step in range(self.hyper_params.rollout_steps):
             reversed_step = self.hyper_params.rollout_steps - step - 1
             

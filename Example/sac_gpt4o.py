@@ -1,12 +1,12 @@
 import sys
-# sys.path.append('/Users/yangtao/Documents/code.nosync/EvolutionRL')
+sys.path.append('/Users/yangtao/Documents/code.nosync/AquaML')
 # sys.path.append('/home/yangtao/CODE/AquaML')
 # import os
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
 sys.path.append('C:/Users/29184/Documents/GitHub/AquaML') # 添加运行路径
 import AquaML # 导入AquaML，并且初始化
-from AquaML.torch.OnlineRL import PPOAlgo, PPOParam # 导入PPO算法以及超参数
+from AquaML.torch.OnlineRL.SACAlgo_gpt4o import SACAlgo, SACParam # 导入SAC算法以及超参数
 from AquaML.framework import RL # 导入运行RL的框架
 from AquaML.Tool import GymnasiumMaker # 导入GymnasiumMaker，用于创建环境
 import torch 
@@ -20,7 +20,7 @@ env_args = {
 }
 
 # 算法的超参数
-param = PPOParam(
+param = SACParam(
     rollout_steps=200,
     epoch=100,
     batch_size=1000,
@@ -53,7 +53,7 @@ class Actor(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(64, 64),
             torch.nn.ReLU(),
-            torch.nn.Linear(64, 1),
+            torch.nn.Linear(64, 2),
         )
         
         self.learning_rate = 3e-4 # 学习率
@@ -61,9 +61,9 @@ class Actor(torch.nn.Module):
         
         # 模型的输出信息
         self.output_info = AquaML.DataInfo(
-            names=('action',),
-            shapes=((1,),),
-            dtypes=(np.float32,)
+            names=('action', 'log_prob'),
+            shapes=((1,), (1,)),
+            dtypes=(np.float32, np.float32)
         )
         
         # 模型的输入信息
@@ -77,7 +77,8 @@ class Actor(torch.nn.Module):
         
     def forward(self, obs):
         action = self.linear_relu_stack(obs)
-        return (action,)
+        log_prob = -0.5 * (action.pow(2) + torch.log(2 * np.pi * torch.ones_like(action)))
+        return (action, log_prob)
     
 class Critic(torch.nn.Module):
     def __init__(self):
@@ -114,17 +115,18 @@ class Critic(torch.nn.Module):
     
 model_dict = {
     'actor': Actor,
-    'critic': Critic
+    'critic_1': Critic,
+    'critic_2': Critic
 }
 
 rl = RL(
     env_class=GymnasiumMaker,
-    algo=PPOAlgo,
+    algo=SACAlgo,
     hyper_params=param,
     model_dict=model_dict,
-    checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/PPO/100', # 检查点路径
-    testing=True, # 测试模式
-    save_trajectory=True # 保存轨迹
+    # checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/SAC/100', # 检查点路径
+    # testing=True, # 测试模式
+    # save_trajectory=True # 保存轨迹
 )
 
 rl.run() # 运行RL

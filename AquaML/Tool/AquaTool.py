@@ -1,6 +1,7 @@
 from AquaML import logger
 import os
 import numpy as np
+from AquaML.recorder.RecorderBase import RecorderBase
 
 class AquaTool:
     def __init__(self):
@@ -8,6 +9,7 @@ class AquaTool:
         self._convert_numpy_fn = None
         self._save_weights_fn = None
         self._load_weights_fn = None
+        self.recorder:RecorderBase = None
         
 
     def set_convert_numpy_fn(self, engine:str):

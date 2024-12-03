@@ -4,7 +4,7 @@ import sys
 # import os
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
-sys.path.append('C:/Users/29184/Documents/GitHub/AquaML') # 添加运行路径
+sys.path.append('/home/aquatao/code/rl_framework/AquaML') # 添加运行路径
 import AquaML # 导入AquaML，并且初始化
 from AquaML.torch.OnlineRL import PPOAlgo, PPOParam # 导入PPO算法以及超参数
 from AquaML.framework import RL # 导入运行RL的框架
@@ -34,8 +34,9 @@ param = PPOParam(
 AquaML.init(
     hyper_params=param, # 传入超参数
     root_path='test', # 传入文件夹根路径，用于创建文件夹
-    memory_path='test', # 传入贡献内存标识符
-    wandb_project='test', # 传入wandb的项目名称
+    memory_path='test', # 传入共享内存标识符
+    # wandb_project='test', # 传入wandb的项目名称
+    use_tensorboard=True, # 使用tensorboard
     engine='torch'# 传入引擎名称
 )
 
@@ -56,7 +57,7 @@ class Actor(torch.nn.Module):
             torch.nn.Linear(64, 1),
         )
         
-        self.learning_rate = 3e-4 # 学习率
+        self.learning_rate = 3e-3 # 学习率
         self.optimizer_type = 'Adam' # 优化器类型
         
         # 模型的输出信息
@@ -91,7 +92,7 @@ class Critic(torch.nn.Module):
             torch.nn.Linear(64, 1),
         )
         
-        self.learning_rate = 3e-4
+        self.learning_rate = 3e-3
         self.optimizer_type = 'Adam'
         self.output_info = AquaML.DataInfo(
             names=('value',),
@@ -122,9 +123,9 @@ rl = RL(
     algo=PPOAlgo,
     hyper_params=param,
     model_dict=model_dict,
-    checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/PPO/100', # 检查点路径
-    testing=True, # 测试模式
-    save_trajectory=True # 保存轨迹
+    # checkpoint_path='C:/Users/29184/Documents/GitHub/AquaML/test/history_model/PPO/100', # 检查点路径
+    # testing=True, # 测试模式
+    # save_trajectory=True # 保存轨迹
 )
 
 rl.run() # 运行RL

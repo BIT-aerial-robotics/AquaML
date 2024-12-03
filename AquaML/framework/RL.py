@@ -3,7 +3,7 @@
 '''
 import AquaML
 from AquaML.framework.FrameWorkBase import FrameWorkBase
-from AquaML import logger, communicator, settings, data_module, file_system,recorder
+from AquaML import logger, communicator, settings, data_module, file_system,aqua_tool
 from AquaML.worker import RLEnvBase as EnvBase
 from AquaML.algo.RLAlgoBase import RLAlgoBase
 from AquaML.param.ParamBase import RLParmBase
@@ -246,7 +246,7 @@ class RL(FrameWorkBase):
                 data_dict, current_step= self._worker.roll()
                 tracker = self._algo.train(data_dict)
                 # if summary_flag:
-                recorder.record_scalar(tracker.get_data(),step=current_step)
+                aqua_tool.recorder.record_scalar(tracker.get_data(),step=current_step)
                 
                 if (epoch+1) % self._hyper_params.checkpoints_store_interval == 0:
                     self.save_history_checkpoint(self._algo,epoch=epoch+1)

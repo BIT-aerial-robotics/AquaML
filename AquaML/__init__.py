@@ -3,6 +3,7 @@ import sys
 from loguru import logger  # logger
 import os
 import time
+
 def mkdir(path: str):
     """
     创建文件夹
@@ -41,12 +42,13 @@ data_module = DataModule()
 # 随机import
 from AquaML.algo.ModelBase import ModelBase
 from AquaML.core.DataInfo import DataInfo
-from AquaML.core.Recorder import Recorder
+# from AquaML.core.Recorder import Recorder
 from AquaML.Tool.AquaTool import AquaTool
-
+from AquaML.recorder.RecorderBase import RecorderBase
 
 aqua_tool = AquaTool()
-recorder = Recorder()
+
+recorder:RecorderBase = None
 
 
 def init(
@@ -54,6 +56,7 @@ def init(
     root_path: str=None,
     memory_path: str=None,
     wandb_project: str=None,
+    use_tensorboard: bool=False,
     engine: str='tensorflow',
 ):
     """
@@ -112,10 +115,7 @@ def init(
     
     # run_name = hyper_params.env_args['env_name']
     # os.path.basename(__file__)[: -len(".py")
-    run_name = f"{hyper_params.algo_name}_{engine}_{hyper_params.wandb_other_name}_{int(time.time())}"
-
-    recorder.init(wandb_project=wandb_project, config=wandb_config,run_name=run_name)
-    
+   
     
     ########################################################
     # 2. 获取工作路径
@@ -156,12 +156,37 @@ def init(
         logger.info('using user defined root_path: ' + root_path)
     
     settings.set_root_path(root_path)
+    
+  
         
     if communicator.rank == 0:
         # 创建文件夹
         file_system.init()
         
     communicator.Barrier()
+    
+    ########################################################
+    # 设置Recorder
+    ########################################################
+    
+    run_name = f"{hyper_params.algo_name}_{engine}_{hyper_params.wandb_other_name}_{int(time.time())}"
+
+    # recorder.init(wandb_project=wandb_project, config=wandb_config,run_name=run_name)
+    
+    if use_tensorboard:
+        logger.info('Using tensorboard')
+        from AquaML.recorder.BoardRecorder import BoardRecorder
+        # global recorder
+        globals()['recorder'] = BoardRecorder(log_file_name=os.path.join(file_system.log_path, run_name))
+    
+    else:
+        logger.info('Using wandb')
+        from AquaML.recorder.WandbRecorder import WandbRecorder
+        # global recorder
+        globals()['recorder'] = WandbRecorder()
+        recorder.init(wandb_project=wandb_project, config=wandb_config,run_name=run_name)
+    
+    aqua_tool.recorder = recorder    
     
     
     ########################################################

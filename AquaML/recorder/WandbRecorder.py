@@ -3,7 +3,10 @@ from AquaML import logger
 
 
 
-class Recorder:
+class WandbRecorder:
+    """
+    WandbRecorder用于记录训练过程中的数据。
+    """
     def __init__(self, 
                 #  wandb_project: str,
                 #  config: dict = {}

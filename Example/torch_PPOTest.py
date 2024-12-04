@@ -74,6 +74,14 @@ class Actor(torch.nn.Module):
         self.optimizer_other_args = {
             'eps': 1e-5,
             'clipnorm': 0.5, # 梯度裁剪，这个会自动创建optimizer step
+            'scheduler': {
+                'type': torch.optim.lr_scheduler.StepLR, # 学习率调度器
+                'args': {
+                    'step_size': 100,
+                    'gamma': 0.9,
+                    # 'verbose': True
+                }
+            }
         }
         
     def forward(self, obs):
@@ -105,6 +113,13 @@ class Critic(torch.nn.Module):
         self.optimizer_other_args = {
             'eps': 1e-5,
             'clipnorm': 0.5,
+            'scheduler': {
+                'type': torch.optim.lr_scheduler.StepLR,
+                'args': {
+                    'step_size': 100,
+                    'gamma': 0.9
+                }
+            }
         }
         
     def forward(self, obs):

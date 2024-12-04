@@ -120,3 +120,9 @@ Tool\xxxMaker.py用于兼容不同的运行环境，请如系统使用的是Isaa
   <img src="Doc/Fig/humoid_time.png" alt="Image description" width="300" style="vertical-align: top;">
   <img src="Doc/Fig/humoid_step.png" alt="Image description" width="200" style="vertical-align: top;">
 </div> -->
+
+## Change Log
+ ### 2024.12.04
+
+ 1. 修改模型存储方式。
+ 2. 添加scheduler控制学习率更新，并规定后续模块调用格式。

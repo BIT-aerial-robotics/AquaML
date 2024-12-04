@@ -119,8 +119,8 @@ class PPOAlgo(TorchRLAlgoBase):
         
         
         # 创建优化器，返回优化器和优化器的step函数
-        self.actor_optimizer, self.actor_optimizer_step_fn = self.create_optimizer(self.actor,other_params=self._torch_log_std)
-        self.critic_optimizer, self.critic_optimizer_step_fn = self.create_optimizer(self.critic)
+        self.actor_optimizer, self.actor_optimizer_step_fn, self.actor_scheduler_step_fn = self.create_optimizer(self.actor,other_params=self._torch_log_std)
+        self.critic_optimizer, self.critic_optimizer_step_fn, self.critic_scheduler_step_fn = self.create_optimizer(self.critic)
         
         ##############################
         # 2. 创建高斯分布，探索函数
@@ -415,6 +415,9 @@ class PPOAlgo(TorchRLAlgoBase):
                         # logger.info(f'Early stopping at epoch {_} due to reaching max kl')
                         early_stop = True
                         break
+            
+            self.actor_scheduler_step_fn()
+            self.critic_scheduler_step_fn()
                 
                 
                 

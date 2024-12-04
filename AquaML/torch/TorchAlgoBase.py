@@ -70,11 +70,17 @@ class TorchAlgoBase(AlgoBase):
         args = model.optimizer_other_args
         
         clipnorm = None
+        scheduler_info = None
         
         if 'clipnorm' in args:
             clipnorm = args['clipnorm']
             args.pop('clipnorm')
             # dict().pop
+        
+        if 'scheduler' in args:
+            scheduler_info = args['scheduler']
+            args.pop('scheduler')
+        
         
         
         if other_params is not None:
@@ -95,6 +101,20 @@ class TorchAlgoBase(AlgoBase):
             **args
         )
         
+        # 创建优化器的schedule
+        if scheduler_info is not None:
+            scheduler_type = scheduler_info['type']
+            scheduler_args = scheduler_info['args']
+            scheduler = scheduler_type(optimizer, **scheduler_args)
+            
+            def scheduler_step():
+                scheduler.step()
+                logger.info(f'Learning rate: {scheduler.get_last_lr()}')
+        else:
+            def scheduler_step():
+                pass
+            
+        
         if clipnorm is not None:
             def optimizer_step(loss):
                 loss.backward()
@@ -106,8 +126,10 @@ class TorchAlgoBase(AlgoBase):
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
+                
         
-        return optimizer, optimizer_step
+        
+        return optimizer, optimizer_step, scheduler_step
     
 class TorchRLAlgoBase(TorchAlgoBase, RLAlgoBase):
     """

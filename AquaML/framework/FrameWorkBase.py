@@ -7,6 +7,7 @@ from AquaML import logger, communicator, settings, file_system, data_module, aqu
 from AquaML.algo.AlgoBase import AlgoBase
 import numpy as np
 import os
+import torch
 
 class FrameWorkBase(abc.ABC):
     
@@ -237,12 +238,13 @@ class FrameWorkBase(abc.ABC):
         current_path = os.path.join(history_path, str(epoch))
         mkdir(current_path)
         
+        saved_dict = {}
+        
         for name, model in model_dict.items():
-            aqua_tool.save_weights_fn(
-                model=model,
-                name=name,
-                path=current_path
-            )
+            saved_dict[name] = model.state_dict()
+        
+        # 保存模型参数
+        torch.save(saved_dict, os.path.join(current_path, 'model.pt'))
     
     def load_checkpoint(self,algo:AlgoBase,file_path:str):
         """
@@ -253,14 +255,12 @@ class FrameWorkBase(abc.ABC):
             file_path (str): 文件路径。
         """
         
-        # 为模型加载权重
+        loaded_dict = torch.load(file_path)
         
         for name, model in algo.model_dict.items():
-            aqua_tool.load_weights_fn(
-                model=model,
-                name=name,
-                path=file_path
-            )
+            model.load_state_dict(loaded_dict[name])
+        
+        
         
     def save_trajectory(self,algo:AlgoBase,epoch:int, trajectory:dict):
         """

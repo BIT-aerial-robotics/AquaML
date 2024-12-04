@@ -15,6 +15,7 @@ AquaML3目前能够支持torch、tensorflow，未来将尝试支持更多的深�
 此外AquaML3具有良好的兼容性，能够在python3.7-3.11的环境下运行，但是完整版本需要python3.8以上。
 AquaML3支持了Isaac gym。
 
+NOTICE: AquaML3后续停止支持tensorflow。
 
 
 
@@ -56,6 +57,9 @@ pip install gymnasium[all]
 
 安装顺序如下：
 torch, gymnasium, pynvml, loguru, wandb, mpi4py
+
+### 待添加添加功能
+1. 使用rsl rl方式存取模型。
 
 #### Issac gym
 

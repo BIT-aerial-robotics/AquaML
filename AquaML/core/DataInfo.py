@@ -47,9 +47,9 @@ class DataInfo:
         """add info.
 
         Args:
-            name (str): name.
-            shape (tuple): shape.
-            dtype (type): dtype.
+            name (str): name of the data.
+            shape (tuple): shape of the data.
+            dtype (type): dtype of the data.
         """
         self.shape_dict[name] = shape
         self.type_dict[name] = dtype

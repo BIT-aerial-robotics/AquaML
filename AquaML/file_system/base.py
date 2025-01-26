@@ -8,31 +8,44 @@
 from AquaML import logger
 from abc import ABC, abstractmethod
 from AquaML.utils.tool import mkdir
+import os
+import time
 
 class BaseFileSystem(ABC):
     """
     FileSystem用于管理文件系统。
     
     每个任务的文件系统将如下所示：
-    - project_name
-        - data_time/pointed_name/algo_name
+    - workspace_dir
+        - runner_name
             - cache
-            - data_unit
+            # - data_unit
             - history_model
             - log
         - logger
     """
-    def __init__(self, project_name:str,create_first: bool = True, ):
+    def __init__(self, workspace_dir:str,create_first: bool = True, ):
         """
         初始化文件系统,
 
         Args:
-            project_name (str): 项目名称.
+            workspace_dir (str): 工作空间目录,绝对路径，一般建议以环境命名。
             create_first (bool, optional): 是否创建文件夹,在多进程系统中，只有主进程创建文件夹。默认为True.
         """
-        self.projecct_name_ = project_name # 项目名称，一般建议以环境命名
+        self.workspace_dir_ = workspace_dir # 项目名称，一般建议以环境命名
         
         self.create_first_ = create_first # 是否创建文件夹
+        
+        
+        
+        # 存储路径
+        self.logger_path_ = os.path.join(self.workspace_dir_,"logger") # logger文件夹路径
+        
+        self.runner_dir_dict_ = {} # runner文件夹路径字典
+        
+        
+        # 初始化文件夹
+        self.initFolder()
         
         
     
@@ -44,9 +57,90 @@ class BaseFileSystem(ABC):
         if self.create_first_:
             logger.info(f"Init folder for {self.projecct_name_}")
         
-            # 创建文件夹
+            # 创建文件夹workspace_dir
             mkdir(self.projecct_name_)
             
+            # 创建logger文件夹
+            mkdir(self.logger_path_)
+            
+        
+        # 初始化logger存储
+        logger.info(f"Init logger for {self.projecct_name_}")
+        
+        # 按照时间创建日志文件
+        logger_file_name = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()) + ".log"
+
+        logger.add(os.path.join(self.logger_path_,logger_file_name),rotation="100 MB")
+        
+        
     
+    def registerRunner(self,runner_name:str):
+        """
+        注册runner文件夹
+
+        Args:
+            runner_name (str): runner名称
+        """
+
+        runner_dir_dict = {
+            "cache": os.path.join(self.workspace_dir_,os.path.join(runner_name,"cache")), # 缓存文件夹
+            "history_model": os.path.join(self.workspace_dir_,os.path.join(runner_name,"history_model")), # 历史模型文件夹
+            "log": os.path.join(self.workspace_dir_,os.path.join(runner_name,"log")), # 日志文件夹
+            "data_unit": os.path.join(self.workspace_dir_,os.path.join(runner_name,"data_unit")), # 数据文件夹
+        }
+        
+        if self.create_first_:
+            # 创建文件夹
+            for _,path in runner_dir_dict.items():
+                mkdir(path)
+                
+        # 注册该runner的文件夹系统
+        self.runner_dir_dict_[runner_name] = runner_dir_dict
+        logger.info("successfully register runner {}".format(runner_name))
+        
+    def queryHistoryModelPath(self,runner_name:str)->str:
+        """
+        查询历史模型文件夹路径
+        Args:
+            runner_name (str): runner名称
+        Returns:
+            str: 历史模型文件夹路径
+        """
+        
+        try:
+            return self.runner_dir_dict_[runner_name]["history_model"]
+        except KeyError:
+            logger.error("runner {} not registered".format(runner_name))
+            raise KeyError("runner {} not registered".format(runner_name))
+
+    def queryCachePath(self,runner_name:str)->str:
+        """
+        查询缓存文件夹路径
+        Args:
+            runner_name (str): runner名称
+        Returns:
+            str: 缓存文件夹路径
+        """
+
+        try:
+            return self.runner_dir_dict_[runner_name]["cache"]
+        except KeyError:
+            logger.error("runner {} not registered".format(runner_name))
+            raise KeyError("runner {} not registered".format(runner_name))
+        
+    def queryLogPath(self,runner_name:str)->str:
+        """
+        查询日志文件夹路径
+        Args:
+            runner_name (str): runner名称
+        Returns:
+            str: tensorboard日志文件夹路径
+        """
+        try:
+            return self.runner_dir_dict_[runner_name]["log"]
+        except KeyError:
+            logger.error("runner {} not registered".format(runner_name))
+            raise KeyError("runner {} not registered".format(runner_name))
+
     
 

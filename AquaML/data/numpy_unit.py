@@ -1,7 +1,11 @@
-from AquaML import logger
+from loguru import logger
 import numpy as np
 from AquaML.data.base_unit import BaseUnit
+from . import unitCfg
+from AquaML import coordinator
 
+
+@coordinator.registerDataUnit
 class NumpyUnit(BaseUnit):
     """
     numpy数据类。
@@ -9,42 +13,35 @@ class NumpyUnit(BaseUnit):
     主要用于分布式通信。
     和TensorUnit一块使用可以实现数据共享。
     """
-    
+
     def __init__(self,
-                 name:str,
-                 unit_info:dict=None,
-                 create_first: bool = True,
+                 unit_cfg: unitCfg,
                  ):
         """
         创建一个numpy数据类。
 
         Args:
-            name (str): 数据名称
-            unit_info (dict, optional): 数据信息。如: 
-            
-            >>>> {
-            >>>>   'dtype':np.float32, 
-            >>>>    'shape':(100, 100, 100),
-            >>>>    'size': 30
-            >>>> },
-            create_first (bool, optional): 是否创建矩阵。默认为True。
+            unit_cfg (unitCfg): 数据信息。
         """
 
-        super().__init__(name,unit_info,"numpy")
+        super().__init__(unit_cfg)
 
-        self.data_ = None # 数据
-        self.create_first_ = create_first # 是否创建矩阵
-        
-    
-    def createData(self):
+        self.data_ = None  # 数据
+        # self.create_first_ = create_first # 是否创建矩阵
+
+    def createData(self, create_first: bool = True):
         """
         创建numpy数据。
+        numpy支持共享内存，当需要使用时请先创建该numpy array然后使用多线程去读取。
         """
-        
-        if self.create_first_:
-            self.data_ = np.zeros(self.unit_info_['shape'],dtype=self.unit_info_['dtype'])
-            logger.info("successfully create data {}".format(self.name_))
-        else:
-            logger.info("data {} not created".format(self.name_))
-        
-    
+
+        self.data_ = np.zeros(self.unit_cfg_.shape, dtype=self.unit_cfg_.dtype)
+        logger.info("successfully create data {}".format(self.name_))
+
+    def computeBytes(self) -> int:
+        """
+        计算数据的字节数。
+
+        """
+
+        return np.dtype(self.unit_cfg_.dtype).itemsize * np.prod(self.unit_cfg_.shape)

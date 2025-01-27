@@ -1,5 +1,5 @@
-from loguru import logger # 采用loguru模块记录日志
 
+from .core import AquaMLCoordinator
 
-
-
+# 创建协调器实例
+coordinator = AquaMLCoordinator()

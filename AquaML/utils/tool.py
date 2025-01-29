@@ -1,5 +1,5 @@
 import os
-from AquaML import logger
+from loguru import logger
 
 
 def mkdir(path: str):

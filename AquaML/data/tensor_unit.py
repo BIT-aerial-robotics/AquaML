@@ -19,7 +19,6 @@ class TensorUnit(BaseUnit):
         创建一个torch数据类。
 
         Args:
-            name (str): 数据名称
             unit_cfg(unitCfg, optional): 数据信息。
         """
 

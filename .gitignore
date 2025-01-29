@@ -19,6 +19,7 @@
 *.json
 *.json
 /Example/wandb
+__pycache__
 
 /data/FashionMNIST
 test/history_model/PPO/10/actor.pth

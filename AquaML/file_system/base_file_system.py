@@ -5,7 +5,7 @@
 并且自动管理log文件。
 '''
 
-from AquaML import logger
+from loguru import logger
 from abc import ABC, abstractmethod
 from AquaML.utils.tool import mkdir
 import os
@@ -26,17 +26,15 @@ class BaseFileSystem(ABC):
         - logger
     """
 
-    def __init__(self, workspace_dir: str, create_first: bool = True, ):
+    def __init__(self, workspace_dir: str):
         """
         初始化文件系统,
 
         Args:
             workspace_dir (str): 工作空间目录,绝对路径，一般建议以环境命名。
-            create_first (bool, optional): 是否创建文件夹,在多进程系统中，只有主进程创建文件夹。默认为True.
         """
         self.workspace_dir_ = workspace_dir  # 项目名称，一般建议以环境命名
 
-        self.create_first_ = create_first  # 是否创建文件夹
 
         # 存储路径
         self.logger_path_ = os.path.join(
@@ -45,24 +43,24 @@ class BaseFileSystem(ABC):
         self.runner_dir_dict_ = {}  # runner文件夹路径字典
 
         # 初始化文件夹
-        self.initFolder()
+        # self.initFolder()
 
     def initFolder(self):
         """
         初始化文件夹
         """
 
-        if self.create_first_:
-            logger.info(f"Init folder for {self.projecct_name_}")
+        # if self.create_first_:
+        logger.info(f"Init folder for {self.workspace_dir_}")
 
-            # 创建文件夹workspace_dir
-            mkdir(self.projecct_name_)
+        # 创建文件夹workspace_dir
+        mkdir(self.workspace_dir_)
 
-            # 创建logger文件夹
-            mkdir(self.logger_path_)
+        # 创建logger文件夹
+        mkdir(self.logger_path_)
 
         # 初始化logger存储
-        logger.info(f"Init logger for {self.projecct_name_}")
+        logger.info(f"Init logger for {self.workspace_dir_}")
 
         # 按照时间创建日志文件
         logger_file_name = time.strftime(
@@ -71,12 +69,13 @@ class BaseFileSystem(ABC):
         logger.add(os.path.join(self.logger_path_,
                    logger_file_name), rotation="100 MB")
 
-    def registerRunner(self, runner_name: str):
+    def configRunner(self, runner_name: str, create_first: bool = True):
         """
         注册runner文件夹
 
         Args:
             runner_name (str): runner名称
+            create_first (bool, optional): 是否创建文件夹,默认为True.
         """
 
         runner_dir_dict = {
@@ -90,7 +89,7 @@ class BaseFileSystem(ABC):
             "data_unit": os.path.join(self.workspace_dir_, os.path.join(runner_name, "data_unit")),
         }
 
-        if self.create_first_:
+        if create_first:
             # 创建文件夹
             for _, path in runner_dir_dict.items():
                 mkdir(path)

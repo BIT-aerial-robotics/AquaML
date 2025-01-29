@@ -128,7 +128,7 @@ class BaseUnit(ABC):
         """
         根据unit_info创建数据。
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def computeBytes(self) -> int:
@@ -136,4 +136,4 @@ class BaseUnit(ABC):
         计算数据的字节数。
         使用该函数时，数据并未创建，因此需要根据unit_cfg计算数据的字节数。
         """
-        pass
+        raise NotImplementedError

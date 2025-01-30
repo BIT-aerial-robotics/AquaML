@@ -1,10 +1,13 @@
 from loguru import logger
 
 from typing import TYPE_CHECKING
+from torch.nn import Module
 
 if TYPE_CHECKING:
     from .data.base_unit import BaseUnit
     from .file_system.base_file_system import BaseFileSystem
+    from .policy import PolicyStatus
+    from .env import BaseEnv
 
 
 class AquaMLCoordinator:
@@ -34,15 +37,70 @@ class AquaMLCoordinator:
 
         # TODO: 看看有没有更好的存储方式
         self.data_units_ = {}  # 记录数据单元实例
-        self.file_system_:BaseFileSystem = None  # 文件系统
+        self.file_system_: BaseFileSystem = None  # 文件系统实例
+
+        self.models_dict_ = {}  # 记录模型实例和模型的状态
+        '''
+        模型实例字典，用于存储模型实例和模型的状态。
+        '''
+
+        self.env_: BaseEnv = None  # 环境实例
+
+    def registerModel(self, model: Module, model_name: str):
+        '''
+        将模型注册到模型字典中。
+
+        :param model: 模型实例。
+        :type model: Module.
+        :param model_name: 模型名称。
+        :type model_name: str.
+        '''
+
+        # 检测当前模型是否已经注册
+        if model_name in self.models_dict_:
+            logger.error("model {} already exists!".format(model_name))
+            raise ValueError("model {} already exists!".format(model_name))
+
+        model_dict = {}
+        model_dict['model'] = model
+        model_dict['status'] = PolicyStatus(
+            input_nams=model.input_names
+        )
+
+        self.models_dict_[model_name] = model_dict
+
+    def registerEnv(self, env_cls):
+        """
+        注册环境实例，方便集中管理。
+        并且能够同步不同模块对环境的操作。
+
+        Args:
+            env_cls: 环境类。
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册环境实例。
+            """
+            isinstance: BaseEnv = env_cls(*args, **kwargs)
+
+            # 记录环境实例
+            self.env_ = isinstance
+
+            logger.info(
+                ' Successfully register env {}'.format(isinstance.name))
+
+            return isinstance
+
+        return wrapper
 
     def registerDataUnit(self, data_unit_cls):
         """
         注册数据单元实例，方便集中管理。
         并且能够同步不同模块对数据单元的操作。
 
-        Args:
-            data_unit_cls: 数据单元类。
+
+        :param data_unit_cls: 数据单元类。
         """
 
         def wrapper(*args, **kwargs):
@@ -60,7 +118,7 @@ class AquaMLCoordinator:
             return isinstance
 
         return wrapper
-    
+
     def registerFileSystem(self, file_system_cls):
         """
         注册文件系统实例，方便集中管理。
@@ -73,20 +131,45 @@ class AquaMLCoordinator:
         def wrapper(*args, **kwargs):
             """
             注册文件系统实例。
-            
+
             每个学习方法只有一个文件系统实例。
             """
-            
-            
+
             if self.file_system_ is not None:
                 logger.error("file system already exists!")
                 raise ValueError("file system already exists!")
-            
+
             self.file_system_ = file_system_cls(*args, **kwargs)
-            
+
             logger.info(
                 ' Successfully register file system')
 
             return self.file_system_
-        
+
         return wrapper
+
+    def getModel(self, model_name: str) -> dict['model': Module, 'status': 'PolicyStatus']:
+        '''
+        获取模型实例，和当前状态。
+
+        :param model_name: 模型名称。
+        '''
+
+        if model_name not in self.models_dict_:
+            logger.error("model {} not exists!".format(model_name))
+            raise ValueError("model {} not exists!".format(model_name))
+
+        return self.models_dict_[model_name]
+
+    def getEnv(self) -> 'BaseEnv':
+        '''
+        获取环境实例。
+
+        :return: 环境实例。
+        :rtype: BaseEnv.
+        '''
+        if self.env_ is None:
+            logger.error("env not exists!")
+            raise ValueError("env not exists!")
+
+        return self.env_

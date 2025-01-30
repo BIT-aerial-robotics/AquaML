@@ -141,3 +141,17 @@ class BaseFileSystem(ABC):
         except KeyError:
             logger.error("runner {} not registered".format(runner_name))
             raise KeyError("runner {} not registered".format(runner_name))
+        
+    def queryDataUnitPath(self, runner_name: str) -> str:     
+        """
+        查询数据文件夹路径
+        Args:
+            runner_name (str): runner名称
+        Returns:
+            str: 数据文件夹路径
+        """
+        try:
+            return self.runner_dir_dict_[runner_name]["data_unit"]
+        except KeyError:
+            logger.error("runner {} not registered".format(runner_name))
+            raise KeyError("runner {} not registered".format(runner_name))

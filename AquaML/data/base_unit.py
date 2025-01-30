@@ -23,7 +23,7 @@ class BaseUnit(ABC):
         self.name_ = unit_cfg.name  # unit名称
 
         self.mode_ = unit_cfg.mode  # 数据的存储模式
-        self.unit_cfg_ = unit_cfg  # unit信息
+        self.unit_cfg_ = unit_cfg  # unit信息以及状态
 
         # 检查unit_cfg是否正确
         if unit_cfg is not None:
@@ -122,6 +122,12 @@ class BaseUnit(ABC):
         获取数据的类型。
         """
         return self.unit_cfg_.dtype
+    
+    def getUnitStatus(self):
+        """
+        获取数据的状态。
+        """
+        return self.unit_cfg_
 
     @abstractmethod
     def createData(self):

@@ -6,8 +6,10 @@ from torch.nn import Module
 if TYPE_CHECKING:
     from .data.base_unit import BaseUnit
     from .file_system.base_file_system import BaseFileSystem
+    from .communicator import BaseCommunicator
     from .policy import PolicyStatus
     from .env import BaseEnv
+    from .rl_algo import BaseRLAgent
 
 
 class AquaMLCoordinator:
@@ -45,6 +47,12 @@ class AquaMLCoordinator:
         '''
 
         self.env_: BaseEnv = None  # 环境实例
+
+        # TODO:未来将要升级的配置功能
+        self.runner_name_: str = None  # 运行器名称
+        self.communicator_: BaseCommunicator = None  # 通信器实例
+
+        self.agent_: BaseRLAgent = None  # 智能体实例
 
     def registerModel(self, model: Module, model_name: str):
         '''
@@ -94,6 +102,31 @@ class AquaMLCoordinator:
 
         return wrapper
 
+    def registerAgent(self, agent_cls):
+        """
+        register agent instance, for centralized management.
+
+        :param agent_cls: agent class.
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册智能体实例。
+            """
+
+            if self.agent_ is not None:
+                logger.error('currently do not support multiple agents!')
+                raise ValueError("agent already exists!")
+
+            self.agent_ = agent_cls(*args, **kwargs)
+
+            logger.info(
+                ' Successfully register agent {}'.format(self.agent_.name))
+
+            return self.agent_
+
+        return wrapper
+
     def registerDataUnit(self, data_unit_cls):
         """
         注册数据单元实例，方便集中管理。
@@ -110,7 +143,7 @@ class AquaMLCoordinator:
             isinstance: BaseUnit = data_unit_cls(*args, **kwargs)
 
             # 记录数据单元实例
-            self.data_units_[isinstance] = isinstance
+            self.data_units_[isinstance.name] = isinstance
 
             logger.info(
                 ' Successfully register data unit {}'.format(isinstance.name))
@@ -147,6 +180,46 @@ class AquaMLCoordinator:
             return self.file_system_
 
         return wrapper
+    
+    def registerCommunicator(self, communicator_cls):
+        """
+        register communicator instance, for centralized management.
+
+        :param communicator_cls: communicator class.
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册通信器实例。
+            """
+
+            if self.communicator_ is not None:
+                logger.error('currently do not support multiple communicators!')
+                raise ValueError("communicator already exists!")
+
+            self.communicator_ = communicator_cls(*args, **kwargs)
+
+            logger.info(
+                ' Successfully register communicator {}'.format(self.communicator_.name))
+
+            return self.communicator_
+
+        return wrapper
+
+    def registerRunner(self, runner_name: str):
+        """
+        注册runner名称，用于记录当前运行的runner名称。
+        """
+
+        self.runner_name_ = runner_name
+
+        if self.file_system_ is None:
+            logger.warning("file system not exists!")
+            logger.warning("do not forget to configure runner in file system!")
+        else:
+            self.file_system_.configRunner(runner_name)
+            logger.info(
+                ' Successfully register runner {}'.format(runner_name))
 
     def getModel(self, model_name: str) -> dict['model': Module, 'status': 'PolicyStatus']:
         '''
@@ -173,3 +246,35 @@ class AquaMLCoordinator:
             raise ValueError("env not exists!")
 
         return self.env_
+    
+    def getAgent(self) -> 'BaseRLAgent':
+        '''
+        获取智能体实例。
+
+        :return: 智能体实例。
+        :rtype: BaseRLAgent.
+        '''
+        if self.agent_ is None:
+            logger.error("Agent not exists!")
+            raise ValueError("Agent not exists!")
+
+        return self.agent_
+
+    def saveDataUnit(self):
+        """
+        保存数据单元。
+        """
+        if self.runner_name_ is None:
+            logger.error("runner name not exists!")
+            raise ValueError("runner name not exists!")
+
+        save_dict = {}
+
+        # 将数据单元的状态保存到字典中
+        for key, value in self.data_units_.items():
+            save_dict[key] = value.getUnitStatusDict()
+
+        # 保存数据单元到文件系统中
+        self.file_system_.saveDataUnit(
+            runner_name=self.runner_name_,
+            data_unit_status=save_dict)

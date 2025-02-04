@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from AquaML.utils.tool import mkdir
 import os
 import time
+import yaml
 
 
 class BaseFileSystem(ABC):
@@ -34,7 +35,6 @@ class BaseFileSystem(ABC):
             workspace_dir (str): 工作空间目录,绝对路径，一般建议以环境命名。
         """
         self.workspace_dir_ = workspace_dir  # 项目名称，一般建议以环境命名
-
 
         # 存储路径
         self.logger_path_ = os.path.join(
@@ -141,17 +141,33 @@ class BaseFileSystem(ABC):
         except KeyError:
             logger.error("runner {} not registered".format(runner_name))
             raise KeyError("runner {} not registered".format(runner_name))
-        
-    def queryDataUnitPath(self, runner_name: str) -> str:     
+
+    def queryDataUnitFile(self, runner_name: str) -> str:
         """
-        查询数据文件夹路径
+        查询数据文件路径
         Args:
             runner_name (str): runner名称
         Returns:
-            str: 数据文件夹路径
+            str: 数据文件路径
         """
         try:
-            return self.runner_dir_dict_[runner_name]["data_unit"]
+            return os.path.join(self.runner_dir_dict_[runner_name]["data_unit"], "data_unit.yaml")
         except KeyError:
             logger.error("runner {} not registered".format(runner_name))
             raise KeyError("runner {} not registered".format(runner_name))
+
+    def saveDataUnit(self, runner_name: str, data_unit_status: dict):
+        """
+        Save data unit to data unit file.
+
+        :param runner_name: runner name
+        :type runner_name: str
+        :param data_unit: data unit
+        :type data_unit: dict  
+        """
+        file_path = self.queryDataUnitFile(runner_name)
+
+        with open(file_path, 'w') as f:
+            yaml.dump(data_unit_status, f)
+
+        logger.info("successfully save data unit to {}".format(file_path))

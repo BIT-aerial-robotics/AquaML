@@ -3,6 +3,7 @@ from loguru import logger
 from abc import ABC, abstractmethod
 from . import unitCfg
 import torch
+from dataclasses import MISSING
 
 
 class BaseUnit(ABC):
@@ -39,13 +40,13 @@ class BaseUnit(ABC):
 
         # 检查unit_info是否正确
 
-        if unit_cfg.dtype is None:
+        if unit_cfg.dtype == MISSING:
             logger.error("unit_cfg must clarify dtype!")
             raise ValueError("unit_cfg must clarify dtype!")
-        if unit_cfg.single_shape is None:
+        if unit_cfg.single_shape == MISSING:
             logger.error("unit_cfg must clarify single_shape!")
             raise ValueError("unit_cfg must clarify single_shape!")
-        if unit_cfg.size is None:
+        if unit_cfg.size == MISSING:
             logger.error("unit_cfg must clarify size!")
             raise ValueError("unit_cfg must clarify size!")
 
@@ -122,12 +123,33 @@ class BaseUnit(ABC):
         获取数据的类型。
         """
         return self.unit_cfg_.dtype
-    
-    def getUnitStatus(self):
+
+    def getUnitStatus(self) -> unitCfg:
         """
         获取数据的状态。
         """
         return self.unit_cfg_
+
+    def getUnitStatusDict(self) -> dict:
+        """
+        获取数据的状态，并将其对应的状态转换成str。
+        """
+
+        status_dict = self.unit_cfg_.__dict__
+
+        for key, value in status_dict.items():
+
+            if key == "dtype":
+                if isinstance(value, torch.dtype):
+                    status_dict[key] = str(value)
+                else:
+                    status_dict[key] = 'np.'+value.__name__
+                continue
+            if not isinstance(value, str):
+                status_dict[key] = str(value)
+                continue
+
+        return status_dict
 
     @abstractmethod
     def createData(self):

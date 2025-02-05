@@ -9,6 +9,7 @@ from dataclasses import MISSING
 class BaseUnit(ABC):
     """
     所有数据类的基类。
+    该数据元是数据传输的基本单元，和buffer不一样。
     """
 
     def __init__(self,

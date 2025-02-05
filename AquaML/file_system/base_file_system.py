@@ -86,7 +86,7 @@ class BaseFileSystem(ABC):
             # 日志文件夹
             "log": os.path.join(self.workspace_dir_, os.path.join(runner_name, "log")),
             # 数据文件夹
-            "data_unit": os.path.join(self.workspace_dir_, os.path.join(runner_name, "data_unit")),
+            "data_unit": os.path.join(self.workspace_dir_, os.path.join(runner_name, "data_config")),
         }
 
         if create_first:
@@ -156,6 +156,14 @@ class BaseFileSystem(ABC):
             logger.error("runner {} not registered".format(runner_name))
             raise KeyError("runner {} not registered".format(runner_name))
 
+    def queryEnvInfoFile(self, runner_name: str) -> str:
+
+        try:
+            return os.path.join(self.runner_dir_dict_[runner_name]["data_unit"], "env_info.yaml")
+        except KeyError:
+            logger.error("runner {} not registered".format(runner_name))
+            raise KeyError("runner {} not registered".format(runner_name))
+
     def saveDataUnit(self, runner_name: str, data_unit_status: dict):
         """
         Save data unit to data unit file.
@@ -163,7 +171,7 @@ class BaseFileSystem(ABC):
         :param runner_name: runner name
         :type runner_name: str
         :param data_unit: data unit
-        :type data_unit: dict  
+        :type data_unit: dict
         """
         file_path = self.queryDataUnitFile(runner_name)
 
@@ -171,3 +179,17 @@ class BaseFileSystem(ABC):
             yaml.dump(data_unit_status, f)
 
         logger.info("successfully save data unit to {}".format(file_path))
+
+    def saveEnvInfo(self, runner_name: str, env_info: dict):
+        """
+        Save environment information to environment information file.
+
+        :param runner_name: runner name
+        :type runner_name: str
+        :param env_info: environment information
+        :type env_info: dict
+        """
+        file_path = self.queryEnvInfoFile(runner_name)
+
+        with open(file_path, 'w') as f:
+            yaml.dump(env_info, f)

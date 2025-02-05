@@ -1,5 +1,6 @@
 import abc
 from typing import TYPE_CHECKING
+from loguru import logger
 
 if TYPE_CHECKING:
     from AquaML.data import unitCfg
@@ -65,6 +66,9 @@ class BaseEnv(abc.ABC):
         :return: The observation configuration.
         :rtype: dict.
         '''
+        if self.observation_cfg_ is None:
+            logger.error('The observation configuration is not set yet.')
+            raise ValueError('The observation configuration is not set yet.')
         return self.observation_cfg_
 
     def getActionCfg(self) -> dict:
@@ -74,4 +78,55 @@ class BaseEnv(abc.ABC):
         :return: The action configuration.
         :rtype: dict.
         '''
+        if self.action_cfg_ is None:
+            logger.error('The action configuration is not set yet.')
+            raise ValueError('The action configuration is not set yet.')
         return self.action_cfg_
+
+    def getEnvInfo(self) -> dict:
+        '''
+        Get the environment information.
+
+        :return: The environment information.
+        :rtype: dict.
+        '''
+
+        if self.observation_cfg_ is None:
+            logger.error('The observation configuration is not set yet.')
+            raise ValueError('The observation configuration is not set yet.')
+
+        if self.action_cfg_ is None:
+            logger.error('The action configuration is not set yet.')
+            raise ValueError('The action configuration is not set yet.')
+
+        observation_cfg_dict = {}
+
+        for key, value in self.observation_cfg_.items():
+            obs_cfg: unitCfg = value
+            obs_dict = {}
+
+            obs_dict['name'] = obs_cfg.name
+            obs_dict['dtype'] = obs_cfg.dtype
+            obs_dict['single_shape'] = obs_cfg.single_shape
+
+            observation_cfg_dict[key] = obs_dict
+
+        action_cfg_dict = {}
+
+        for key, value in self.action_cfg_.items():
+            act_cfg: unitCfg = value
+            act_dict = {}
+
+            act_dict['name'] = act_cfg.name
+            act_dict['dtype'] = act_cfg.dtype
+            act_dict['single_shape'] = act_cfg.single_shape
+
+            action_cfg_dict[key] = act_dict
+
+        env_info = {
+            'observation_cfg': observation_cfg_dict,
+            'action_cfg': action_cfg_dict,
+            'num_envs': self.num_envs,
+        }
+
+        return env_info

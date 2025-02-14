@@ -36,11 +36,12 @@ class GymnasiumVectorWrapper(BaseEnv):
 
         self.observation_cfg_ = self.envs_[0].getObservationCfg()
         self.action_cfg_ = self.envs_[0].getActionCfg()
+        self.reward_cfg_ = self.envs_[0].getRewardCfg()
 
         # concat the observation and action configuration
         # collect the observation data, once the data is collected, it will be concatenated.
         self.observation_concat_ = DictConcat()
-        self.reward_concat_ = ScalarConcat()
+        self.reward_concat_ = DictConcat()
         self.done_concat_ = ScalarConcat()
         self.truncated_concat_ = ScalarConcat()
 
@@ -77,7 +78,7 @@ class GymnasiumVectorWrapper(BaseEnv):
         :type action: dict{str: tensor or numpy.array} or tensor or numpy.array.
 
         :return: The next state, reward, done, truncated, and info.
-        :rtype: dict{str: tensor or numpy.array}, tensor or numpy.array, tensor or numpy.array, dict{str: tensor or numpy.array}.
+        :rtype: dict{str: tensor or numpy.array}, dict{str: tensor or numpy.array}, tensor or numpy.array, dict{str: tensor or numpy.array}.
         '''
 
         # reset concat
@@ -98,8 +99,8 @@ class GymnasiumVectorWrapper(BaseEnv):
         # concatenate the data alone the num_envs axis.
         next_observation = self.observation_concat_.getConcatData(
             concat_axis=1)
-        reward = self.reward_concat_.getConcatData()
+        reward_dict = self.reward_concat_.getConcatData()
         done = self.done_concat_.getConcatData()
         truncated = self.truncated_concat_.getConcatData()
 
-        return next_observation, reward, done, truncated, None
+        return next_observation, reward_dict, done, truncated, None

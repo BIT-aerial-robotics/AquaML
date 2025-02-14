@@ -17,5 +17,18 @@ class DefaultWorker(BaseWorker):
 
         self.reset_flag_ = False
 
+        self.observation_: dict = None
+
     def run(self, rollout_steps: int):
-        pass
+
+        if not self.reset_flag_:
+            self.reset_flag_ = True
+            self.observation_ = self.env_.reset()
+
+        for step in range(rollout_steps):
+            actions = self.agent_.getAction(self.observation_)
+            next_observation, reward, done, truncated, info = self.env_.step(
+                actions)
+            self.observation_ = next_observation
+        
+        

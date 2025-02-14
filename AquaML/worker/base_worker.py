@@ -47,5 +47,12 @@ class BaseWorker(abc.ABC):
     def run(self):
         '''
         Run the worker, get the state from the environment, and input it to the agent to get the action.
-        Store the state, action, reward, next state, done, and info in the replay buffer.
+
+        Then store the state, action, reward, next_state, done, and truncated in the transfer data unit.
+        Last, replay buffer get the data from the transfer data unit.
+
+        We also support directly store the data in the replay buffer.
+
+        When using multi-process, we recommend using the method one.
+        When using single process, we recommend using the method two.
         '''

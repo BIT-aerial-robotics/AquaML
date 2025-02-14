@@ -33,6 +33,7 @@ class BaseEnv(abc.ABC):
 
         self.observation_cfg_: dict = None  # The observation configuration.
         self.action_cfg_: dict = None  # The action configuration.
+        self.reward_cfg_: dict = None  # The reward configuration.
 
         self.num_envs: int = 1  # The number of environments.
 
@@ -55,7 +56,7 @@ class BaseEnv(abc.ABC):
         :type action: tensor or dict{str: tensor}.
 
         :return: The next state, reward, done, truncated, and info.
-        :rtype: dict{str: tensor or numpy.array}, tensor or numpy.array, tensor or numpy.array, dict{str: tensor or numpy.array}.
+        :rtype: dict{str: tensor or numpy.array}, dict{str: tensor or numpy.array}, tensor or numpy.array, dict{str: tensor or numpy.array}.
         '''
         raise NotImplementedError
 

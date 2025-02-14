@@ -45,6 +45,14 @@ class GymnasiumWrapper(BaseEnv):
             ),
         }
 
+        self.reward_cfg_ = {
+            'reward': unitCfg(
+                name='reward',
+                dtype=np.float32,
+                single_shape=(1,),
+            ),
+        }
+
         self.num_envs = 1  # The number of environments.
 
     def reset(self) -> tuple[dict[str, Any], Union[dict[str, np.ndarray], None]]:

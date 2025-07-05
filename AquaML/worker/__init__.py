@@ -1,1 +1,4 @@
-from AquaML.worker.RLEnvBase import RLEnvBase
+'''
+用于产生数据集的工作模块。
+设计的时候将运行仿真器的部分和策略部分进行分离，提升代码的可读性和可维护性。
+'''

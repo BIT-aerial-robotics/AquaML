@@ -25,6 +25,12 @@ AquaML Core模块是整个AquaML框架的核心基础设施，提供了组件管
 - 提供框架专用异常类
 - 支持错误分类和处理
 
+### 5. 设备管理系统
+- 自动检测可用的GPU设备
+- 智能设备选择和验证
+- 支持CPU和GPU计算切换
+- 提供设备信息查询接口
+
 ## 快速开始
 
 ### 基本使用模式
@@ -146,6 +152,54 @@ if lifecycle.is_component_running("model"):
 
 # 关闭（会执行关闭回调）
 lifecycle.shutdown()
+```
+
+### 设备管理
+
+```python
+from AquaML.core import AquaMLCoordinator
+
+coordinator = AquaMLCoordinator()
+
+# 初始化时指定设备
+config = {
+    "device": "cuda:0"  # 指定使用GPU 0，也可以是"cpu"
+}
+coordinator.initialize(config)
+
+# 获取当前设备
+current_device = coordinator.get_device()
+print(f"当前设备: {current_device}")
+
+# 获取PyTorch设备对象
+torch_device = coordinator.get_torch_device()
+print(f"PyTorch设备: {torch_device}")
+
+# 获取所有可用设备
+available_devices = coordinator.get_available_devices()
+print(f"可用设备: {available_devices}")
+
+# 设置设备
+if coordinator.set_device("cuda:0"):
+    print("成功设置为GPU 0")
+else:
+    print("设备设置失败")
+
+# 验证设备
+if coordinator.validate_device("cuda:0"):
+    print("设备cuda:0可用")
+else:
+    print("设备cuda:0不可用")
+
+# 检查GPU是否可用
+if coordinator.is_gpu_available():
+    print("GPU可用")
+else:
+    print("GPU不可用")
+
+# 获取详细设备信息
+device_info = coordinator.get_device_info()
+print(f"设备信息: {device_info}")
 ```
 
 ## 高级用法
@@ -287,6 +341,27 @@ def cleanup():
 lifecycle.add_shutdown_callback(cleanup)
 ```
 
+### 5. 设备管理最佳实践
+```python
+# 在模型训练前检查设备
+coordinator = AquaMLCoordinator()
+if coordinator.is_gpu_available():
+    # 使用最优GPU设备
+    coordinator.set_device("cuda:0")
+else:
+    # 回退到CPU
+    coordinator.set_device("cpu")
+
+# 验证设备可用性
+device = coordinator.get_device()
+if not coordinator.validate_device(device):
+    coordinator.set_device("cpu")  # 回退方案
+
+# 在模型中使用设备
+model = MyModel()
+model.to(coordinator.get_torch_device())
+```
+
 ## 配置选项
 
 ### 协调器配置
@@ -301,6 +376,8 @@ config = {
             }
         }
     },
+    
+    # 日志配置
     "logging": {
         "level": "INFO",
         "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -349,12 +426,92 @@ states = lifecycle.get_all_component_states()
 print(f"组件状态: {states}")
 ```
 
+### Q: 如何选择合适的计算设备？
+A: 使用协调器的设备管理功能：
+```python
+# 自动选择最佳设备
+coordinator.initialize()  # 会自动检测并选择最优设备
+
+# 手动检查和选择
+if coordinator.is_gpu_available():
+    coordinator.set_device("cuda:0")
+else:
+    coordinator.set_device("cpu")
+```
+
+### Q: 如何处理设备不可用的情况？
+A: 使用设备验证和回退策略：
+```python
+preferred_device = "cuda:0"
+if coordinator.validate_device(preferred_device):
+    coordinator.set_device(preferred_device)
+else:
+    print(f"设备 {preferred_device} 不可用，回退到CPU")
+    coordinator.set_device("cpu")
+```
+
+### Q: 如何获取设备的详细信息？
+A: 使用设备信息查询方法：
+```python
+device_info = coordinator.get_device_info()
+print(f"当前设备: {device_info['current_device']}")
+print(f"可用设备: {device_info['available_devices']}")
+print(f"GPU数量: {device_info['gpu_count']}")
+if device_info['gpu_available']:
+    print(f"GPU详细信息: {device_info['gpu_details']}")
+```
+
 ## 示例项目
 
 完整的使用示例请参考：
 - [基础示例](examples/basic_usage.py)
 - [高级示例](examples/advanced_usage.py)
+- [设备管理示例](examples/device_management.py)
 - [插件开发示例](examples/plugin_development.py)
+
+## 故障排除
+
+### 设备相关问题
+
+#### GPU无法识别
+```python
+# 检查GPU是否可用
+coordinator = AquaMLCoordinator()
+if not coordinator.is_gpu_available():
+    print("GPU不可用，请检查：")
+    print("1. 是否安装了CUDA")
+    print("2. 是否安装了正确版本的PyTorch")
+    print("3. 是否有足够的GPU内存")
+```
+
+#### 设备内存不足
+```python
+# 监控设备内存使用
+device_info = coordinator.get_device_info()
+if device_info['gpu_available']:
+    # 检查GPU内存状态
+    import torch
+    if torch.cuda.is_available():
+        print(f"GPU内存使用: {torch.cuda.memory_allocated() / 1024**2:.1f}MB")
+        print(f"GPU内存缓存: {torch.cuda.memory_reserved() / 1024**2:.1f}MB")
+```
+
+#### 设备切换失败
+```python
+# 安全的设备切换
+def safe_device_switch(coordinator, target_device):
+    if coordinator.validate_device(target_device):
+        if coordinator.set_device(target_device):
+            return True
+        else:
+            print(f"设备 {target_device} 验证成功但设置失败")
+    else:
+        print(f"设备 {target_device} 不可用")
+    
+    # 回退到CPU
+    coordinator.set_device("cpu")
+    return False
+```
 
 ## 扩展阅读
 

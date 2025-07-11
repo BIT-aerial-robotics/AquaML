@@ -1,5 +1,7 @@
 from .core import AquaMLCoordinator, ComponentRegistry, LifecycleManager
 
+from AquaML.enum import *
+
 # 创建协调器实例
 coordinator = AquaMLCoordinator()
 

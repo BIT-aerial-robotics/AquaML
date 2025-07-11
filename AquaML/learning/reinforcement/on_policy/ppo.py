@@ -2,7 +2,6 @@ from AquaML.config import configclass
 from dataclasses import MISSING
 from typing import Optional, Dict, Any, Callable
 
-from AquaML.rl_algo.reinforcement.base_rl_agent import BaseRLAgent
 
 @configclass
 class PPOCfg:
@@ -44,6 +43,3 @@ class PPOCfg:
     kl_threshold: float = 0  # KL divergence threshold for early stopping
 
     
-    
-class PPO(BaseRLAgent):
-    pass

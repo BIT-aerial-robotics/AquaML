@@ -1,0 +1,280 @@
+from loguru import logger
+
+from typing import TYPE_CHECKING
+from torch.nn import Module
+
+if TYPE_CHECKING:
+    from .data.base_unit import BaseUnit
+    from .file_system.base_file_system import BaseFileSystem
+    from .communicator import BaseCommunicator
+    from .policy import PolicyStatus
+    from .env import BaseEnv
+    from .rl_algo import BaseRLAgent
+
+
+class AquaMLCoordinator:
+    """
+    AquaML协调器类，用于管理AquaML的核心。
+    该函数将存储数据格式和工作流。简化其他部件的传递参数。
+    比如将数据格式注册到协调器中，其他部件只需要获取协调器中的数据格式即可。
+    """
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        """
+        创建AquaML协调器实例。
+        """
+        if not cls._instance:
+            # 用蓝色打印欢迎信息(Welcome to use AquaML),场面热烈
+            print("\033[1;34mWelcome to use AquaML!\033[0m")
+
+            cls._instance = super().__new__(cls)
+            cls._instance._init_core(*args, **kwargs)
+        return cls._instance
+
+    def _init_core(self, *args, **kwargs):
+        """
+        初始化AquaML协调器,用于存储数据单元实例及其信息。
+        """
+
+        # TODO: 看看有没有更好的存储方式
+        self.data_units_ = {}  # 记录数据单元实例
+        self.file_system_: BaseFileSystem = None  # 文件系统实例
+
+        self.models_dict_ = {}  # 记录模型实例和模型的状态
+        '''
+        模型实例字典，用于存储模型实例和模型的状态。
+        '''
+
+        self.env_: BaseEnv = None  # 环境实例
+
+        # TODO:未来将要升级的配置功能
+        self.runner_name_: str = None  # 运行器名称
+        self.communicator_: BaseCommunicator = None  # 通信器实例
+
+        self.agent_: BaseRLAgent = None  # 智能体实例
+
+    def registerModel(self, model: Module, model_name: str):
+        '''
+        将模型注册到模型字典中。
+
+        :param model: 模型实例。
+        :type model: Module.
+        :param model_name: 模型名称。
+        :type model_name: str.
+        '''
+
+        # 检测当前模型是否已经注册
+        if model_name in self.models_dict_:
+            logger.error("model {} already exists!".format(model_name))
+            raise ValueError("model {} already exists!".format(model_name))
+
+        model_dict = {}
+        model_dict['model'] = model
+        model_dict['status'] = PolicyStatus(
+            input_nams=model.input_names
+        )
+
+        self.models_dict_[model_name] = model_dict
+
+    def registerEnv(self, env_cls):
+        """
+        注册环境实例，方便集中管理。
+        并且能够同步不同模块对环境的操作。
+
+        Args:
+            env_cls: 环境类。
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册环境实例。
+            """
+            isinstance: BaseEnv = env_cls(*args, **kwargs)
+
+            # 记录环境实例
+            self.env_ = isinstance
+
+            logger.info(
+                ' Successfully register env {}'.format(isinstance.name))
+
+            return isinstance
+
+        return wrapper
+
+    def registerAgent(self, agent_cls):
+        """
+        register agent instance, for centralized management.
+
+        :param agent_cls: agent class.
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册智能体实例。
+            """
+
+            if self.agent_ is not None:
+                logger.error('currently do not support multiple agents!')
+                raise ValueError("agent already exists!")
+
+            self.agent_ = agent_cls(*args, **kwargs)
+
+            logger.info(
+                ' Successfully register agent {}'.format(self.agent_.name))
+
+            return self.agent_
+
+        return wrapper
+
+    def registerDataUnit(self, data_unit_cls):
+        """
+        注册数据单元实例，方便集中管理。
+        并且能够同步不同模块对数据单元的操作。
+
+
+        :param data_unit_cls: 数据单元类。
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册数据单元实例。
+            """
+            isinstance: BaseUnit = data_unit_cls(*args, **kwargs)
+
+            # 记录数据单元实例
+            self.data_units_[isinstance.name] = isinstance
+
+            logger.info(
+                ' Successfully register data unit {}'.format(isinstance.name))
+
+            return isinstance
+
+        return wrapper
+
+    def registerFileSystem(self, file_system_cls):
+        """
+        注册文件系统实例，方便集中管理。
+        并且能够同步不同模块对文件系统的操作。
+
+        Args:
+            file_system_cls: 文件系统类。
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册文件系统实例。
+
+            每个学习方法只有一个文件系统实例。
+            """
+
+            if self.file_system_ is not None:
+                logger.error("file system already exists!")
+                raise ValueError("file system already exists!")
+
+            self.file_system_ = file_system_cls(*args, **kwargs)
+
+            logger.info(
+                ' Successfully register file system')
+
+            return self.file_system_
+
+        return wrapper
+    
+    def registerCommunicator(self, communicator_cls):
+        """
+        register communicator instance, for centralized management.
+
+        :param communicator_cls: communicator class.
+        """
+
+        def wrapper(*args, **kwargs):
+            """
+            注册通信器实例。
+            """
+
+            if self.communicator_ is not None:
+                logger.error('currently do not support multiple communicators!')
+                raise ValueError("communicator already exists!")
+
+            self.communicator_ = communicator_cls(*args, **kwargs)
+
+            logger.info(
+                ' Successfully register communicator {}'.format(self.communicator_.name))
+
+            return self.communicator_
+
+        return wrapper
+
+    def registerRunner(self, runner_name: str):
+        """
+        注册runner名称，用于记录当前运行的runner名称。
+        """
+
+        self.runner_name_ = runner_name
+
+        if self.file_system_ is None:
+            logger.warning("file system not exists!")
+            logger.warning("do not forget to configure runner in file system!")
+        else:
+            self.file_system_.configRunner(runner_name)
+            logger.info(
+                ' Successfully register runner {}'.format(runner_name))
+
+    def getModel(self, model_name: str) -> dict['model': Module, 'status': 'PolicyStatus']:
+        '''
+        获取模型实例，和当前状态。
+
+        :param model_name: 模型名称。
+        '''
+
+        if model_name not in self.models_dict_:
+            logger.error("model {} not exists!".format(model_name))
+            raise ValueError("model {} not exists!".format(model_name))
+
+        return self.models_dict_[model_name]
+
+    def getEnv(self) -> 'BaseEnv':
+        '''
+        获取环境实例。
+
+        :return: 环境实例。
+        :rtype: BaseEnv.
+        '''
+        if self.env_ is None:
+            logger.error("env not exists!")
+            raise ValueError("env not exists!")
+
+        return self.env_
+    
+    def getAgent(self) -> 'BaseRLAgent':
+        '''
+        获取智能体实例。
+
+        :return: 智能体实例。
+        :rtype: BaseRLAgent.
+        '''
+        if self.agent_ is None:
+            logger.error("Agent not exists!")
+            raise ValueError("Agent not exists!")
+
+        return self.agent_
+
+    def saveDataUnit(self):
+        """
+        保存数据单元。
+        """
+        if self.runner_name_ is None:
+            logger.error("runner name not exists!")
+            raise ValueError("runner name not exists!")
+
+        save_dict = {}
+
+        # 将数据单元的状态保存到字典中
+        for key, value in self.data_units_.items():
+            save_dict[key] = value.getUnitStatusDict()
+
+        # 保存数据单元到文件系统中
+        self.file_system_.saveDataUnit(
+            runner_name=self.runner_name_,
+            data_unit_status=save_dict)

@@ -13,7 +13,7 @@ class BaseUnit(ABC):
     """
 
     def __init__(self,
-                 unit_cfg: unitCfg = None,
+                 unit_cfg: unitCfg,
                  ):
         """
         初始化数据类。
@@ -151,6 +151,13 @@ class BaseUnit(ABC):
                 continue
 
         return status_dict
+    
+    @property
+    def getUnitCfg(self):
+        """
+        获取数据的状态。
+        """
+        return self.unit_cfg_
 
     @abstractmethod
     def createData(self):

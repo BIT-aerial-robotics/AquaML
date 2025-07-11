@@ -13,7 +13,7 @@ class TensorUnit(BaseUnit):
     """
 
     def __init__(self,
-                 unit_cfg: unitCfg = None,
+                 unit_cfg: unitCfg,
                  ):
         """
         创建一个torch数据类。

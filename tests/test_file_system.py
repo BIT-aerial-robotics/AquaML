@@ -200,18 +200,18 @@ class TestDefaultFileSystem(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test"""
         self.temp_dir = tempfile.mkdtemp(prefix="aquaml_default_fs_test_")
-        # Clear coordinator registry to avoid conflicts
-        from AquaML import coordinator
-        if hasattr(coordinator, 'registry'):
-            coordinator.registry.clear()
+        # Clear coordinator state to avoid conflicts
+        from AquaML.core.coordinator import get_coordinator
+        coordinator = get_coordinator()
+        coordinator.shutdown()
         
     def tearDown(self):
         """Clean up after each test"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-        # Clear coordinator registry after test
-        from AquaML import coordinator
-        if hasattr(coordinator, 'registry'):
-            coordinator.registry.clear()
+        # Clear coordinator state after test
+        from AquaML.core.coordinator import get_coordinator
+        coordinator = get_coordinator()
+        coordinator.shutdown()
     
     def test_init(self):
         """Test DefaultFileSystem initialization"""
@@ -291,18 +291,18 @@ class TestFileSystemIntegration(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
         self.temp_dir = tempfile.mkdtemp(prefix="aquaml_integration_test_")
-        # Clear coordinator registry to avoid conflicts
-        from AquaML import coordinator
-        if hasattr(coordinator, 'registry'):
-            coordinator.registry.clear()
+        # Clear coordinator state to avoid conflicts
+        from AquaML.core.coordinator import get_coordinator
+        coordinator = get_coordinator()
+        coordinator.shutdown()
         
     def tearDown(self):
         """Clean up after tests"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-        # Clear coordinator registry after test
-        from AquaML import coordinator
-        if hasattr(coordinator, 'registry'):
-            coordinator.registry.clear()
+        # Clear coordinator state after test
+        from AquaML.core.coordinator import get_coordinator
+        coordinator = get_coordinator()
+        coordinator.shutdown()
     
     def test_coordinator_file_system_integration(self):
         """Test file system integration with coordinator"""

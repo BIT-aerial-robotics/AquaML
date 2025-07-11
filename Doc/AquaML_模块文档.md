@@ -92,9 +92,37 @@ AquaML/
 
 ### 4. 核心模块 (`core/`)
 
-**用途**: 提供整个系统中使用的核心工具和基础类。
+**用途**: 提供整个系统的核心协调器和基础设施组件。
 
 **关键组件**:
+
+#### 4.1 协调器 (`coordinator.py`)
+- **`AquaMLCoordinator`**: 主要协调器类（单例模式）
+  - 管理所有系统组件的注册和访问
+  - 直接存储组件实例，避免复杂的注册系统
+  - 统一的设备管理（CPU/GPU自动检测和选择）
+  - 简化的API设计，易于使用和调试
+
+- **主要功能**:
+  - **模型管理**: `registerModel()`, `getModel()` - 注册和获取机器学习模型
+  - **环境管理**: `registerEnv()`, `getEnv()` - 注册和获取强化学习环境
+  - **智能体管理**: `registerAgent()`, `getAgent()` - 注册和获取强化学习智能体
+  - **数据单元管理**: `registerDataUnit()`, `getDataUnit()` - 注册和获取数据单元
+  - **文件系统管理**: `registerFileSystem()`, `getFileSystem()` - 注册和获取文件系统
+  - **通信器管理**: `registerCommunicator()`, `getCommunicator()` - 注册和获取通信器
+  - **运行器管理**: `registerRunner()`, `getRunner()` - 注册和获取运行器名称
+  - **设备管理**: GPU/CPU自动检测、设备选择和验证
+
+#### 4.2 设备管理 (`device_info.py`)
+- **`GPUInfo`**: GPU信息数据结构
+- **`detect_gpu_devices()`**: 自动检测可用GPU设备
+- **`get_optimal_device()`**: 选择最优计算设备
+
+#### 4.3 异常处理 (`exceptions.py`)
+- **`AquaMLException`**: 框架基础异常类
+- 其他特定异常类
+
+#### 4.4 其他核心组件
 - **`DataModule.py`**: 数据管理和处理
 - **`DataUnit.py`**: 基本数据单元定义
 - **`Tool.py`**: 工具函数和实用工具
@@ -106,11 +134,44 @@ AquaML/
 - **`Protocol.py`**: 系统协议
 - **`TaskBase.py`**: 任务基础定义
 
-**主要特性**:
-- 数据结构管理
-- 文件I/O操作
-- 系统工具
-- 协议定义
+**设计特点**:
+- **简化架构**: 移除复杂的生命周期管理和组件注册系统
+- **直接存储**: 组件直接存储在协调器属性中，易于访问和调试
+- **设备智能管理**: 自动检测和选择最优计算设备
+- **单例模式**: 确保全局唯一的协调器实例
+- **类型安全**: 明确的组件类型和错误处理
+
+**使用示例**:
+```python
+from AquaML.core.coordinator import get_coordinator
+
+# 获取协调器实例
+coordinator = get_coordinator()
+
+# 注册模型
+coordinator.registerModel(my_model, "my_model")
+
+# 注册环境
+@coordinator.registerEnv
+class MyEnvironment:
+    def __init__(self):
+        self.name = "CartPole"
+
+# 注册智能体
+@coordinator.registerAgent  
+class MyAgent:
+    def __init__(self):
+        self.name = "DQNAgent"
+
+# 获取组件
+model_info = coordinator.getModel("my_model")
+env = coordinator.getEnv()
+agent = coordinator.getAgent()
+
+# 设备管理
+coordinator.set_device("cuda:0")  # 设置GPU
+device = coordinator.get_device()  # 获取当前设备
+```
 
 ### 5. 通信模块 (`communicator/`)
 

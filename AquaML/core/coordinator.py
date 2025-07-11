@@ -5,17 +5,22 @@ This module provides the main coordinator for the AquaML framework.
 
 from typing import Dict, Any, Optional
 from loguru import logger
+import torch
+from torch.nn import Module
 
-from .registry import ComponentRegistry
-from .lifecycle import LifecycleManager
+from .device_info import GPUInfo, detect_gpu_devices, get_optimal_device
 from .exceptions import AquaMLException
+
+# Global device variables
+global_device = None
+available_devices = []
 
 
 class AquaMLCoordinator:
     """Main coordinator for AquaML framework
     
     This class serves as the central hub for managing components,
-    configuration, and lifecycle in the AquaML framework.
+    configuration, and device management in the AquaML framework.
     """
     
     _instance = None
@@ -34,18 +39,19 @@ class AquaMLCoordinator:
         if self._initialized:
             return
         
-        # Core managers
-        self.registry = ComponentRegistry()
-        self.lifecycle_manager = LifecycleManager()
+        # Component storage - similar to backup core.py
+        self.models_dict_ = {}  # 记录模型实例和模型的状态
+        self.data_units_ = {}  # 记录数据单元实例
+        self.file_system_ = None  # 文件系统实例
+        self.env_ = None  # 环境实例
+        self.agent_ = None  # 智能体实例
+        self.communicator_ = None  # 通信器实例
+        self.runner_name_ = None  # 运行器名称
+        self._data_manager = None  # 数据管理器实例
         
-        # Plugin manager will be initialized later
+        # Plugin and config managers (optional)
         self._plugin_manager = None
         self._config_manager = None
-        
-        # Component references
-        self._environment = None
-        self._agent = None
-        self._data_manager = None
         
         self._initialized = True
         logger.info("AquaML Coordinator initialized")
@@ -57,8 +63,8 @@ class AquaMLCoordinator:
             config: Configuration dictionary
         """
         try:
-            # Initialize lifecycle manager
-            self.lifecycle_manager.initialize(config)
+            # Initialize device management
+            self._initialize_device_management(config)
             
             # Initialize plugin manager
             self._initialize_plugin_manager()
@@ -76,31 +82,173 @@ class AquaMLCoordinator:
             logger.error(f"Failed to initialize AquaML Coordinator: {e}")
             raise AquaMLException(f"Coordinator initialization failed: {e}")
     
-    def shutdown(self) -> None:
-        """Shutdown the coordinator"""
-        try:
-            # Shutdown lifecycle manager
-            self.lifecycle_manager.shutdown()
+    def _initialize_device_management(self, config: Optional[Dict[str, Any]] = None) -> None:
+        """Initialize device management system
+        
+        Args:
+            config: Configuration dictionary that may contain device specifications
+        """
+        global global_device, available_devices
+        
+        # Detect available GPU devices
+        available_devices = detect_gpu_devices()
+        
+        # Set device based on config or auto-detection
+        user_device = None
+        if config and 'device' in config:
+            user_device = config['device']
+        
+        global_device = self._select_device(user_device)
+        logger.info(f"Selected device: {global_device}")
+        logger.info(f"Available GPU devices: {len(available_devices)}")
+    
+    def _select_device(self, user_device: Optional[str] = None) -> str:
+        """Select appropriate device based on user preference and availability
+        
+        Args:
+            user_device: User-specified device (e.g., 'cuda:0', 'cpu')
             
-            # Clear registry
-            self.registry.clear()
+        Returns:
+            Selected device string
+        """
+        global available_devices
+        
+        # If user specified a device, validate and use it
+        if user_device:
+            if user_device == 'cpu':
+                logger.info("Using user-specified CPU device")
+                return 'cpu'
             
-            # Reset component references
-            self._environment = None
-            self._agent = None
-            self._data_manager = None
+            # Check if user specified GPU exists
+            for gpu in available_devices:
+                if gpu.device_id == user_device:
+                    logger.info(f"Using user-specified device: {user_device}")
+                    return user_device
             
-            logger.info("AquaML Coordinator shutdown completed")
+            logger.warning(f"User-specified device '{user_device}' not available. Using auto-selection.")
+        
+        # Auto-selection: prefer GPU 0 if available
+        if available_devices:
+            optimal_device = get_optimal_device(available_devices)
+            logger.info(f"Auto-selecting device: {optimal_device}")
+            return optimal_device
+        else:
+            logger.info("No GPU available, using CPU")
+            return 'cpu'
+    
+    def get_device(self) -> str:
+        """Get current device
+        
+        Returns:
+            Current device string
+        """
+        global global_device
+        if global_device is None:
+            global_device = 'cpu'
+        return global_device
+    
+    def get_torch_device(self):
+        """Get PyTorch device object
+        
+        Returns:
+            torch.device object
+        """
+        return torch.device(self.get_device())
+    
+    def set_device(self, device: str) -> bool:
+        """Set device for computation
+        
+        Args:
+            device: Device string (e.g., 'cuda:0', 'cpu')
             
-        except Exception as e:
-            logger.error(f"Error during coordinator shutdown: {e}")
+        Returns:
+            True if device was set successfully, False otherwise
+        """
+        global global_device, available_devices
+        
+        if device == 'cpu':
+            global_device = 'cpu'
+            logger.info("Device set to: cpu")
+            return True
+        
+        # Check if GPU device exists
+        for gpu in available_devices:
+            if gpu.device_id == device:
+                global_device = device
+                logger.info(f"Device set to: {device}")
+                return True
+        
+        logger.error(f"Device '{device}' not available. Available devices: {self.get_available_devices()}")
+        return False
+    
+    def get_available_devices(self) -> list:
+        """Get list of available devices
+        
+        Returns:
+            List of available device strings
+        """
+        global available_devices
+        devices = ['cpu']
+        devices.extend([gpu.device_id for gpu in available_devices])
+        return devices
+    
+    def validate_device(self, device: str) -> bool:
+        """Validate device string
+        
+        Args:
+            device: Device string (e.g., 'cuda:0', 'cpu')
+            
+        Returns:
+            bool: True if device is valid, False otherwise
+        """
+        global available_devices
+        
+        # CPU is always available
+        if device == 'cpu':
+            return True
+        
+        # Check if the device is in the list of available GPU devices
+        for gpu in available_devices:
+            if gpu.device_id == device:
+                return True
+        
+        logger.error(f"Device '{device}' not available. Available devices: {self.get_available_devices()}")
+        return False
+    
+    def is_gpu_available(self) -> bool:
+        """Check if GPU is available
+        
+        Returns:
+            True if GPU is available, False otherwise
+        """
+        global available_devices
+        return len(available_devices) > 0
+    
+    def get_device_info(self) -> Dict[str, Any]:
+        """Get comprehensive device information
+        
+        Returns:
+            Dictionary containing device information
+        """
+        global global_device, available_devices
+        
+        info = {
+            'current_device': self.get_device(),
+            'available_devices': self.get_available_devices(),
+            'gpu_available': self.is_gpu_available(),
+            'gpu_count': len(available_devices)
+        }
+        
+        if available_devices:
+            info['gpu_details'] = [gpu.to_dict() for gpu in available_devices]
+        
+        return info
     
     def _initialize_plugin_manager(self) -> None:
         """Initialize plugin manager"""
         try:
             from ..plugins.manager import PluginManager
             self._plugin_manager = PluginManager()
-            self.registry.register('plugin_manager', self._plugin_manager)
             logger.debug("Plugin manager initialized")
         except ImportError:
             logger.warning("Plugin manager not available")
@@ -112,7 +260,6 @@ class AquaMLCoordinator:
             self._config_manager = ConfigManager()
             if config:
                 self._config_manager.load_config(config)
-            self.registry.register('config_manager', self._config_manager)
             logger.debug("Config manager initialized")
         except ImportError:
             logger.warning("Config manager not available")
@@ -137,51 +284,246 @@ class AquaMLCoordinator:
             except Exception as e:
                 logger.error(f"Failed to load plugin {plugin_name}: {e}")
     
-    # Component registration methods
-    def register_environment(self, env_cls):
-        """Register environment class
+    # ==================== Model Registration ====================
+    def registerModel(self, model: Module, model_name: str):
+        """将模型注册到模型字典中
         
         Args:
-            env_cls: Environment class
+            model: 模型实例
+            model_name: 模型名称
+        """
+        # 检测当前模型是否已经注册
+        if model_name in self.models_dict_:
+            logger.error("model {} already exists!".format(model_name))
+            raise ValueError("model {} already exists!".format(model_name))
+
+        model_dict = {
+            'model': model,
+            'status': {}  # 简化状态管理
+        }
+
+        self.models_dict_[model_name] = model_dict
+        logger.info(f"Successfully registered model: {model_name}")
+
+    def getModel(self, model_name: str) -> Dict[str, Any]:
+        """获取模型实例和当前状态
+        
+        Args:
+            model_name: 模型名称
             
         Returns:
-            Wrapper function
+            模型字典，包含 'model' 和 'status' 键
+        """
+        if model_name not in self.models_dict_:
+            logger.error("model {} not exists!".format(model_name))
+            raise ValueError("model {} not exists!".format(model_name))
+
+        return self.models_dict_[model_name]
+
+    # ==================== Environment Registration ====================
+    def registerEnv(self, env_cls):
+        """注册环境实例，方便集中管理
+        
+        Args:
+            env_cls: 环境类
         """
         def wrapper(*args, **kwargs):
+            """注册环境实例"""
             env_instance = env_cls(*args, **kwargs)
-            self._environment = env_instance
-            self.registry.register('environment', env_instance)
-            self.lifecycle_manager.set_component_state('environment', 'running')
-            logger.info(f"Registered environment: {getattr(env_instance, 'name', 'Unknown')}")
+            
+            # 记录环境实例
+            self.env_ = env_instance
+            
+            env_name = getattr(env_instance, 'name', 'Unknown')
+            logger.info(f"Successfully registered env: {env_name}")
+            
             return env_instance
+        
         return wrapper
-    
-    def register_agent(self, agent_cls):
-        """Register agent class
+
+    def getEnv(self):
+        """获取环境实例
+        
+        Returns:
+            环境实例
+        """
+        if self.env_ is None:
+            logger.error("env not exists!")
+            raise ValueError("env not exists!")
+        
+        return self.env_
+
+    # ==================== Agent Registration ====================
+    def registerAgent(self, agent_cls):
+        """注册智能体实例，方便集中管理
         
         Args:
-            agent_cls: Agent class
-            
-        Returns:
-            Wrapper function
+            agent_cls: 智能体类
         """
         def wrapper(*args, **kwargs):
-            if self._agent is not None:
-                logger.warning("Agent already registered, replacing...")
+            """注册智能体实例"""
+            if self.agent_ is not None:
+                logger.error('currently do not support multiple agents!')
+                raise ValueError("agent already exists!")
             
-            agent_instance = agent_cls(*args, **kwargs)
-            self._agent = agent_instance
-            self.registry.register('agent', agent_instance, replace=True)
-            self.lifecycle_manager.set_component_state('agent', 'running')
-            logger.info(f"Registered agent: {getattr(agent_instance, 'name', 'Unknown')}")
-            return agent_instance
+            self.agent_ = agent_cls(*args, **kwargs)
+            
+            agent_name = getattr(self.agent_, 'name', 'Unknown')
+            logger.info(f"Successfully registered agent: {agent_name}")
+            
+            return self.agent_
+        
         return wrapper
-    
-    def register_data_manager(self, data_manager_cls):
-        """Register data manager class
+
+    def getAgent(self):
+        """获取智能体实例
+        
+        Returns:
+            智能体实例
+        """
+        if self.agent_ is None:
+            logger.error("Agent not exists!")
+            raise ValueError("Agent not exists!")
+        
+        return self.agent_
+
+    # ==================== Data Unit Registration ====================
+    def registerDataUnit(self, data_unit_cls):
+        """注册数据单元实例，方便集中管理
         
         Args:
-            data_manager_cls: Data manager class
+            data_unit_cls: 数据单元类
+        """
+        def wrapper(*args, **kwargs):
+            """注册数据单元实例"""
+            data_unit_instance = data_unit_cls(*args, **kwargs)
+            
+            # 记录数据单元实例
+            unit_name = getattr(data_unit_instance, 'name', data_unit_cls.__name__)
+            self.data_units_[unit_name] = data_unit_instance
+            
+            logger.info(f"Successfully registered data unit: {unit_name}")
+            
+            return data_unit_instance
+        
+        return wrapper
+
+    def getDataUnit(self, unit_name: str):
+        """获取数据单元实例
+        
+        Args:
+            unit_name: 数据单元名称
+            
+        Returns:
+            数据单元实例
+        """
+        if unit_name not in self.data_units_:
+            logger.error(f"Data unit {unit_name} not exists!")
+            raise ValueError(f"Data unit {unit_name} not exists!")
+        
+        return self.data_units_[unit_name]
+
+    # ==================== File System Registration ====================
+    def registerFileSystem(self, file_system_cls):
+        """注册文件系统实例，方便集中管理
+        
+        Args:
+            file_system_cls: 文件系统类
+        """
+        def wrapper(*args, **kwargs):
+            """注册文件系统实例"""
+            if self.file_system_ is not None:
+                logger.error("file system already exists!")
+                raise ValueError("file system already exists!")
+            
+            self.file_system_ = file_system_cls(*args, **kwargs)
+            
+            logger.info("Successfully registered file system")
+            
+            return self.file_system_
+        
+        return wrapper
+
+    def getFileSystem(self):
+        """获取文件系统实例
+        
+        Returns:
+            文件系统实例
+        """
+        if self.file_system_ is None:
+            logger.error("File system not exists!")
+            raise ValueError("File system not exists!")
+        
+        return self.file_system_
+
+    # ==================== Communicator Registration ====================
+    def registerCommunicator(self, communicator_cls):
+        """注册通信器实例，方便集中管理
+        
+        Args:
+            communicator_cls: 通信器类
+        """
+        def wrapper(*args, **kwargs):
+            """注册通信器实例"""
+            if self.communicator_ is not None:
+                logger.error('currently do not support multiple communicators!')
+                raise ValueError("communicator already exists!")
+            
+            self.communicator_ = communicator_cls(*args, **kwargs)
+            
+            comm_name = getattr(self.communicator_, 'name', 'Unknown')
+            logger.info(f"Successfully registered communicator: {comm_name}")
+            
+            return self.communicator_
+        
+        return wrapper
+
+    def getCommunicator(self):
+        """获取通信器实例
+        
+        Returns:
+            通信器实例
+        """
+        if self.communicator_ is None:
+            logger.error("Communicator not exists!")
+            raise ValueError("Communicator not exists!")
+        
+        return self.communicator_
+
+    # ==================== Runner Registration ====================
+    def registerRunner(self, runner_name: str):
+        """注册runner名称，用于记录当前运行的runner名称
+        
+        Args:
+            runner_name: runner名称
+        """
+        self.runner_name_ = runner_name
+        
+        if self.file_system_ is None:
+            logger.warning("file system not exists!")
+            logger.warning("do not forget to configure runner in file system!")
+        else:
+            self.file_system_.configRunner(runner_name)
+            logger.info(f"Successfully registered runner: {runner_name}")
+
+    def getRunner(self) -> str:
+        """获取runner名称
+        
+        Returns:
+            runner名称
+        """
+        if self.runner_name_ is None:
+            logger.error("Runner not exists!")
+            raise ValueError("Runner not exists!")
+        
+        return self.runner_name_
+
+    # ==================== Data Manager Registration ====================
+    def register_data_manager(self, data_manager_cls):
+        """注册数据管理器类
+        
+        Args:
+            data_manager_cls: 数据管理器类
             
         Returns:
             Wrapper function
@@ -189,136 +531,102 @@ class AquaMLCoordinator:
         def wrapper(*args, **kwargs):
             data_manager_instance = data_manager_cls(*args, **kwargs)
             self._data_manager = data_manager_instance
-            self.registry.register('data_manager', data_manager_instance)
-            self.lifecycle_manager.set_component_state('data_manager', 'running')
-            logger.info("Registered data manager")
+            logger.info("Successfully registered data manager")
             return data_manager_instance
         return wrapper
-    
-    # Component access methods
-    def get_environment(self):
-        """Get registered environment"""
-        return self._environment or self.registry.get('environment')
-    
-    def get_agent(self):
-        """Get registered agent"""
-        return self._agent or self.registry.get('agent')
-    
+
     def get_data_manager(self):
-        """Get registered data manager"""
-        return self._data_manager or self.registry.get('data_manager')
-    
+        """获取注册的数据管理器"""
+        if self._data_manager is None:
+            logger.error("Data manager not exists!")
+            raise ValueError("Data manager not exists!")
+        return self._data_manager
+
+    # ==================== Data Management ====================
+    def saveDataUnitInfo(self):
+        """保存数据单元信息"""
+        if self.runner_name_ is None:
+            logger.error("runner name not exists!")
+            raise ValueError("runner name not exists!")
+
+        save_dict = {}
+
+        # 将数据单元的状态保存到字典中
+        for key, value in self.data_units_.items():
+            try:
+                save_dict[key] = value.getUnitStatusDict()
+            except AttributeError:
+                logger.warning(f"Data unit {key} does not have getUnitStatusDict method")
+                save_dict[key] = {}
+
+        # 保存数据单元到文件系统中
+        if self.file_system_ is not None:
+            self.file_system_.saveDataUnit(
+                runner_name=self.runner_name_,
+                data_unit_status=save_dict)
+            logger.info(f"Saved data unit info for {len(save_dict)} units")
+        else:
+            logger.warning("File system not available, cannot save data unit info")
+
+    # ==================== Plugin and Config Management ====================
     def get_plugin_manager(self):
-        """Get plugin manager"""
+        """获取插件管理器"""
         return self._plugin_manager
     
     def get_config_manager(self):
-        """Get configuration manager"""
+        """获取配置管理器"""
         return self._config_manager
-    
-    # Legacy API compatibility methods
-    def registerModel(self, model, model_name: str):
-        """Legacy API: Register model (compatibility method)"""
-        logger.warning("registerModel is deprecated, use registry.register instead")
-        self.registry.register(f'model_{model_name}', model)
-        logger.info(f"Registered model: {model_name}")
+
+    # ==================== Utility Methods ====================
+    def list_components(self) -> Dict[str, int]:
+        """列出所有已注册的组件
         
-    def registerEnv(self, env_cls):
-        """Legacy API: Register environment (compatibility method)"""
-        logger.warning("registerEnv is deprecated, use register_environment instead")
-        return self.register_environment(env_cls)
-    
-    def registerAgent(self, agent_cls):
-        """Legacy API: Register agent (compatibility method)"""
-        logger.warning("registerAgent is deprecated, use register_agent instead")
-        return self.register_agent(agent_cls)
-    
-    def registerDataUnit(self, data_unit_cls):
-        """Legacy API: Register data unit (compatibility method)"""
-        logger.warning("registerDataUnit is deprecated, use register_data_manager instead")
-        
-        def wrapper(*args, **kwargs):
-            data_unit_instance = data_unit_cls(*args, **kwargs)
-            unit_name = getattr(data_unit_instance, 'name', data_unit_cls.__name__)
-            self.registry.register(f'data_unit_{unit_name}', data_unit_instance)
-            logger.info(f"Registered data unit: {unit_name}")
-            return data_unit_instance
-        return wrapper
-    
-    def registerFileSystem(self, file_system_cls):
-        """Legacy API: Register file system (compatibility method)"""
-        logger.warning("registerFileSystem is deprecated, use register_data_manager instead")
-        
-        def wrapper(*args, **kwargs):
-            file_system_instance = file_system_cls(*args, **kwargs)
-            self.registry.register('file_system', file_system_instance)
-            logger.info("Registered file system")
-            return file_system_instance
-        return wrapper
-    
-    def registerCommunicator(self, communicator_cls):
-        """Legacy API: Register communicator (compatibility method)"""
-        logger.warning("registerCommunicator is deprecated, use registry.register instead")
-        
-        def wrapper(*args, **kwargs):
-            communicator_instance = communicator_cls(*args, **kwargs)
-            self.registry.register('communicator', communicator_instance)
-            logger.info("Registered communicator")
-            return communicator_instance
-        return wrapper
-    
-    def registerRunner(self, runner_name: str):
-        """Legacy API: Register runner (compatibility method)"""
-        logger.warning("registerRunner is deprecated, use registry.register instead")
-        self.registry.register('runner_name', runner_name)
-        logger.info(f"Registered runner: {runner_name}")
-    
-    def getModel(self, model_name: str):
-        """Legacy API: Get model (compatibility method)"""
-        logger.warning("getModel is deprecated, use registry.get instead")
-        return self.registry.get(f'model_{model_name}')
-    
-    def getEnv(self):
-        """Legacy API: Get environment (compatibility method)"""
-        logger.warning("getEnv is deprecated, use get_environment instead")
-        return self.get_environment()
-    
-    def getAgent(self):
-        """Legacy API: Get agent (compatibility method)"""
-        logger.warning("getAgent is deprecated, use get_agent instead")
-        return self.get_agent()
-    
-    def saveDataUnitInfo(self):
-        """Legacy API: Save data unit info (compatibility method)"""
-        logger.warning("saveDataUnitInfo is deprecated, use lifecycle_manager instead")
-        # 基础实现 - 可以根据需要扩展
-        data_units = {name: component for name, component in self.registry._components.items() 
-                     if name.startswith('data_unit_')}
-        logger.info(f"Saved data unit info for {len(data_units)} units")
-    
-    # Utility methods
-    def is_component_registered(self, component_name: str) -> bool:
-        """Check if component is registered"""
-        return self.registry.has(component_name)
-    
-    def get_component_state(self, component_name: str) -> Optional[str]:
-        """Get component state"""
-        return self.lifecycle_manager.get_component_state(component_name)
-    
-    def list_components(self) -> list:
-        """List all registered components"""
-        return self.registry.list_components()
-    
+        Returns:
+            组件类型及数量的字典
+        """
+        components = {
+            'models': len(self.models_dict_),
+            'data_units': len(self.data_units_),
+            'environment': 1 if self.env_ is not None else 0,
+            'agent': 1 if self.agent_ is not None else 0,
+            'file_system': 1 if self.file_system_ is not None else 0,
+            'communicator': 1 if self.communicator_ is not None else 0,
+            'data_manager': 1 if self._data_manager is not None else 0,
+            'runner': 1 if self.runner_name_ is not None else 0
+        }
+        return components
+
     def get_status(self) -> Dict[str, Any]:
-        """Get coordinator status"""
+        """获取协调器状态
+        
+        Returns:
+            状态字典
+        """
         return {
             'initialized': self._initialized,
-            'lifecycle_initialized': self.lifecycle_manager.is_initialized,
-            'registered_components': len(self.registry),
-            'component_states': self.lifecycle_manager.get_all_component_states(),
-            'components': self.registry.list_components()
+            'components': self.list_components(),
+            'device_info': self.get_device_info(),
+            'runner_name': self.runner_name_
         }
-    
+
+    def shutdown(self) -> None:
+        """关闭协调器"""
+        try:
+            # 清空所有组件引用
+            self.models_dict_.clear()
+            self.data_units_.clear()
+            self.env_ = None
+            self.agent_ = None
+            self.file_system_ = None
+            self.communicator_ = None
+            self._data_manager = None
+            self.runner_name_ = None
+            
+            logger.info("AquaML Coordinator shutdown completed")
+            
+        except Exception as e:
+            logger.error(f"Error during coordinator shutdown: {e}")
+
     def __enter__(self):
         """Context manager entry"""
         return self

@@ -92,9 +92,37 @@ AquaML/
 
 ### 4. Core Module (`core/`)
 
-**Purpose**: Provides core utilities and base classes used throughout the system.
+**Purpose**: Provides the core coordinator system and infrastructure components for the entire framework.
 
 **Key Components**:
+
+#### 4.1 Coordinator (`coordinator.py`)
+- **`AquaMLCoordinator`**: Main coordinator class (singleton pattern)
+  - Manages all system component registration and access
+  - Direct storage of component instances, avoiding complex registration systems
+  - Unified device management (CPU/GPU auto-detection and selection)
+  - Simplified API design for ease of use and debugging
+
+- **Main Functions**:
+  - **Model Management**: `registerModel()`, `getModel()` - Register and retrieve machine learning models
+  - **Environment Management**: `registerEnv()`, `getEnv()` - Register and retrieve reinforcement learning environments
+  - **Agent Management**: `registerAgent()`, `getAgent()` - Register and retrieve reinforcement learning agents
+  - **Data Unit Management**: `registerDataUnit()`, `getDataUnit()` - Register and retrieve data units
+  - **File System Management**: `registerFileSystem()`, `getFileSystem()` - Register and retrieve file systems
+  - **Communicator Management**: `registerCommunicator()`, `getCommunicator()` - Register and retrieve communicators
+  - **Runner Management**: `registerRunner()`, `getRunner()` - Register and retrieve runner names
+  - **Device Management**: GPU/CPU auto-detection, device selection and validation
+
+#### 4.2 Device Management (`device_info.py`)
+- **`GPUInfo`**: GPU information data structure
+- **`detect_gpu_devices()`**: Auto-detect available GPU devices
+- **`get_optimal_device()`**: Select optimal compute device
+
+#### 4.3 Exception Handling (`exceptions.py`)
+- **`AquaMLException`**: Framework base exception class
+- Other specific exception classes
+
+#### 4.4 Other Core Components
 - **`DataModule.py`**: Data management and processing
 - **`DataUnit.py`**: Basic data unit definitions
 - **`Tool.py`**: Utility functions and tools
@@ -106,11 +134,44 @@ AquaML/
 - **`Protocol.py`**: System protocols
 - **`TaskBase.py`**: Task base definitions
 
-**Main Features**:
-- Data structure management
-- File I/O operations
-- System utilities
-- Protocol definitions
+**Design Features**:
+- **Simplified Architecture**: Removed complex lifecycle management and component registration systems
+- **Direct Storage**: Components are stored directly in coordinator attributes, easy to access and debug
+- **Intelligent Device Management**: Auto-detection and selection of optimal compute devices
+- **Singleton Pattern**: Ensures globally unique coordinator instance
+- **Type Safety**: Clear component types and error handling
+
+**Usage Example**:
+```python
+from AquaML.core.coordinator import get_coordinator
+
+# Get coordinator instance
+coordinator = get_coordinator()
+
+# Register model
+coordinator.registerModel(my_model, "my_model")
+
+# Register environment
+@coordinator.registerEnv
+class MyEnvironment:
+    def __init__(self):
+        self.name = "CartPole"
+
+# Register agent
+@coordinator.registerAgent  
+class MyAgent:
+    def __init__(self):
+        self.name = "DQNAgent"
+
+# Get components
+model_info = coordinator.getModel("my_model")
+env = coordinator.getEnv()
+agent = coordinator.getAgent()
+
+# Device management
+coordinator.set_device("cuda:0")  # Set GPU
+device = coordinator.get_device()  # Get current device
+```
 
 ### 5. Communicator Module (`communicator/`)
 

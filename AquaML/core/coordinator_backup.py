@@ -308,325 +308,269 @@ class AquaMLCoordinator:
             except Exception as e:
                 logger.error(f"Failed to load plugin {plugin_name}: {e}")
 
-    # ==================== Model Management Interface ====================
-    def registerModel(self, model: Module, model_name: str) -> None:
-        """Register model with the coordinator
+        # ==================== Model Registration ====================
+
+    def registerModel(self, model: Module, model_name: str):
+        """将模型注册到模型字典中
 
         Args:
-            model: Model instance
-            model_name: Model name
+            model: 模型实例
+            model_name: 模型名称
         """
         self.model_manager.register_model(model, model_name)
 
     def getModel(self, model_name: str) -> Dict[str, Any]:
-        """Get model by name
+        """获取模型实例和当前状态
 
         Args:
-            model_name: Model name
+            model_name: 模型名称
 
         Returns:
-            Model dictionary containing model instance and status
+            模型字典，包含 'model' 和 'status' 键
         """
         return self.model_manager.get_model(model_name)
 
-    def get_model_manager(self) -> ModelManager:
-        """Get model manager instance
-
-        Returns:
-            ModelManager instance
-        """
-        return self.model_manager
-
-    # ==================== Environment Management Interface ====================
-    def registerEnv(self, env_cls):
-        """Register environment with the coordinator
-
+    # ==================== Environment Registration ====================
+        def registerEnv(self, env_cls):
+        """注册环境实例，方便集中管理
+        
         Args:
-            env_cls: Environment class
-
-        Returns:
-            Wrapper function
+            env_cls: 环境类
         """
         return self.environment_manager.register_env(env_cls)
 
     def getEnv(self):
-        """Get environment instance
-
+        """获取环境实例
+        
         Returns:
-            Environment instance
+            环境实例
         """
         return self.environment_manager.get_env()
 
-    def get_environment_manager(self) -> EnvironmentManager:
-        """Get environment manager instance
-
-        Returns:
-            EnvironmentManager instance
-        """
-        return self.environment_manager
-
-    # ==================== Agent Management Interface ====================
-    def registerAgent(self, agent_cls):
-        """Register agent with the coordinator
-
+    # ==================== Agent Registration ====================
+        def registerAgent(self, agent_cls):
+        """注册智能体实例，方便集中管理
+        
         Args:
-            agent_cls: Agent class
-
-        Returns:
-            Wrapper function
+            agent_cls: 智能体类
         """
         return self.agent_manager.register_agent(agent_cls)
 
     def getAgent(self):
-        """Get agent instance
-
+        """获取智能体实例
+        
         Returns:
-            Agent instance
+            智能体实例
         """
         return self.agent_manager.get_agent()
 
-    def get_agent_manager(self) -> AgentManager:
-        """Get agent manager instance
-
-        Returns:
-            AgentManager instance
-        """
-        return self.agent_manager
-
-    # ==================== Data Unit Management Interface ====================
-    def registerDataUnit(self, data_unit_cls):
-        """Register data unit with the coordinator
-
+    # ==================== Data Unit Registration ====================
+        def registerDataUnit(self, data_unit_cls):
+        """注册数据单元实例，方便集中管理
+        
         Args:
-            data_unit_cls: Data unit class
-
-        Returns:
-            Wrapper function
+            data_unit_cls: 数据单元类
         """
         return self.data_unit_manager.register_data_unit(data_unit_cls)
 
     def getDataUnit(self, unit_name: str):
-        """Get data unit by name
-
+        """获取数据单元实例
+        
         Args:
-            unit_name: Data unit name
-
+            unit_name: 数据单元名称
+            
         Returns:
-            Data unit instance
+            数据单元实例
         """
         return self.data_unit_manager.get_data_unit(unit_name)
 
-    def get_data_unit_manager(self) -> DataUnitManager:
-        """Get data unit manager instance
-
-        Returns:
-            DataUnitManager instance
-        """
-        return self.data_unit_manager
-
-    # ==================== File System Management Interface ====================
-    def registerFileSystem(self, file_system_cls):
-        """Register file system with the coordinator
-
+    # ==================== File System Registration ====================
+        def registerFileSystem(self, file_system_cls):
+        """注册文件系统实例，方便集中管理
+        
         Args:
-            file_system_cls: File system class
-
-        Returns:
-            Wrapper function
+            file_system_cls: 文件系统类
         """
         return self.file_system_manager.register_file_system(file_system_cls)
 
     def getFileSystem(self):
-        """Get file system instance
-
+        """获取文件系统实例
+        
         Returns:
-            File system instance
+            文件系统实例
         """
         return self.file_system_manager.get_file_system()
 
-    def get_file_system_manager(self) -> FileSystemManager:
-        """Get file system manager instance
-
-        Returns:
-            FileSystemManager instance
-        """
-        return self.file_system_manager
-
-    # ==================== Communicator Management Interface ====================
+    # ==================== Communicator Registration ====================
     def registerCommunicator(self, communicator_cls):
-        """Register communicator with the coordinator
+        """注册通信器实例，方便集中管理
 
         Args:
-            communicator_cls: Communicator class
-
-        Returns:
-            Wrapper function
+            communicator_cls: 通信器类
         """
-        return self.communicator_manager.register_communicator(communicator_cls)
+
+        def wrapper(*args, **kwargs):
+            """注册通信器实例"""
+            if self.communicator_ is not None:
+                logger.error("currently do not support multiple communicators!")
+                raise ValueError("communicator already exists!")
+
+            self.communicator_ = communicator_cls(*args, **kwargs)
+
+            comm_name = getattr(self.communicator_, "name", "Unknown")
+            logger.info(f"Successfully registered communicator: {comm_name}")
+
+            return self.communicator_
+
+        return wrapper
 
     def getCommunicator(self):
-        """Get communicator instance
+        """获取通信器实例
 
         Returns:
-            Communicator instance
+            通信器实例
         """
-        return self.communicator_manager.get_communicator()
+        if self.communicator_ is None:
+            logger.error("Communicator not exists!")
+            raise ValueError("Communicator not exists!")
 
-    def get_communicator_manager(self) -> CommunicatorManager:
-        """Get communicator manager instance
+        return self.communicator_
 
-        Returns:
-            CommunicatorManager instance
-        """
-        return self.communicator_manager
-
-    # ==================== Data Manager Interface ====================
-    def register_data_manager(self, data_manager_cls):
-        """Register data manager with the coordinator
+    # ==================== Runner Registration ====================
+    def registerRunner(self, runner_name: str):
+        """注册runner名称，用于记录当前运行的runner名称
 
         Args:
-            data_manager_cls: Data manager class
+            runner_name: runner名称
+        """
+        self.runner_name_ = runner_name
+
+        if self.file_system_ is None:
+            logger.warning("file system not exists!")
+            logger.warning("do not forget to configure runner in file system!")
+        else:
+            self.file_system_.configRunner(runner_name)
+            logger.info(f"Successfully registered runner: {runner_name}")
+
+    def getRunner(self) -> str:
+        """获取runner名称
+
+        Returns:
+            runner名称
+        """
+        if self.runner_name_ is None:
+            logger.error("Runner not exists!")
+            raise ValueError("Runner not exists!")
+
+        return self.runner_name_
+
+    # ==================== Data Manager Registration ====================
+    def register_data_manager(self, data_manager_cls):
+        """注册数据管理器类
+
+        Args:
+            data_manager_cls: 数据管理器类
 
         Returns:
             Wrapper function
         """
-        return self.data_manager.register_data_manager(data_manager_cls)
+
+        def wrapper(*args, **kwargs):
+            data_manager_instance = data_manager_cls(*args, **kwargs)
+            self._data_manager = data_manager_instance
+            logger.info("Successfully registered data manager")
+            return data_manager_instance
+
+        return wrapper
 
     def get_data_manager(self):
-        """Get data manager instance
-
-        Returns:
-            Data manager instance
-        """
-        return self.data_manager.get_data_manager()
-
-    def get_data_manager_manager(self) -> DataManager:
-        """Get data manager manager instance
-
-        Returns:
-            DataManager instance
-        """
-        return self.data_manager
-
-    # ==================== Runner Management Interface ====================
-    def registerRunner(self, runner_name: str) -> None:
-        """Register runner with the coordinator
-
-        Args:
-            runner_name: Runner name
-        """
-        self.runner_manager.register_runner(runner_name)
-
-        # Configure runner in file system if available
-        if self.file_system_manager.file_system_exists():
-            try:
-                self.file_system_manager.config_runner(runner_name)
-            except Exception as e:
-                logger.warning(f"Failed to configure runner in file system: {e}")
-        else:
-            logger.warning("File system not available for runner configuration")
-
-    def getRunner(self) -> str:
-        """Get runner name
-
-        Returns:
-            Runner name
-        """
-        return self.runner_manager.get_runner()
-
-    def get_runner_manager(self) -> RunnerManager:
-        """Get runner manager instance
-
-        Returns:
-            RunnerManager instance
-        """
-        return self.runner_manager
+        """获取注册的数据管理器"""
+        if self._data_manager is None:
+            logger.error("Data manager not exists!")
+            raise ValueError("Data manager not exists!")
+        return self._data_manager
 
     # ==================== Data Management ====================
     def saveDataUnitInfo(self):
-        """Save data unit information"""
-        try:
-            runner_name = self.runner_manager.get_runner()
-            self.data_unit_manager.save_data_unit_info(
-                runner_name, self.file_system_manager
+        """保存数据单元信息"""
+        if self.runner_name_ is None:
+            logger.error("runner name not exists!")
+            raise ValueError("runner name not exists!")
+
+        save_dict = {}
+
+        # 将数据单元的状态保存到字典中
+        for key, value in self.data_units_.items():
+            try:
+                save_dict[key] = value.getUnitStatusDict()
+            except AttributeError:
+                logger.warning(
+                    f"Data unit {key} does not have getUnitStatusDict method"
+                )
+                save_dict[key] = {}
+
+        # 保存数据单元到文件系统中
+        if self.file_system_ is not None:
+            self.file_system_.saveDataUnit(
+                runner_name=self.runner_name_, data_unit_status=save_dict
             )
-        except Exception as e:
-            logger.error(f"Failed to save data unit info: {e}")
+            logger.info(f"Saved data unit info for {len(save_dict)} units")
+        else:
+            logger.warning("File system not available, cannot save data unit info")
 
     # ==================== Plugin and Config Management ====================
     def get_plugin_manager(self):
-        """Get plugin manager instance"""
+        """获取插件管理器"""
         return self._plugin_manager
 
     def get_config_manager(self):
-        """Get config manager instance"""
+        """获取配置管理器"""
         return self._config_manager
 
     # ==================== Utility Methods ====================
     def list_components(self) -> Dict[str, int]:
-        """List all registered components
+        """列出所有已注册的组件
 
         Returns:
-            Dictionary of component types and counts
+            组件类型及数量的字典
         """
         components = {
-            "models": self.model_manager.get_models_count(),
-            "data_units": self.data_unit_manager.get_data_units_count(),
-            "environment": 1 if self.environment_manager.env_exists() else 0,
-            "agent": 1 if self.agent_manager.agent_exists() else 0,
-            "file_system": 1 if self.file_system_manager.file_system_exists() else 0,
-            "communicator": 1 if self.communicator_manager.communicator_exists() else 0,
-            "data_manager": 1 if self.data_manager.data_manager_exists() else 0,
-            "runner": 1 if self.runner_manager.runner_exists() else 0,
+            "models": len(self.models_dict_),
+            "data_units": len(self.data_units_),
+            "environment": 1 if self.env_ is not None else 0,
+            "agent": 1 if self.agent_ is not None else 0,
+            "file_system": 1 if self.file_system_ is not None else 0,
+            "communicator": 1 if self.communicator_ is not None else 0,
+            "data_manager": 1 if self._data_manager is not None else 0,
+            "runner": 1 if self.runner_name_ is not None else 0,
         }
         return components
 
     def get_status(self) -> Dict[str, Any]:
-        """Get coordinator status
+        """获取协调器状态
 
         Returns:
-            Status dictionary
+            状态字典
         """
         return {
             "initialized": self._initialized,
             "components": self.list_components(),
             "device_info": self.get_device_info(),
-            "runner_name": (
-                self.runner_manager.get_runner()
-                if self.runner_manager.runner_exists()
-                else None
-            ),
-        }
-
-    def get_all_managers_status(self) -> Dict[str, Any]:
-        """Get status of all managers
-
-        Returns:
-            Dictionary containing status of all managers
-        """
-        return {
-            "model_manager": self.model_manager.get_status(),
-            "environment_manager": self.environment_manager.get_status(),
-            "agent_manager": self.agent_manager.get_status(),
-            "data_unit_manager": self.data_unit_manager.get_status(),
-            "file_system_manager": self.file_system_manager.get_status(),
-            "communicator_manager": self.communicator_manager.get_status(),
-            "data_manager": self.data_manager.get_status(),
-            "runner_manager": self.runner_manager.get_status(),
+            "runner_name": self.runner_name_,
         }
 
     def shutdown(self) -> None:
-        """Shutdown the coordinator"""
+        """关闭协调器"""
         try:
-            # Clear all managers
-            self.model_manager.clear_models()
-            self.environment_manager.remove_env()
-            self.agent_manager.remove_agent()
-            self.data_unit_manager.clear_data_units()
-            self.file_system_manager.remove_file_system()
-            self.communicator_manager.remove_communicator()
-            self.data_manager.remove_data_manager()
-            self.runner_manager.remove_runner()
+            # 清空所有组件引用
+            self.models_dict_.clear()
+            self.data_units_.clear()
+            self.env_ = None
+            self.agent_ = None
+            self.file_system_ = None
+            self.communicator_ = None
+            self._data_manager = None
+            self.runner_name_ = None
 
             logger.info("AquaML Coordinator shutdown completed")
 

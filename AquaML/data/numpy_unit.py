@@ -45,3 +45,5 @@ class NumpyUnit(BaseUnit):
         """
 
         return np.dtype(self.unit_cfg_.dtype).itemsize * np.prod(self.unit_cfg_.shape)
+
+        

@@ -70,7 +70,7 @@ def main():
     
     parser.add_argument(
         "--type", "-t",
-        choices=["unit", "integration", "legacy", "all"],
+        choices=["unit", "integration", "all"],
         default="unit",
         help="Type of tests to run (default: unit)"
     )

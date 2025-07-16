@@ -1,9 +1,11 @@
 
+from typing import Any
 from loguru import logger
 from abc import ABC, abstractmethod
 from . import unitCfg
 import torch
 from dataclasses import MISSING
+import numpy as np
 
 
 class BaseUnit(ABC):
@@ -173,3 +175,12 @@ class BaseUnit(ABC):
         使用该函数时，数据并未创建，因此需要根据unit_cfg计算数据的字节数。
         """
         raise NotImplementedError
+
+    def getVirtualData(self) -> torch.Tensor:
+        """
+        获取单个虚拟的数据，用于初始化网络,数据格式为(1, *shape)
+
+        Returns:
+            torch.Tensor: 虚拟的数据。
+        """
+        return torch.zeros((1, *self.unit_cfg_.single_shape), dtype=torch.float32)

@@ -23,12 +23,17 @@ def temp_workspace():
 @pytest.fixture(scope="function")
 def clean_coordinator():
     """Provide a clean coordinator instance for each test"""
-    from AquaML import coordinator
-    # Clear any existing registrations
-    coordinator.registry.clear()
+    from AquaML.core.coordinator import get_coordinator
+    coordinator = get_coordinator()
+    
+    # Clear any existing registrations by shutting down and reinitializing
+    coordinator.shutdown()
+    coordinator = get_coordinator()
+    
     yield coordinator
+    
     # Clean up after test
-    coordinator.registry.clear()
+    coordinator.shutdown()
 
 
 @pytest.fixture(scope="session", autouse=True)

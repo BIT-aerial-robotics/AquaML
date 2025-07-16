@@ -3,8 +3,7 @@ from typing import Any
 import gymnasium as gym
 from typing import TYPE_CHECKING, Union
 import numpy as np
-if TYPE_CHECKING:
-    from AquaML.data import unitCfg
+from AquaML.data import unitCfg
 
 
 class GymnasiumWrapper(BaseEnv):
@@ -84,7 +83,18 @@ class GymnasiumWrapper(BaseEnv):
         '''
 
         action = action['action']
-
+        
+        # Ensure action is properly shaped for the environment
+        if isinstance(action, np.ndarray):
+            if action.ndim > 1:
+                action = action.squeeze()
+            # For discrete environments, convert to int
+            if hasattr(self.env.action_space, 'n'):  # Discrete action space
+                action = int(action)
+            # For environments expecting 1D arrays, ensure it's not a scalar
+            elif action.ndim == 0:
+                action = np.array([action])
+        
         next_observation, reward, done, truncated, info = self.env.step(action)
 
         if done or truncated:

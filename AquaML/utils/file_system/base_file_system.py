@@ -66,8 +66,10 @@ class BaseFileSystem(ABC):
         logger_file_name = time.strftime(
             "%Y-%m-%d-%H-%M-%S", time.localtime()) + ".log"
 
+        log_level = os.environ.get("AQUAML_LOG_LEVEL", "INFO").upper()
+
         logger.add(os.path.join(self.logger_path_,
-                   logger_file_name), rotation="100 MB")
+                   logger_file_name), rotation="100 MB", level=log_level)
 
     def configRunner(self, runner_name: str, create_first: bool = True):
         """

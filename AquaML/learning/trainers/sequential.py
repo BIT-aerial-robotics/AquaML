@@ -19,6 +19,7 @@ from loguru import logger
 from .base import BaseTrainer, TrainerConfig
 from AquaML.environment.base_env import BaseEnv
 from AquaML.learning.reinforcement.base import Agent
+from AquaML.utils.tensorboard_manager import TensorboardManager
 
 
 class SequentialTrainer(BaseTrainer):
@@ -54,6 +55,13 @@ class SequentialTrainer(BaseTrainer):
         # Initialize agents
         for agent in self.agents:
             agent.init(trainer_cfg=cfg)
+
+        # Tensorboard setup
+        self.tensorboard_manager = None
+        if self.cfg.tensorboard:
+            # Assume single agent for now
+            log_dir = self.agents[0].experiment_dir
+            self.tensorboard_manager = TensorboardManager(log_dir)
             
         logger.info("Sequential trainer initialized successfully")
         
@@ -104,35 +112,25 @@ class SequentialTrainer(BaseTrainer):
                 if len(self.agents) == 1:
                     actions_tensor = actions_list[0]
                 else:
-                    # For multiple agents, we need to combine actions
-                    # This is a simplified approach - in practice, you might need
-                    # more sophisticated action combination strategies
                     actions_tensor = self._combine_agent_actions(actions_list)
                 
-                # Convert actions to numpy for environment
                 actions_numpy = self._convert_to_numpy(actions_tensor)
                 
-                # Ensure actions have the right key structure for environment
                 if 'actions' in actions_numpy and 'action' not in actions_numpy:
                     actions_numpy['action'] = actions_numpy['actions']
                 
-                # Step the environment
                 next_states, rewards, terminated, truncated, infos = self.env.step(actions_numpy)
                 
-                # Render if not headless
                 if not self.headless:
                     try:
                         self.env.render()
                     except:
-                        pass  # Rendering might not be supported
+                        pass
                 
-                # Convert environment outputs to tensors
                 next_states_tensor = self._convert_to_tensors(next_states)
                 
-                # Handle rewards - extract the reward value from the dictionary
                 if isinstance(rewards, dict):
                     rewards_tensor = self._convert_to_tensors(rewards)
-                    # Get the actual reward values
                     rewards_value = rewards_tensor.get('reward', list(rewards_tensor.values())[0])
                 else:
                     rewards_value = torch.tensor(rewards, dtype=torch.float32, device=self.device)
@@ -140,7 +138,6 @@ class SequentialTrainer(BaseTrainer):
                 terminated_tensor = torch.tensor(terminated, dtype=torch.bool, device=self.device)
                 truncated_tensor = torch.tensor(truncated, dtype=torch.bool, device=self.device)
                 
-                # Record transitions for all agents
                 for agent in self.agents:
                     agent.record_transition(
                         states=states_tensor,
@@ -154,7 +151,6 @@ class SequentialTrainer(BaseTrainer):
                         timesteps=self.timesteps
                     )
                 
-                # Update data units
                 self._update_data_units(
                     observations=next_states,
                     actions=actions_numpy,
@@ -163,23 +159,42 @@ class SequentialTrainer(BaseTrainer):
                     truncated=truncated
                 )
                 
-                # Log environment info
                 if self.environment_info in infos:
                     self._log_environment_info(infos[self.environment_info])
                     
-            # Post-interaction phase
             for agent in self.agents:
                 agent.post_interaction(timestep=timestep, timesteps=self.timesteps)
-                
-            # Handle environment resets
+
+                # Checkpoint and log
+                if agent.checkpoint_interval > 0 and timestep % agent.checkpoint_interval == 0:
+                    agent.write_checkpoint(timestep=timestep, timesteps=self.timesteps)
+
+                if self.tensorboard_manager:
+                    for tag, values in agent.tracking_data.items():
+                        if values:
+                            self.tensorboard_manager.write(tag, values[-1], timestep)
+                    agent.tracking_data.clear()
+
             if terminated.any() or truncated.any():
+                # update best checkpoint
+                for agent in self.agents:
+                    # A simple way to get episode reward
+                    episode_reward = rewards_value.sum().item()
+                    agent.update_best_checkpoint(timestep, episode_reward)
                 with torch.no_grad():
                     states, infos = self.env.reset()
                     states_tensor = self._convert_to_tensors(states)
             else:
                 states = next_states
                 states_tensor = next_states_tensor
-                
+
+        # Final checkpoint
+        for agent in self.agents:
+            agent.write_checkpoint(timestep=self.timesteps, timesteps=self.timesteps)
+
+        if self.tensorboard_manager:
+            self.tensorboard_manager.close()
+            
         logger.info("Training completed successfully")
         
     def eval(self) -> None:

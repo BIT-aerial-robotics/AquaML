@@ -7,6 +7,8 @@ from typing import Dict, Any, Optional
 from loguru import logger
 import torch
 from torch.nn import Module
+import sys
+import os
 
 from .device_info import GPUInfo, detect_gpu_devices, get_optimal_device
 from .exceptions import AquaMLException
@@ -25,6 +27,51 @@ from .managers import (
 # Global device variables
 global_device = None
 available_devices = []
+
+
+def configure_loguru_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> None:
+    """Configure loguru logging for AquaML
+    
+    Args:
+        log_level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_file: Optional log file path. If None, logs to stdout only
+    """
+    # Remove default handler
+    logger.remove()
+    
+    # Console handler with INFO level by default
+    logger.add(
+        sys.stdout,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        level=log_level,
+        colorize=True,
+        backtrace=True,
+        diagnose=True
+    )
+    
+    # File handler if log_file is specified
+    if log_file:
+        # Create log directory if it doesn't exist
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+            
+        logger.add(
+            log_file,
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
+            level=log_level,
+            rotation="10 MB",
+            retention="7 days",
+            compression="zip",
+            backtrace=True,
+            diagnose=True
+        )
+    
+    logger.info(f"Loguru logging configured with level: {log_level}")
+
+
+# Initialize loguru logging when module is imported
+configure_loguru_logging()
 
 
 class AquaMLCoordinator:
@@ -69,6 +116,11 @@ class AquaMLCoordinator:
         self._initialized = True
 
         self.tensor_tool = TensorTool()
+        
+        # Logging configuration
+        self._log_level = "INFO"
+        self._log_file = None
+        
         logger.info("AquaML Coordinator initialized")
 
     def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
@@ -86,6 +138,9 @@ class AquaMLCoordinator:
 
             # Initialize configuration manager
             self._initialize_config_manager(config)
+
+            # Initialize logging configuration
+            self._initialize_logging_config(config)
 
             # Load plugins if configured
             if config and "plugins" in config:
@@ -288,6 +343,30 @@ class AquaMLCoordinator:
             logger.debug("Config manager initialized")
         except ImportError:
             logger.warning("Config manager not available")
+
+    def _initialize_logging_config(self, config: Optional[Dict[str, Any]]) -> None:
+        """Initialize logging configuration from config
+        
+        Args:
+            config: Configuration dictionary that may contain logging settings
+        """
+        if not config:
+            return
+            
+        logging_config = config.get("logging", {})
+        
+        # Update log level if specified
+        if "level" in logging_config:
+            self._log_level = logging_config["level"].upper()
+            
+        # Update log file if specified
+        if "file" in logging_config:
+            self._log_file = logging_config["file"]
+            
+        # Reconfigure loguru with new settings
+        if logging_config:
+            configure_loguru_logging(self._log_level, self._log_file)
+            logger.info(f"Logging reconfigured from config - Level: {self._log_level}, File: {self._log_file}")
 
     def _load_plugins(self, plugin_configs: Dict[str, Any]) -> None:
         """Load plugins from configuration
@@ -562,6 +641,69 @@ class AquaMLCoordinator:
         """Get config manager instance"""
         return self._config_manager
 
+    # ==================== Logging Management ====================
+    def set_log_level(self, level: str) -> None:
+        """Set logging level
+        
+        Args:
+            level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        """
+        self._log_level = level.upper()
+        configure_loguru_logging(self._log_level, self._log_file)
+        logger.info(f"Log level changed to: {self._log_level}")
+
+    def set_log_file(self, file_path: Optional[str]) -> None:
+        """Set log file path
+        
+        Args:
+            file_path: Path to log file. If None, disables file logging
+        """
+        self._log_file = file_path
+        configure_loguru_logging(self._log_level, self._log_file)
+        if file_path:
+            logger.info(f"Log file set to: {file_path}")
+        else:
+            logger.info("File logging disabled")
+
+    def get_log_level(self) -> str:
+        """Get current log level
+        
+        Returns:
+            Current log level
+        """
+        return self._log_level
+
+    def get_log_file(self) -> Optional[str]:
+        """Get current log file path
+        
+        Returns:
+            Current log file path or None if file logging is disabled
+        """
+        return self._log_file
+
+    def configure_logging(self, level: str = "INFO", file_path: Optional[str] = None) -> None:
+        """Configure logging settings
+        
+        Args:
+            level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+            file_path: Optional log file path
+        """
+        self._log_level = level.upper()
+        self._log_file = file_path
+        configure_loguru_logging(self._log_level, self._log_file)
+        logger.info(f"Logging configured - Level: {self._log_level}, File: {self._log_file}")
+
+    def get_logging_config(self) -> Dict[str, Any]:
+        """Get current logging configuration
+        
+        Returns:
+            Dictionary containing current logging configuration
+        """
+        return {
+            "level": self._log_level,
+            "file": self._log_file
+        }
+
     # ==================== Utility Methods ====================
     def list_components(self) -> Dict[str, int]:
         """List all registered components
@@ -591,6 +733,7 @@ class AquaMLCoordinator:
             "initialized": self._initialized,
             "components": self.list_components(),
             "device_info": self.get_device_info(),
+            "logging_config": self.get_logging_config(),
             "runner_name": (
                 self.runner_manager.get_runner()
                 if self.runner_manager.runner_exists()

@@ -101,7 +101,7 @@ class GymnasiumWrapper(BaseEnv):
             next_observation, info = self.env.reset()
 
         next_observation = np.expand_dims(next_observation, axis=[0, 1])
-        reward = np.expand_dims(reward, axis=[0, 1])
+        reward = np.array([[[reward]]])  # (1, 1, 1)
         done = np.expand_dims(done, axis=[0, 1])
         truncated = np.expand_dims(truncated, axis=[0, 1])
 

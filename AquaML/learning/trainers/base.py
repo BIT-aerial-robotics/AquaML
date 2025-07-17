@@ -28,6 +28,8 @@ class TrainerConfig:
     environment_info: str = "episode"
     stochastic_evaluation: bool = False
     device: str = "auto"
+    checkpoint_interval: int = 1000
+    tensorboard: bool = False
 
 
 class BaseTrainer(ABC):

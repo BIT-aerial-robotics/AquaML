@@ -11,6 +11,10 @@ from AquaML.utils.tool import mkdir
 import os
 import time
 import yaml
+import torch
+import pickle
+import json
+from typing import Any, Dict, Optional
 
 
 class BaseFileSystem(ABC):
@@ -195,3 +199,107 @@ class BaseFileSystem(ABC):
 
         with open(file_path, 'w') as f:
             yaml.dump(env_info, f)
+
+    # 统一路径管理接口
+    def ensureDir(self, dir_path: str) -> bool:
+        """
+        确保目录存在，如果不存在则创建
+        
+        Args:
+            dir_path (str): 目录路径
+            
+        Returns:
+            bool: True表示目录被创建，False表示目录已存在
+        """
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
+            logger.info(f"Created directory: {dir_path}")
+            return True
+        else:
+            logger.debug(f"Directory already exists: {dir_path}")
+            return False
+    
+    def getCheckpointDir(self, runner_name: str) -> str:
+        """
+        获取检查点目录路径
+        
+        Args:
+            runner_name (str): runner名称
+            
+        Returns:
+            str: 检查点目录路径
+        """
+        checkpoint_dir = os.path.join(self.queryLogPath(runner_name), "checkpoints")
+        self.ensureDir(checkpoint_dir)
+        return checkpoint_dir
+    
+    def getCheckpointPath(self, runner_name: str, checkpoint_name: str) -> str:
+        """
+        获取检查点文件路径
+        
+        Args:
+            runner_name (str): runner名称
+            checkpoint_name (str): 检查点名称
+            
+        Returns:
+            str: 检查点文件路径
+        """
+        checkpoint_dir = self.getCheckpointDir(runner_name)
+        return os.path.join(checkpoint_dir, f"{checkpoint_name}.pt")
+    
+    def getModelPath(self, runner_name: str, model_name: str) -> str:
+        """
+        获取模型文件路径
+        
+        Args:
+            runner_name (str): runner名称
+            model_name (str): 模型名称
+            
+        Returns:
+            str: 模型文件路径
+        """
+        model_dir = self.queryHistoryModelPath(runner_name)
+        self.ensureDir(model_dir)
+        return os.path.join(model_dir, f"{model_name}.pt")
+    
+    def getLogDir(self, runner_name: str) -> str:
+        """
+        获取日志目录路径（用于coordinator等）
+        
+        Args:
+            runner_name (str): runner名称
+            
+        Returns:
+            str: 日志目录路径
+        """
+        log_dir = self.queryLogPath(runner_name)
+        self.ensureDir(log_dir)
+        return log_dir
+    
+    def getTensorboardLogDir(self, runner_name: str) -> str:
+        """
+        获取TensorBoard日志目录路径
+        
+        Args:
+            runner_name (str): runner名称
+            
+        Returns:
+            str: TensorBoard日志目录路径
+        """
+        tb_dir = os.path.join(self.queryLogPath(runner_name), "tensorboard")
+        self.ensureDir(tb_dir)
+        return tb_dir
+    
+    def getExperimentDir(self, runner_name: str) -> str:
+        """
+        获取实验目录路径
+        
+        Args:
+            runner_name (str): runner名称
+            
+        Returns:
+            str: 实验目录路径
+        """
+        exp_dir = os.path.join(self.workspace_dir_, runner_name)
+        self.ensureDir(exp_dir)
+        return exp_dir

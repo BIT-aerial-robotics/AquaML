@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
-"""
-PPO Pendulum训练示例
-
-使用AquaML标准trainer进行PPO训练
-"""
-
 import torch
 import torch.nn as nn
 from typing import Dict
-from loguru import logger
 
-# 使用标准的环境包装器和训练器
-from AquaML.environment.gymnasium_envs import GymnasiumWrapper
 from AquaML.learning.model import Model
 from AquaML.learning.model.model_cfg import ModelCfg
 from AquaML.learning.reinforcement.on_policy.ppo import PPO, PPOCfg
 from AquaML.learning.model.gaussian import GaussianModel
+from AquaML.environment.gymnasium_envs import GymnasiumWrapper
 from AquaML.learning.trainers.sequential import SequentialTrainer
 from AquaML.learning.trainers.base import TrainerConfig
+
+# 自动初始化默认文件系统
+from AquaML import coordinator
 
 
 class PendulumPolicy(GaussianModel):
@@ -104,112 +99,89 @@ class PendulumValue(Model):
             values = values.unsqueeze(-1)
         
         return {"values": values}
+        
     
     def act(self, data_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         return self.compute(data_dict)
 
 
 def main():
-    """主训练函数"""
-    print("=== PPO Pendulum训练示例 ===")
-    print("使用AquaML标准trainer进行训练\n")
+    # 1. 简单注册运行器（自动使用当前时间生成名称，自动创建workspace结构）
+    runner_name = coordinator.registerRunner()
+    print(f"✓ 运行器已注册: {runner_name}")
     
-    # 1. 创建环境
+    # 获取文件系统实例（已自动初始化）
+    fs = coordinator.getFileSystem()
+    
+    # 2. 创建环境
     env = GymnasiumWrapper("Pendulum-v1")
-    print("✓ 创建Pendulum环境")
     
-    # 2. 创建模型配置
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # 3. 创建模型配置
     model_cfg = ModelCfg(
-        device=device,
+        device="cpu",
         inputs_name=["state"],
         concat_dict=False
     )
-    print(f"✓ 使用设备: {device}")
     
-    # 3. 创建策略和价值模型
+    # 4. 创建模型
     policy = PendulumPolicy(model_cfg)
     value = PendulumValue(model_cfg)
-    print("✓ 创建策略和价值网络")
     
-    # 4. 配置PPO参数 - 调整为能训练出好结果的参数
+    # 5. 配置PPO参数 - 新数据流架构的关键参数
     ppo_cfg = PPOCfg()
-    ppo_cfg.device = device
-    ppo_cfg.rollouts = 32          # 适中的rollouts
-    ppo_cfg.memory_size = 2048     # 适中的内存大小
-    ppo_cfg.learning_epochs = 8    # 适中的学习epoch
-    ppo_cfg.mini_batches = 4       # 适中的mini_batches
-    ppo_cfg.learning_rate = 3e-4   # 标准学习率
-    ppo_cfg.discount_factor = 0.99
-    ppo_cfg.lambda_value = 0.95
-    ppo_cfg.ratio_clip = 0.2
-    ppo_cfg.value_clip = 0.2
-    ppo_cfg.entropy_loss_scale = 0.01
-    ppo_cfg.value_loss_scale = 0.5
-    ppo_cfg.grad_norm_clip = 0.5
+    ppo_cfg.device = "cpu"
+    ppo_cfg.memory_size = 200
+    ppo_cfg.rollouts = 32  # 📊 关键参数：每32步触发一次训练
+    ppo_cfg.learning_epochs = 4
+    ppo_cfg.mini_batches = 2
+    ppo_cfg.learning_rate = 3e-4
     ppo_cfg.mixed_precision = False
     
-    # 5. 创建PPO智能体
+    # 6. 创建PPO智能体
     models = {"policy": policy, "value": value}
     agent = PPO(models, ppo_cfg)
-    print("✓ 创建PPO智能体")
     
-    # 6. 创建训练器配置 - 设置足够的训练步数
+    # 7. 创建训练器配置 - 简化配置，自动从agent读取参数
     trainer_cfg = TrainerConfig(
-        timesteps=10000,        # 适中的训练步数
-        headless=True,          # 无头模式
-        disable_progressbar=False,
-        close_environment_at_exit=True,
-        environment_info="episode",
-        checkpoint_interval=2000,  # 每2000步保存一次
-        device=device
+        timesteps=1000,
+        headless=True,
+        disable_progressbar=False
     )
+    # collect_interval自动从PPO的rollouts参数读取，无需手动设置
     
-    # 7. 创建并启动训练器
+    # 8. 创建训练器并开始训练 - 使用新数据流架构
     trainer = SequentialTrainer(env, agent, trainer_cfg)
-    print("✓ 创建训练器")
-    print(f"开始训练 {trainer_cfg.timesteps} 步...")
     
-    try:
-        # 开始训练
-        trainer.train()
-        print("✓ 训练完成")
-        
-        # 保存最终模型
-        agent.save("./trained_pendulum_model_final.pt")
-        print("✓ 最终模型已保存")
-        
-        # 运行评估
-        print("\n开始评估...")
-        eval_cfg = TrainerConfig(
-            timesteps=1000,
-            headless=True,           # 评估时也使用无头模式
-            disable_progressbar=False,
-            stochastic_evaluation=False,  # 使用确定性策略
-            device=device
-        )
-        
-        eval_trainer = SequentialTrainer(env, agent, eval_cfg)
-        eval_trainer.eval()
-        print("✓ 评估完成")
-        
-    except Exception as e:
-        print(f"❌ 训练过程中出现错误: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # 即使出错也保存当前模型
-        try:
-            agent.save("./trained_pendulum_model_interrupted.pt")
-            print("✓ 已保存中断时的模型")
-        except:
-            pass
+    print(f"🌊 开始使用新数据流架构训练:")
+    print(f"  📊 Rollouts: {ppo_cfg.rollouts} (每{ppo_cfg.rollouts}步训练一次)")
+    print(f"  🔄 总时间步: {trainer_cfg.timesteps}")
+    print(f"  📥 数据缓存格式: (num_env, steps, dims)")
     
-    finally:
-        # 关闭环境
-        if hasattr(env, 'close'):
-            env.close()
-        print("✓ 环境已关闭")
+    trainer.train()
+    
+    # 9. 显示训练统计信息
+    status = trainer.get_enhanced_status()
+    print(f"\n📈 训练统计:")
+    print(f"  收集步数: {status['data_flow_architecture']['collected_steps']}")
+    print(f"  训练轮次: {status['data_flow_architecture']['training_episodes']}")
+    print(f"  数据效率: {status['data_flow_architecture']['collected_steps']/trainer_cfg.timesteps:.2f}")
+    
+    # 10. 保存模型到工作目录
+    agent.save(fs.getModelPath(runner_name, "trained_model.pt"))
+    print("✅ 训练完成！模型已保存")
+    
+    # 11. 验证数据缓存功能
+    print(f"\n🔍 验证数据缓存:")
+    available_buffers = trainer.list_available_buffers()
+    print(f"  可用缓存: {available_buffers}")
+    
+    # 显示部分缓存数据信息
+    for buffer_name in available_buffers[:3]:  # 只显示前3个
+        data = trainer.get_collected_buffer_data(buffer_name)
+        if data is not None:
+            print(f"  {buffer_name}: 形状 {data.shape}")
+    
+    print(f"\n🌊 新数据流架构演示完成！")
 
 
 if __name__ == "__main__":

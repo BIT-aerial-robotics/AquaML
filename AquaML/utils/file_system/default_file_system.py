@@ -1,8 +1,6 @@
-from AquaML import coordinator
 from AquaML.utils.file_system.base_file_system import BaseFileSystem
 
 
-@coordinator.registerFileSystem
 class DefaultFileSystem(BaseFileSystem):
     """
     默认文件系统

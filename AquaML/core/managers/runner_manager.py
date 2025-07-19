@@ -5,6 +5,7 @@ This module provides specialized management for runner instances.
 
 from typing import Optional
 from loguru import logger
+from datetime import datetime
 
 
 class RunnerManager:
@@ -15,12 +16,21 @@ class RunnerManager:
         self.runner_name_ = None  # runner名称
         logger.debug("RunnerManager initialized")
 
-    def register_runner(self, runner_name: str) -> None:
+    def register_runner(self, runner_name: Optional[str] = None) -> str:
         """注册runner名称，用于记录当前运行的runner名称
 
         Args:
-            runner_name: runner名称
+            runner_name: runner名称，如果为None则自动生成日期时间名称
+
+        Returns:
+            实际使用的runner名称
         """
+        # 如果未提供runner名称，自动生成日期时间名称
+        if runner_name is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            runner_name = f"runner_{timestamp}"
+            logger.info(f"Auto-generated runner name: {runner_name}")
+        
         if self.runner_name_ is not None:
             logger.warning(
                 f"Runner already exists: {self.runner_name_}, replacing with: {runner_name}"
@@ -28,6 +38,7 @@ class RunnerManager:
 
         self.runner_name_ = runner_name
         logger.info(f"Successfully registered runner: {runner_name}")
+        return runner_name
 
     def get_runner(self) -> str:
         """获取runner名称

@@ -9,6 +9,9 @@ import copy
 import datetime
 import collections
 from packaging import version
+import time
+import yaml
+from abc import ABC, abstractmethod
 
 class Agent:
     """Base class for all AquaML agents"""
@@ -73,6 +76,22 @@ class Agent:
         self._cumulative_rewards = None
         self._cumulative_timesteps = None
         
+        # FileSystem integration - 初始化时获取，避免重复初始化
+        self._file_system = None
+        self._runner_name = None
+        self._checkpoint_dir = None
+        self._history_model_dir = None
+        try:
+            from AquaML import coordinator
+            if coordinator.file_system_manager.file_system_exists() and coordinator.runner_manager.runner_exists():
+                self._file_system = coordinator.getFileSystem()
+                self._runner_name = coordinator.getRunner()
+                self._checkpoint_dir = self._file_system.getCheckpointDir(self._runner_name)
+                self._history_model_dir = self._file_system.queryHistoryModelPath(self._runner_name)
+                logger.debug(f"FileSystem integrated: checkpoint_dir={self._checkpoint_dir}, history_model_dir={self._history_model_dir}")
+        except Exception as e:
+            logger.debug(f"FileSystem not available during agent initialization: {e}")
+        
         logger.debug(f"Agent initialized with {len(models)} models")
         
     def _get_internal_value(self, _module: Any) -> Any:
@@ -101,9 +120,16 @@ class Agent:
         if self.checkpoint_interval == "auto":
             self.checkpoint_interval = int(trainer_cfg.get("timesteps", 0) / 10)
         
-        # Create checkpoint directory
+        # Create checkpoint directory using FileSystem
         if self.checkpoint_interval > 0:
-            os.makedirs(os.path.join(self.experiment_dir, "checkpoints"), exist_ok=True)
+            try:
+                # Use coordinator's FileSystem for path management
+                file_system = coordinator.getFileSystem()
+                runner_name = coordinator.getRunner() if coordinator.runner_manager.runner_exists() else "default"
+                file_system.getCheckpointDir(runner_name)
+            except Exception:
+                # Fallback to direct creation
+                os.makedirs(os.path.join(self.experiment_dir, "checkpoints"), exist_ok=True)
     
     def track_data(self, tag: str, value: float) -> None:
         """Track data for monitoring
@@ -129,9 +155,13 @@ class Agent:
             
         tag = str(timestep if timestep is not None else datetime.datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f"))
         
-        # Create checkpoint directory if it doesn't exist
-        checkpoint_dir = os.path.join(self.experiment_dir, "checkpoints")
-        os.makedirs(checkpoint_dir, exist_ok=True)
+        # Use pre-initialized checkpoint directory
+        if self._checkpoint_dir:
+            checkpoint_dir = self._checkpoint_dir
+        else:
+            # Fallback to old behavior
+            checkpoint_dir = os.path.join(self.experiment_dir, "checkpoints")
+            os.makedirs(checkpoint_dir, exist_ok=True)
         
         # Save modules separately
         if self.checkpoint_store_separately:
@@ -148,18 +178,7 @@ class Agent:
             torch.save(modules, checkpoint_path)
             logger.info(f"Saved agent checkpoint at {checkpoint_path}")
         
-        # Save best modules
-        if self.checkpoint_best_modules["modules"] and not self.checkpoint_best_modules["saved"]:
-            if self.checkpoint_store_separately:
-                for name in self.checkpoint_modules.keys():
-                    best_path = os.path.join(checkpoint_dir, f"best_{name}.pt")
-                    torch.save(self.checkpoint_best_modules["modules"][name], best_path)
-                    logger.info(f"Saved best checkpoint for {name} at {best_path}")
-            else:
-                best_path = os.path.join(checkpoint_dir, "best_agent.pt")
-                torch.save(self.checkpoint_best_modules["modules"], best_path)
-                logger.info(f"Saved best agent checkpoint at {best_path}")
-            self.checkpoint_best_modules["saved"] = True
+        # 注意：最佳模型现在在update_best_checkpoint中立即保存，不再在这里处理
     
     def register_checkpoint_module(self, name: str, module: Any) -> None:
         """Register a module for checkpointing
@@ -186,7 +205,14 @@ class Agent:
             modules[name] = self._get_internal_value(module)
         
         # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # Use FileSystem for directory management
+        try:
+            file_system = coordinator.getFileSystem()
+            file_system.ensureDir(os.path.dirname(path))
+        except Exception:
+            # Fallback to direct creation
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+        
         torch.save(modules, path)
         logger.info(f"Agent saved to {path}")
     
@@ -224,7 +250,7 @@ class Agent:
         logger.info(f"Agent loaded from {path}")
     
     def update_best_checkpoint(self, timestep: int, reward: float) -> None:
-        """Update best checkpoint if current reward is better
+        """Update best checkpoint if current reward is better and save immediately
         
         Args:
             timestep: Current timestep
@@ -233,10 +259,34 @@ class Agent:
         if reward > self.checkpoint_best_modules["reward"]:
             self.checkpoint_best_modules["timestep"] = timestep
             self.checkpoint_best_modules["reward"] = reward
-            self.checkpoint_best_modules["saved"] = False
-            self.checkpoint_best_modules["modules"] = {
-                k: copy.deepcopy(self._get_internal_value(v)) for k, v in self.checkpoint_modules.items()
-            }
+            
+            # 立即保存最佳模型到history_model目录，避免内存积累
+            if self._history_model_dir and self.checkpoint_modules:
+                try:
+                    if self.checkpoint_store_separately:
+                        for name, module in self.checkpoint_modules.items():
+                            best_path = os.path.join(self._history_model_dir, f"best_{name}_{timestep}.pt")
+                            torch.save(self._get_internal_value(module), best_path)
+                            logger.info(f"Saved best checkpoint for {name} at {best_path}")
+                    else:
+                        modules = {k: self._get_internal_value(v) for k, v in self.checkpoint_modules.items()}
+                        best_path = os.path.join(self._history_model_dir, f"best_agent_{timestep}.pt")
+                        torch.save(modules, best_path)
+                        logger.info(f"Saved best agent checkpoint at {best_path}")
+                    
+                    self.checkpoint_best_modules["saved"] = True
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to save best checkpoint: {e}")
+                    self.checkpoint_best_modules["saved"] = False
+            else:
+                # 如果FileSystem不可用，则保存到内存中作为fallback
+                self.checkpoint_best_modules["saved"] = False
+                self.checkpoint_best_modules["modules"] = {
+                    k: copy.deepcopy(self._get_internal_value(v)) for k, v in self.checkpoint_modules.items()
+                }
+                logger.warning("FileSystem not available, storing best checkpoint in memory")
+            
             logger.info(f"New best checkpoint at timestep {timestep} with reward {reward}")
     
     def act(self, states: Dict[str, torch.Tensor], timestep: int, timesteps: int) -> Dict[str, torch.Tensor]:

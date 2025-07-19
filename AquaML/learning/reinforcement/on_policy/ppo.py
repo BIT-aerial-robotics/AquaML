@@ -12,6 +12,7 @@ from loguru import logger
 from AquaML import coordinator
 from AquaML.learning.model import Model
 from AquaML.learning.reinforcement.base import Agent
+from AquaML.learning.memory import SequentialMemory, SequentialMemoryCfg
 from AquaML.config import configclass
 from AquaML.utils.schedulers import KLAdaptiveLR
 
@@ -83,205 +84,6 @@ class PPOCfg:
     device: str = "auto"  # device to use for training
 
 
-class PPOMemory:
-    """Enhanced memory buffer for PPO algorithm with better data structure handling"""
-
-    def __init__(self, memory_size: int, device: str = "cpu"):
-        self.memory_size = memory_size
-        self.device = device
-        self.position = 0
-        self.full = False
-        self.tensors = {}
-        self.data_structure_info = {}  # Store metadata about data structures
-
-    def create_tensor(
-        self,
-        name: str,
-        size: Union[int, Tuple[int]],
-        dtype: torch.dtype = torch.float32,
-    ):
-        """Create a tensor in memory"""
-        if isinstance(size, int):
-            size = (size,)
-        self.tensors[name] = torch.zeros(
-            (self.memory_size,) + size, dtype=dtype, device=self.device
-        )
-
-    def store_data_structure(self, name: str, structure_info: Dict[str, Any]):
-        """Store metadata about dictionary data structures"""
-        self.data_structure_info[name] = structure_info
-
-    def add_samples(self, **kwargs):
-        """Add samples to memory with improved structure preservation"""
-        # Handle dictionary data with structure preservation
-        for key, value in kwargs.items():
-            if key in self.tensors:
-                if isinstance(value, dict):
-                    # Store structure info for dictionaries
-                    if key not in self.data_structure_info:
-                        self.data_structure_info[key] = {
-                            "type": "dict",
-                            "keys": list(value.keys()),
-                            "shapes": {k: v.shape for k, v in value.items() if isinstance(v, torch.Tensor)}
-                        }
-                    # Flatten the dictionary for storage
-                    flattened = self._flatten_dict_structured(value)
-                    value = flattened
-                
-                if isinstance(value, torch.Tensor):
-                    value = value.to(self.device)
-                    # Dynamic resize tensor if needed
-                    if self.tensors[key].shape[1:] != value.shape[1:]:
-                        new_shape = (self.memory_size,) + value.shape[1:]
-                        self.tensors[key] = torch.zeros(
-                            new_shape, dtype=self.tensors[key].dtype, device=self.device
-                        )
-                        logger.debug(f"Resized tensor {key} to shape {new_shape}")
-                    self.tensors[key][self.position] = value
-                else:
-                    self.tensors[key][self.position] = torch.tensor(
-                        value, device=self.device
-                    )
-
-        self.position = (self.position + 1) % self.memory_size
-        if self.position == 0:
-            self.full = True
-
-    def _flatten_dict_structured(self, data_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """Flatten dictionary with better structure preservation"""
-        tensors = []
-        for key in sorted(data_dict.keys()):
-            tensor = data_dict[key]
-            if not isinstance(tensor, torch.Tensor):
-                tensor = torch.tensor(tensor, device=self.device)
-            
-            # Ensure proper dimensions for concatenation
-            if tensor.dim() == 0:
-                tensor = tensor.unsqueeze(0).unsqueeze(0)
-            elif tensor.dim() == 1:
-                tensor = tensor.unsqueeze(0)
-            elif tensor.dim() > 2:
-                # Store original shape info for reconstruction
-                original_shape = tensor.shape
-                tensor = tensor.flatten(start_dim=1)
-            
-            tensors.append(tensor)
-        
-        if tensors:
-            return torch.cat(tensors, dim=-1)
-        else:
-            return torch.tensor([], device=self.device)
-
-    def _unflatten_dict_structured(self, flattened_tensor: torch.Tensor, structure_name: str) -> Dict[str, torch.Tensor]:
-        """Reconstruct dictionary from flattened tensor using stored structure info"""
-        if structure_name not in self.data_structure_info:
-            # Fallback to simple reconstruction
-            return {"data": flattened_tensor}
-        
-        structure_info = self.data_structure_info[structure_name]
-        if structure_info["type"] != "dict":
-            return {"data": flattened_tensor}
-        
-        result = {}
-        start_idx = 0
-        
-        for key in structure_info["keys"]:
-            if key in structure_info["shapes"]:
-                shape = structure_info["shapes"][key]
-                size = np.prod(shape[1:]) if len(shape) > 1 else 1
-                end_idx = start_idx + size
-                
-                # Extract and reshape
-                tensor_data = flattened_tensor[..., start_idx:end_idx]
-                if len(shape) > 1:
-                    tensor_data = tensor_data.reshape(tensor_data.shape[:-1] + shape[1:])
-                
-                result[key] = tensor_data
-                start_idx = end_idx
-        
-        return result
-
-    def get_tensor_by_name(self, name: str) -> torch.Tensor:
-        """Get tensor by name"""
-        if name in self.tensors:
-            if self.full:
-                return self.tensors[name]
-            else:
-                return self.tensors[name][: self.position]
-        return None
-
-    def set_tensor_by_name(self, name: str, tensor: torch.Tensor):
-        """Set tensor by name"""
-        if name in self.tensors:
-            # 确保tensor形状匹配
-            if tensor.shape != self.tensors[name].shape:
-                # 如果形状不匹配，重新创建tensor
-                self.tensors[name] = torch.zeros_like(tensor, device=self.device)
-            
-            if self.full:
-                self.tensors[name] = tensor
-            else:
-                # 确保tensor形状匹配存储空间
-                target_shape = self.tensors[name][: self.position].shape
-                if tensor.shape != target_shape:
-                    # 调整tensor形状以匹配目标形状
-                    if tensor.dim() > len(target_shape):
-                        # 如果tensor维度过多，需要压缩
-                        tensor = tensor.squeeze()
-                    elif tensor.dim() < len(target_shape):
-                        # 如果tensor维度不足，需要扩展
-                        tensor = tensor.unsqueeze(-1)
-                    
-                    # 确保形状完全匹配
-                    if tensor.shape != target_shape:
-                        tensor = tensor.view(target_shape)
-                
-                self.tensors[name][: self.position] = tensor
-
-    def sample_all(self, names: list, mini_batches: int = 1):
-        """Sample all data in mini-batches with improved efficiency"""
-        total_samples = self.memory_size if self.full else self.position
-        
-        if total_samples == 0:
-            return
-            
-        batch_size = max(1, total_samples // mini_batches)
-        
-        # Generate random permutation once for better efficiency
-        indices = torch.randperm(total_samples, device=self.device)
-
-        for i in range(mini_batches):
-            start_idx = i * batch_size
-            end_idx = min((i + 1) * batch_size, total_samples) if i < mini_batches - 1 else total_samples
-            
-            if start_idx >= end_idx:
-                continue
-                
-            batch_indices = indices[start_idx:end_idx]
-
-            batch_data = []
-            for name in names:
-                if name in self.tensors:
-                    batch_data.append(self.tensors[name][batch_indices])
-                else:
-                    batch_data.append(torch.tensor([], device=self.device))
-
-            yield batch_data
-
-    def clear(self):
-        """Clear memory"""
-        self.position = 0
-        self.full = False
-        for tensor in self.tensors.values():
-            tensor.zero_()
-
-    def get_stored_samples_count(self) -> int:
-        """Get number of stored samples"""
-        return self.memory_size if self.full else self.position
-
-    def is_ready_for_update(self, min_samples: int) -> bool:
-        """Check if memory has enough samples for update"""
-        return self.get_stored_samples_count() >= min_samples
 
 
 class PPO(Agent):
@@ -333,7 +135,12 @@ class PPO(Agent):
         self.value.to(self.device)
 
         # Setup memory
-        self.memory = PPOMemory(cfg.memory_size, self.device)
+        memory_cfg = SequentialMemoryCfg(
+            memory_size=cfg.memory_size,
+            device=self.device,
+            num_envs=1  # PPO typically works with single environment rollouts
+        )
+        self.memory = SequentialMemory(memory_cfg)
 
         # Configuration parameters
         self._learning_epochs = cfg.learning_epochs
@@ -614,8 +421,8 @@ class PPO(Agent):
         for epoch in range(self._learning_epochs):
             kl_divergences = []
 
-            # Sample fresh batches for each epoch
-            sampled_batches = self.memory.sample_all(
+            # Sample fresh batches for each epoch with shuffling for better training
+            sampled_batches = self.memory.sample_all_shuffled(
                 names=self._tensors_names, mini_batches=self._mini_batches
             )
 

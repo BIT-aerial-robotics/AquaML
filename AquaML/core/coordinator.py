@@ -29,12 +29,13 @@ global_device = None
 available_devices = []
 
 
-def configure_loguru_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> None:
+def configure_loguru_logging(log_level: str = "INFO", log_file: Optional[str] = None, file_system_instance=None) -> None:
     """Configure loguru logging for AquaML
     
     Args:
         log_level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_file: Optional log file path. If None, logs to stdout only
+        file_system_instance: Optional FileSystem instance for directory management
     """
     # Remove default handler
     logger.remove()
@@ -51,10 +52,20 @@ def configure_loguru_logging(log_level: str = "INFO", log_file: Optional[str] = 
     
     # File handler if log_file is specified
     if log_file:
-        # Create log directory if it doesn't exist
+        # Create log directory using FileSystem if available
         log_dir = os.path.dirname(log_file)
-        if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
+        if log_dir:
+            if file_system_instance:
+                try:
+                    file_system_instance.ensureDir(log_dir)
+                except Exception:
+                    # Fallback to direct creation on any error
+                    if not os.path.exists(log_dir):
+                        os.makedirs(log_dir, exist_ok=True)
+            else:
+                # Fallback to direct creation if FileSystem is not available
+                if not os.path.exists(log_dir):
+                    os.makedirs(log_dir, exist_ok=True)
             
         logger.add(
             log_file,
@@ -70,8 +81,16 @@ def configure_loguru_logging(log_level: str = "INFO", log_file: Optional[str] = 
     logger.info(f"Loguru logging configured with level: {log_level}")
 
 
-# Initialize loguru logging when module is imported
-configure_loguru_logging()
+# Basic loguru configuration for initial logging
+logger.remove()
+logger.add(
+    sys.stdout,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="INFO",
+    colorize=True,
+    backtrace=True,
+    diagnose=True
+)
 
 
 class AquaMLCoordinator:
@@ -113,15 +132,49 @@ class AquaMLCoordinator:
         self._plugin_manager = None
         self._config_manager = None
 
-        self._initialized = True
-
-        self.tensor_tool = TensorTool()
+        # Initialize default FileSystem (required component)
+        self._initialize_default_file_system()
         
         # Logging configuration
         self._log_level = "INFO"
         self._log_file = None
         
+        # Configure loguru logging with FileSystem available
+        self._configure_initial_logging()
+
+        self._initialized = True
+
+        self.tensor_tool = TensorTool()
+        
         logger.info("AquaML Coordinator initialized")
+
+    def _initialize_default_file_system(self) -> None:
+        """Initialize default FileSystem as required component"""
+        try:
+            from ..utils.file_system import DefaultFileSystem
+            
+            # Create default workspace directory
+            default_workspace = os.path.join(os.getcwd(), "aquaml_workspace")
+            file_system = DefaultFileSystem(default_workspace)
+            file_system.initFolder()
+            
+            # Register with manager
+            self.file_system_manager.set_file_system(file_system)
+            
+            logger.info(f"Default FileSystem initialized with workspace: {default_workspace}")
+        except Exception as e:
+            logger.error(f"Failed to initialize default FileSystem: {e}")
+            raise AquaMLException(f"FileSystem initialization failed: {e}")
+
+    def _configure_initial_logging(self) -> None:
+        """Configure initial logging with FileSystem available"""
+        try:
+            file_system = self.file_system_manager.get_file_system() if self.file_system_manager.file_system_exists() else None
+            configure_loguru_logging(self._log_level, self._log_file, file_system)
+        except Exception as e:
+            # Fallback to basic logging configuration
+            configure_loguru_logging(self._log_level, self._log_file, None)
+            logger.warning(f"Failed to configure logging with FileSystem: {e}")
 
     def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
         """Initialize the coordinator with configuration
@@ -363,9 +416,10 @@ class AquaMLCoordinator:
         if "file" in logging_config:
             self._log_file = logging_config["file"]
             
-        # Reconfigure loguru with new settings
+        # Reconfigure loguru with new settings using FileSystem
         if logging_config:
-            configure_loguru_logging(self._log_level, self._log_file)
+            file_system = self.file_system_manager.get_file_system() if self.file_system_manager.file_system_exists() else None
+            configure_loguru_logging(self._log_level, self._log_file, file_system)
             logger.info(f"Logging reconfigured from config - Level: {self._log_level}, File: {self._log_file}")
 
     def _load_plugins(self, plugin_configs: Dict[str, Any]) -> None:
@@ -588,22 +642,27 @@ class AquaMLCoordinator:
         return self.data_manager
 
     # ==================== Runner Management Interface ====================
-    def registerRunner(self, runner_name: str) -> None:
+    def registerRunner(self, runner_name: Optional[str] = None) -> str:
         """Register runner with the coordinator
 
         Args:
-            runner_name: Runner name
+            runner_name: Runner name, if None will auto-generate with timestamp
+
+        Returns:
+            The actual runner name used
         """
-        self.runner_manager.register_runner(runner_name)
+        actual_runner_name = self.runner_manager.register_runner(runner_name)
 
         # Configure runner in file system if available
         if self.file_system_manager.file_system_exists():
             try:
-                self.file_system_manager.config_runner(runner_name)
+                self.file_system_manager.config_runner(actual_runner_name)
             except Exception as e:
                 logger.warning(f"Failed to configure runner in file system: {e}")
         else:
             logger.warning("File system not available for runner configuration")
+            
+        return actual_runner_name
 
     def getRunner(self) -> str:
         """Get runner name
@@ -649,7 +708,8 @@ class AquaMLCoordinator:
             level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         """
         self._log_level = level.upper()
-        configure_loguru_logging(self._log_level, self._log_file)
+        file_system = self.file_system_manager.get_file_system() if self.file_system_manager.file_system_exists() else None
+        configure_loguru_logging(self._log_level, self._log_file, file_system)
         logger.info(f"Log level changed to: {self._log_level}")
 
     def set_log_file(self, file_path: Optional[str]) -> None:
@@ -659,7 +719,8 @@ class AquaMLCoordinator:
             file_path: Path to log file. If None, disables file logging
         """
         self._log_file = file_path
-        configure_loguru_logging(self._log_level, self._log_file)
+        file_system = self.file_system_manager.get_file_system() if self.file_system_manager.file_system_exists() else None
+        configure_loguru_logging(self._log_level, self._log_file, file_system)
         if file_path:
             logger.info(f"Log file set to: {file_path}")
         else:
@@ -690,7 +751,8 @@ class AquaMLCoordinator:
         """
         self._log_level = level.upper()
         self._log_file = file_path
-        configure_loguru_logging(self._log_level, self._log_file)
+        file_system = self.file_system_manager.get_file_system() if self.file_system_manager.file_system_exists() else None
+        configure_loguru_logging(self._log_level, self._log_file, file_system)
         logger.info(f"Logging configured - Level: {self._log_level}, File: {self._log_file}")
 
     def get_logging_config(self) -> Dict[str, Any]:

@@ -1,3 +1,6 @@
 """Off-policy reinforcement learning algorithms."""
 
-__all__ = [] 
+from .sac import SAC, SACCfg
+from .ddpg import DDPG, DDPGCfg
+
+__all__ = ["SAC", "SACCfg", "DDPG", "DDPGCfg"] 

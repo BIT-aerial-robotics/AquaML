@@ -33,6 +33,7 @@ class GymnasiumWrapper(BaseEnv):
                 name='state',
                 dtype=np.float32,
                 single_shape=self.env.observation_space.shape,
+                size=1,
             ),
         }
 
@@ -41,6 +42,7 @@ class GymnasiumWrapper(BaseEnv):
                 name='action',
                 dtype=np.float32,
                 single_shape=self.env.action_space.shape,
+                size=1,
             ),
         }
 
@@ -49,6 +51,7 @@ class GymnasiumWrapper(BaseEnv):
                 name='reward',
                 dtype=np.float32,
                 single_shape=(1,),
+                size=1,
             ),
         }
 
@@ -59,7 +62,7 @@ class GymnasiumWrapper(BaseEnv):
         Reset the environment to the initial state.
 
         :return: initial state and info.
-        :rtype: tuple[dict[str, np.ndarray], Union[dict[str, np.ndarray], None]]
+        :rtype: tuple[dict[str, Any], Union[dict[str, np.ndarray], None]]
         '''
         observation, info = self.env.reset()
 
@@ -69,7 +72,10 @@ class GymnasiumWrapper(BaseEnv):
 
         observation_dict = {'state': observation}
 
-        return observation_dict, info
+        # Create AquaML data units for observations
+        observation_units = self._create_data_units(observation_dict, "tensor")
+
+        return observation_units, info
 
     def step(self, action: dict[str, np.ndarray]) -> tuple[dict[str, Any], Any, bool, bool, Any]:
         '''
@@ -110,3 +116,17 @@ class GymnasiumWrapper(BaseEnv):
         next_observation_dict = {'state': next_observation}
 
         return next_observation_dict, reward_dict, done, truncated, info
+    
+    def _create_data_units(self, data_dict: dict[str, Any], mode: str = "tensor") -> dict[str, Any]:
+        """Create data units from observation dictionary
+        
+        Args:
+            data_dict: Dictionary containing observation data
+            mode: Mode for data units ("tensor" or "numpy")
+            
+        Returns:
+            Dictionary with processed data units
+        """
+        # For compatibility with existing code, just return the data_dict as-is
+        # The data is already properly formatted in reset() and step() methods
+        return data_dict

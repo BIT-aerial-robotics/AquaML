@@ -144,9 +144,14 @@ class Model(torch.nn.Module):
             >>> model.save("/tmp/model.pt", old_state_dict)
         """
         try:
-            # Create directory if it doesn't exist
-            import os
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+            # Create directory using FileSystem
+            try:
+                file_system = coordinator.getFileSystem()
+                file_system.ensureDir(os.path.dirname(path))
+            except Exception:
+                # Fallback to direct creation
+                import os
+                os.makedirs(os.path.dirname(path), exist_ok=True)
             
             # Save state dict
             torch.save(self.state_dict() if state_dict is None else state_dict, path)

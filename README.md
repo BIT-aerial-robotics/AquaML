@@ -405,25 +405,30 @@ print(f"训练器状态: {status}")
 ### 完整示例列表
 
 - `examples/ppo_pendulum_example.py` - PPO训练Pendulum环境的完整示例
-- `examples/model_saving_example.py` - 模型保存和加载功能演示
-- `examples/simple_ppo_pendulum.py` - 简化版PPO训练示例
-- `examples/env_wrapper_examples.py` - 环境包装器基础功能测试
-- `examples/advanced_wrapper_examples.py` - 高级环境包装器演示
+- `examples/sac_pendulum_example.py` - SAC算法训练示例
+- `examples/ddpg_pendulum_example.py` - DDPG算法训练示例
+- `examples/td3_example.py` - TD3算法实现示例
+- `examples/q_learning_example.py` - Q-Learning算法示例
+- `examples/trpo_example.py` - TRPO算法训练示例
+- `examples/a2c_example.py` - A2C算法实现示例
 
 ### 运行示例
 
 ```bash
-# 基本PPO训练
+# PPO算法训练
 python examples/ppo_pendulum_example.py
 
-# 模型保存演示
-python examples/model_saving_example.py
+# SAC算法训练
+python examples/sac_pendulum_example.py
 
-# 环境包装器测试
-python examples/env_wrapper_examples.py
+# DDPG算法训练
+python examples/ddpg_pendulum_example.py
 
-# 高级功能演示
-python examples/advanced_wrapper_examples.py
+# Q-Learning算法
+python examples/q_learning_example.py
+
+# 查看所有可用示例
+ls examples/
 ```
 
 ## 技术特色

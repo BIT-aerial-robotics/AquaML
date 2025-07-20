@@ -1,7 +1,7 @@
 """
 Isaac Lab环境包装器
 
-移植自skrl的IsaacLabWrapper，保持AquaML的字典数据格式和风格
+基于开源实现，适配AquaML框架的字典数据格式和风格
 """
 
 from typing import Any, Dict, Tuple, Union, Mapping
@@ -14,11 +14,11 @@ from AquaML.data import unitCfg
 from AquaML import coordinator
 
 
-@coordinator.registerEnvironment
+@coordinator.registerEnv
 class IsaacLabWrapper(Wrapper):
     """Isaac Lab单智能体环境包装器
     
-    移植自skrl的IsaacLabWrapper，保持AquaML的字典数据格式
+    基于开源实现，适配AquaML的字典数据格式
     """
     
     def __init__(self, env: Any) -> None:
@@ -169,11 +169,18 @@ class IsaacLabWrapper(Wrapper):
         if action_data.ndim == 3:
             action_data = action_data[0]  # 去掉num_machines维度
         
-        # 转换为torch tensor
-        if not isinstance(action_data, torch.Tensor):
-            action_tensor = torch.from_numpy(action_data).to(self.device)
-        else:
-            action_tensor = action_data.to(self.device)
+        # 转换为torch tensor并处理设备
+        try:
+            if not isinstance(action_data, torch.Tensor):
+                action_tensor = torch.from_numpy(action_data)
+            else:
+                action_tensor = action_data
+            
+            # 安全的设备转换
+            if action_tensor.device != self.device:
+                action_tensor = action_tensor.to(self.device)
+        except Exception as e:
+            raise RuntimeError(f"Failed to convert action to tensor on device {self.device}: {e}")
         
         # 执行步骤
         observations, reward, terminated, truncated, self._info = self.env.step(action_tensor)
@@ -243,11 +250,11 @@ class IsaacLabWrapper(Wrapper):
             self.env.close()
 
 
-@coordinator.registerEnvironment
+@coordinator.registerEnv
 class IsaacLabMultiAgentWrapper(MultiAgentEnvWrapper):
     """Isaac Lab多智能体环境包装器
     
-    移植自skrl的IsaacLabMultiAgentWrapper，保持AquaML的字典数据格式
+    基于开源实现，适配AquaML的字典数据格式
     """
     
     def __init__(self, env: Any) -> None:
@@ -323,11 +330,18 @@ class IsaacLabMultiAgentWrapper(MultiAgentEnvWrapper):
                 if action_data.ndim == 3:
                     action_data = action_data[0]
                 
-                # 转换为torch tensor
-                if not isinstance(action_data, torch.Tensor):
-                    action_tensor = torch.from_numpy(action_data).to(self.device)
-                else:
-                    action_tensor = action_data.to(self.device)
+                # 转换为torch tensor并处理设备
+                try:
+                    if not isinstance(action_data, torch.Tensor):
+                        action_tensor = torch.from_numpy(action_data)
+                    else:
+                        action_tensor = action_data
+                    
+                    # 安全的设备转换
+                    if action_tensor.device != self.device:
+                        action_tensor = action_tensor.to(self.device)
+                except Exception as e:
+                    raise RuntimeError(f"Failed to convert action for agent {agent_id} to tensor on device {self.device}: {e}")
                 
                 env_actions[agent_id] = action_tensor
         

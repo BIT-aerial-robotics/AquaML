@@ -1,7 +1,7 @@
 """
 基础环境包装器
 
-移植自skrl环境包装器，保持AquaML的字典数据格式和风格
+基于开源实现，适配AquaML框架的字典数据格式和风格
 """
 
 import abc
@@ -17,7 +17,7 @@ from AquaML.data import unitCfg
 class Wrapper(BaseEnv):
     """单智能体环境包装器基类
     
-    移植自skrl.envs.wrappers.torch.base.Wrapper
+    基于开源实现，适配AquaML框架
     保持AquaML的字典数据格式: (num_machines, num_envs, feature_dim)
     """
     
@@ -191,7 +191,7 @@ class Wrapper(BaseEnv):
 class MultiAgentEnvWrapper(BaseEnv):
     """多智能体环境包装器基类
     
-    移植自skrl.envs.wrappers.torch.base.MultiAgentEnvWrapper
+    基于开源实现，适配AquaML框架
     保持AquaML的字典数据格式
     """
     

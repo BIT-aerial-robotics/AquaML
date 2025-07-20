@@ -3,6 +3,7 @@
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 import torch
+import importlib
 from loguru import logger
 
 try:
@@ -17,7 +18,7 @@ from AquaML.environment.base_env import BaseEnv
 from AquaML import coordinator
 
 
-@coordinator.registerEnvironment
+@coordinator.registerEnv
 class PettingZooWrapper(BaseEnv):
     """Wrapper for PettingZoo environments to integrate with AquaML framework
     
@@ -61,18 +62,30 @@ class PettingZooWrapper(BaseEnv):
     def _create_environment(self):
         """Create the PettingZoo environment"""
         try:
+            # 安全的动态导入
+            module_name = f"pettingzoo.{self.env_name}"
+            module = importlib.import_module(module_name)
+            
             if self.parallel:
-                # Import parallel environment
-                exec(f"from pettingzoo.{self.env_name} import parallel_env")
-                self._env = eval(f"parallel_env(**self.env_kwargs)")
+                # 导入parallel环境
+                if not hasattr(module, 'parallel_env'):
+                    raise AttributeError(f"Module {module_name} does not have 'parallel_env'")
+                env_func = getattr(module, 'parallel_env')
             else:
-                # Import AEC environment
-                exec(f"from pettingzoo.{self.env_name} import env")
-                self._env = eval(f"env(**self.env_kwargs)")
-                
+                # 导入AEC环境
+                if not hasattr(module, 'env'):
+                    raise AttributeError(f"Module {module_name} does not have 'env'")
+                env_func = getattr(module, 'env')
+            
+            self._env = env_func(**self.env_kwargs)
             self._original_env = self._env
+            
         except ImportError as e:
             raise ImportError(f"Failed to import {self.env_name}: {e}")
+        except AttributeError as e:
+            raise AttributeError(f"Environment creation failed: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Unexpected error creating environment {self.env_name}: {e}")
     
     def _setup_agents(self):
         """Setup agent information"""

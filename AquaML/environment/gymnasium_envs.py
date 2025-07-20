@@ -7,7 +7,7 @@ from AquaML.data import unitCfg
 from AquaML import coordinator
 
 
-@coordinator.registerEnvironment
+@coordinator.registerEnv
 class GymnasiumWrapper(BaseEnv):
     '''
     The wrapper for Gymnasium environment.

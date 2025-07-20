@@ -11,7 +11,6 @@ from AquaML import coordinator
 from typing import Dict, Any, Optional
 
 
-@coordinator.registerModel
 class Model(torch.nn.Module):
 
     def __init__(self, model_cfg: ModelCfg):

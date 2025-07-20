@@ -264,7 +264,6 @@ class GaussianMixin:
         return self._g_distribution
 
 
-@coordinator.registerModel
 class GaussianModel(GaussianMixin, Model):
     """Gaussian Model combining GaussianMixin and Model base class
     

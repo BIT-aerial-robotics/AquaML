@@ -4,8 +4,10 @@ import gymnasium as gym
 from typing import TYPE_CHECKING, Union
 import numpy as np
 from AquaML.data import unitCfg
+from AquaML import coordinator
 
 
+@coordinator.registerEnvironment
 class GymnasiumWrapper(BaseEnv):
     '''
     The wrapper for Gymnasium environment.

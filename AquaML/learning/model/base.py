@@ -6,10 +6,12 @@ import gymnasium
 from AquaML import coordinator
 from AquaML.learning.model.model_cfg import ModelCfg
 from AquaML.data.base_unit import BaseUnit
+from AquaML import coordinator
 
 from typing import Dict, Any, Optional
 
 
+@coordinator.registerModel
 class Model(torch.nn.Module):
 
     def __init__(self, model_cfg: ModelCfg):

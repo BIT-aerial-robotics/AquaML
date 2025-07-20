@@ -29,13 +29,13 @@ class NumpyUnit(BaseUnit):
         self.data_ = None  # 数据
         # self.create_first_ = create_first # 是否创建矩阵
 
-    def createData(self, create_first: bool = True):
+    def createData(self):
         """
-        创建numpy数据。
-        numpy支持共享内存，当需要使用时请先创建该numpy array然后使用多线程去读取。
+        创建NumPy数据。
         """
 
-        self.data_ = np.zeros(self.unit_cfg_.shape, dtype=self.unit_cfg_.dtype)
+        self.data_ = np.zeros(
+            self.unit_cfg_.shape, dtype=self.unit_cfg_.dtype)
         logger.info("successfully create data {}".format(self.name_))
 
     def computeBytes(self) -> int:

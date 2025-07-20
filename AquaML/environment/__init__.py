@@ -5,6 +5,7 @@ AquaML环境模块
 '''
 from .base_env import BaseEnv
 from .gymnasium_envs import GymnasiumWrapper
+from .pettingzoo_wrapper import PettingZooWrapper
 
 # 导入环境包装器适配器
 try:
@@ -14,16 +15,19 @@ try:
         GymnasiumWrapperAdapter,
         auto_wrap_env
     )
+    from .wrappers.isaaclab_envs import IsaacLabWrapper, IsaacLabMultiAgentWrapper
     WRAPPERS_AVAILABLE = True
 except ImportError:
     WRAPPERS_AVAILABLE = False
 
-__all__ = ["BaseEnv", "GymnasiumWrapper"]
+__all__ = ["BaseEnv", "GymnasiumWrapper", "PettingZooWrapper"]
 
 if WRAPPERS_AVAILABLE:
     __all__.extend([
         "BaseWrapperAdapter",
         "MultiAgentWrapperAdapter", 
         "GymnasiumWrapperAdapter",
+        "IsaacLabWrapper",
+        "IsaacLabMultiAgentWrapper",
         "auto_wrap_env"
     ])

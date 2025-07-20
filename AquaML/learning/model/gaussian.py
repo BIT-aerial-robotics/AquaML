@@ -5,6 +5,7 @@ import gymnasium
 import torch
 from torch.distributions import Normal
 
+from AquaML import coordinator
 from AquaML.learning.model.base import Model
 from AquaML.learning.model.model_cfg import ModelCfg
 
@@ -263,6 +264,7 @@ class GaussianMixin:
         return self._g_distribution
 
 
+@coordinator.registerModel
 class GaussianModel(GaussianMixin, Model):
     """Gaussian Model combining GaussianMixin and Model base class
     

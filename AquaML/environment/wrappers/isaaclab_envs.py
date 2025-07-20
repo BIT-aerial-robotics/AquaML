@@ -11,8 +11,10 @@ import torch
 
 from .base import Wrapper, MultiAgentEnvWrapper
 from AquaML.data import unitCfg
+from AquaML import coordinator
 
 
+@coordinator.registerEnvironment
 class IsaacLabWrapper(Wrapper):
     """Isaac Lab单智能体环境包装器
     
@@ -241,6 +243,7 @@ class IsaacLabWrapper(Wrapper):
             self.env.close()
 
 
+@coordinator.registerEnvironment
 class IsaacLabMultiAgentWrapper(MultiAgentEnvWrapper):
     """Isaac Lab多智能体环境包装器
     

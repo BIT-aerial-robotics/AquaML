@@ -93,6 +93,7 @@ class PPO(Agent):
     where observations and actions are dictionaries, allowing flexible model inputs.
     """
 
+    @coordinator.registerAgent
     def __init__(
         self,
         models: Dict[str, Model],
@@ -134,11 +135,11 @@ class PPO(Agent):
         self.policy.to(self.device)
         self.value.to(self.device)
 
-        # Setup memory
+        # Setup memory - support multi-environment rollouts
         memory_cfg = SequentialMemoryCfg(
             memory_size=cfg.memory_size,
             device=self.device,
-            num_envs=1  # PPO typically works with single environment rollouts
+            num_envs=None  # Will be determined from environment info
         )
         self.memory = SequentialMemory(memory_cfg)
 
